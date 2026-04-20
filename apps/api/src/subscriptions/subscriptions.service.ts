@@ -508,7 +508,7 @@ export class SubscriptionsService {
       orderBy: { createdAt: 'desc' },
       take: 24,
     });
-    return history.map((s) => ({
+    return history.map((s: (typeof history)[number]) => ({
       id: s.id,
       status: this.mapStatusForClient(s.status),
       amountRwf: s.amountRwf,
@@ -665,7 +665,7 @@ export class SubscriptionsService {
       return;
     }
 
-    const listingIdsToPause = activeListings.slice(plan.maxCars).map((item) => item.id);
+    const listingIdsToPause = activeListings.slice(plan.maxCars).map((item: { id: string }) => item.id);
     if (listingIdsToPause.length === 0) {
       return;
     }
@@ -722,7 +722,7 @@ export class SubscriptionsService {
     }
 
     const hasDriverRole =
-      user.primaryRole === 'driver' || user.roles.some((item) => item.role === 'driver');
+      user.primaryRole === 'driver' || user.roles.some((item: { role: string }) => item.role === 'driver');
 
     if (!hasDriverRole) {
       throw new ForbiddenException('Only drivers can manage driver subscriptions.');
@@ -751,7 +751,7 @@ export class SubscriptionsService {
     }
 
     const hasOwnerRole =
-      user.primaryRole === 'car_owner' || user.roles.some((item) => item.role === 'car_owner');
+      user.primaryRole === 'car_owner' || user.roles.some((item: { role: string }) => item.role === 'car_owner');
 
     if (!hasOwnerRole) {
       throw new ForbiddenException('Only car owners can manage subscriptions.');
