@@ -1,0 +1,47 @@
+# Dependencies
+node_modules/
+
+# Environment files — NEVER commit these
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+.env.*.local
+apps/**/.env
+apps/**/.env.*
+packages/**/.env
+
+# Build output
+.next/
+dist/
+build/
+out/
+
+# Turbo
+.turbo/
+
+# TypeScript
+*.tsbuildinfo
+
+# Prisma generated
+prisma/generated/
+
+# Vercel
+.vercel
+
+# Clerk
+.clerk/
+
+# IDE
+.DS_Store
+.idea/
+*.swp
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Test coverage
+coverage/

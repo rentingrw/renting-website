@@ -1,0 +1,401 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [postgis]
+}
+
+enum UserStatus {
+  active
+  pending_verification
+  suspended
+  deactivated
+  banned
+}
+
+enum RoleType {
+  renter
+  car_owner
+  driver
+}
+
+enum ListingStatus {
+  draft
+  pending_approval
+  active
+  paused
+  rejected
+  deleted
+  archived
+}
+
+enum BookingStatus {
+  pending
+  confirmed
+  declined
+  auto_cancelled
+  overlap_declined
+  cancelled_by_renter
+  cancelled_by_owner
+  cancelled_admin
+  active
+  completed
+  auto_completed
+  disputed
+}
+
+enum SubscriptionTier {
+  free
+  standard
+  premium
+  business
+}
+
+enum SubscriptionStatus {
+  trialing
+  active
+  cancelled
+  expired
+  past_due
+  unpaid
+}
+
+enum PaymentMethod {
+  momo
+  airtel_money
+  card
+  bank_transfer
+  cash
+  wallet
+}
+
+enum TrustEventType {
+  booking_completed_positive
+  booking_cancelled_negative
+  review_received
+  review_flagged
+  dispute_opened
+  dispute_resolved
+  profile_verified
+  admin_adjustment
+}
+
+enum DisputeStatus {
+  open
+  under_review
+  waiting_evidence
+  resolved
+  rejected
+  escalated
+}
+
+enum DriverCategory {
+  city
+  outstation
+  airport
+  chauffeur
+  tour_guide
+  delivery
+}
+
+enum Language {
+  en
+  rw
+  fr
+  sw
+}
+
+enum ServiceType {
+  self_drive
+  with_driver
+  private_driver
+  airport_transfer
+  corporate
+}
+
+enum VehicleType {
+  sedan
+  suv
+  hatchback
+  pickup
+  van
+  truck
+}
+
+model User {
+  id                     String            @id @default(uuid()) @db.Uuid
+  clerkId                String?           @unique @map("clerk_id")
+  email                  String            @unique
+  phone                  String?           @unique
+  fullName               String            @map("full_name")
+  avatarUrl              String?           @map("avatar_url")
+  status                 UserStatus        @default(active)
+  primaryRole            RoleType          @default(renter) @map("primary_role")
+  trustScore             Decimal           @default(100.0) @map("trust_score") @db.Decimal(5, 2)
+  languagePreference     Language          @default(en) @map("language_preference")
+  isVerified             Boolean           @default(false) @map("is_verified")
+  createdAt              DateTime          @default(now()) @map("created_at")
+  updatedAt              DateTime          @updatedAt @map("updated_at")
+  deletedAt              DateTime?         @map("deleted_at")
+  roles                  UserRole[]
+  carOwnerProfile        CarOwnerProfile?
+  driverProfile          DriverProfile?
+  carListings            CarListing[]      @relation("OwnerListings")
+  carBookingsAsRenter    CarBooking[]      @relation("RenterCarBookings")
+  carBookingsAsOwner     CarBooking[]      @relation("OwnerCarBookings")
+  driverBookingsAsRenter DriverBooking[]   @relation("RenterDriverBookings")
+  driverBookingsAsDriver DriverBooking[]   @relation("DriverBookings")
+  trustScoreEvents       TrustScoreEvent[]
+  reviewsGiven           Review[]          @relation("ReviewAuthor")
+  reviewsReceived        Review[]          @relation("ReviewSubject")
+  subscriptions          Subscription[]
+  messagesSent           Message[]         @relation("MessageSender")
+  messagesReceived       Message[]         @relation("MessageReceiver")
+  disputesOpened         Dispute[]         @relation("DisputeOpenedBy")
+  disputesAgainst        Dispute[]         @relation("DisputeAgainst")
+  disputesResolved       Dispute[]         @relation("DisputeResolvedBy")
+
+  @@map("users")
+}
+
+model UserRole {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  role      RoleType
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, role])
+  @@map("user_roles")
+}
+
+model CarOwnerProfile {
+  id               String         @id @default(uuid()) @db.Uuid
+  userId           String         @unique @map("user_id") @db.Uuid
+  companyName      String?        @map("company_name")
+  nationalIdNumber String?        @map("national_id_number")
+  tinNumber        String?        @map("tin_number")
+  verifiedAt       DateTime?      @map("verified_at")
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscriptions    Subscription[]
+
+  @@map("car_owner_profiles")
+}
+
+model DriverProfile {
+  id                   String           @id @default(uuid()) @db.Uuid
+  userId               String           @unique @map("user_id") @db.Uuid
+  driverCategory       DriverCategory   @map("driver_category")
+  yearsExperience      Int              @map("years_experience")
+  biography            String?
+  dailyRateRwf         Decimal          @map("daily_rate_rwf") @db.Decimal(12, 2)
+  hourlyRateRwf        Decimal?         @map("hourly_rate_rwf") @db.Decimal(12, 2)
+  weeklyRateRwf        Decimal?         @map("weekly_rate_rwf") @db.Decimal(12, 2)
+  primaryCity          String           @map("primary_city")
+  primaryCityLocation  Unsupported("geography(Point, 4326)")? @map("primary_city_location")
+  languages            Language[]
+  categories           DriverCategory[] @map("categories")
+  vehicleTypes         VehicleType[]    @map("vehicle_types")
+  certifications       String[]         @default([])
+  serviceAreas         String[]         @map("service_areas")
+  availabilityCalendar Json             @map("availability_calendar")
+  rating               Decimal?         @db.Decimal(3, 2)
+  completedTrips       Int              @default(0) @map("completed_trips")
+  createdAt            DateTime         @default(now()) @map("created_at")
+  updatedAt            DateTime         @updatedAt @map("updated_at")
+  user                 User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("driver_profiles")
+}
+
+model CarListing {
+  id             String                                 @id @default(uuid()) @db.Uuid
+  ownerId        String                                 @map("owner_id") @db.Uuid
+  title          String
+  description    String?
+  vehicleType    VehicleType                            @map("vehicle_type")
+  serviceType    ServiceType                            @map("service_type")
+  brand          String
+  model          String
+  year           Int
+  seats          Int
+  transmission   String?
+  fuelType       String?                                @map("fuel_type")
+  dailyRateKigaliRwf       Int                                    @map("daily_rate_kigali_rwf")
+  dailyRateCountrysideRwf  Int                                    @map("daily_rate_countryside_rwf")
+  locationText   String                                 @map("location_text")
+  pickupLocation Unsupported("geography(Point, 4326)")? @map("pickup_location")
+  photos         String[]
+  features       String[]
+  status         ListingStatus                          @default(draft)
+  createdAt      DateTime                               @default(now()) @map("created_at")
+  updatedAt      DateTime                               @updatedAt @map("updated_at")
+  owner          User                                   @relation("OwnerListings", fields: [ownerId], references: [id], onDelete: Cascade)
+  bookings       CarBooking[]
+
+  @@index([status])
+  @@map("car_listings")
+}
+
+model CarBooking {
+  id                   String                                 @id @default(uuid()) @db.Uuid
+  listingId            String                                 @map("listing_id") @db.Uuid
+  renterId             String                                 @map("renter_id") @db.Uuid
+  ownerId              String                                 @map("owner_id") @db.Uuid
+  startDate            DateTime                               @map("start_date")
+  endDate              DateTime                               @map("end_date")
+  pickupAddress        String                                 @map("pickup_address")
+  pickupLocation       Unsupported("geography(Point, 4326)")? @map("pickup_location")
+  totalAmountRwf       Int                                    @map("total_amount_rwf")
+  paymentMethod        PaymentMethod?                         @map("payment_method")
+  status               BookingStatus                          @default(pending)
+  renterMarkedComplete Boolean                                @default(false) @map("renter_marked_complete")
+  ownerMarkedComplete  Boolean                                @default(false) @map("owner_marked_complete")
+  notes                String?
+  completedAt          DateTime?                              @map("completed_at")
+  createdAt            DateTime                               @default(now()) @map("created_at")
+  updatedAt            DateTime                               @updatedAt @map("updated_at")
+  listing              CarListing                             @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  renter               User                                   @relation("RenterCarBookings", fields: [renterId], references: [id], onDelete: Cascade)
+  owner                User                                   @relation("OwnerCarBookings", fields: [ownerId], references: [id], onDelete: Cascade)
+  reviews              Review[]
+  messages             Message[]
+  disputes             Dispute[]
+  trustScoreEvents     TrustScoreEvent[]
+
+  @@index([status, createdAt])
+  @@map("car_bookings")
+}
+
+model DriverBooking {
+  id                   String                                 @id @default(uuid()) @db.Uuid
+  driverId             String                                 @map("driver_id") @db.Uuid
+  renterId             String                                 @map("renter_id") @db.Uuid
+  serviceType          ServiceType                            @map("service_type")
+  startAt              DateTime                               @map("start_at")
+  endAt                DateTime                               @map("end_at")
+  pickupAddress        String                                 @map("pickup_address")
+  dropoffAddress       String?                                @map("dropoff_address")
+  pickupLocation       Unsupported("geography(Point, 4326)")? @map("pickup_location")
+  totalAmountRwf       Int                                    @map("total_amount_rwf")
+  paymentMethod        PaymentMethod?                         @map("payment_method")
+  status               BookingStatus                          @default(pending)
+  driverMarkedComplete Boolean                                @default(false) @map("driver_marked_complete")
+  clientMarkedComplete Boolean                                @default(false) @map("client_marked_complete")
+  notes                String?
+  completedAt          DateTime?                              @map("completed_at")
+  createdAt            DateTime                               @default(now()) @map("created_at")
+  updatedAt            DateTime                               @updatedAt @map("updated_at")
+  driver               User                                   @relation("DriverBookings", fields: [driverId], references: [id], onDelete: Cascade)
+  renter               User                                   @relation("RenterDriverBookings", fields: [renterId], references: [id], onDelete: Cascade)
+  reviews              Review[]
+  messages             Message[]
+  disputes             Dispute[]
+  trustScoreEvents     TrustScoreEvent[]
+
+  @@index([status, createdAt])
+  @@map("driver_bookings")
+}
+
+model TrustScoreEvent {
+  id              String         @id @default(uuid()) @db.Uuid
+  userId          String         @map("user_id") @db.Uuid
+  type            TrustEventType
+  carBookingId    String?        @map("car_booking_id") @db.Uuid
+  driverBookingId String?        @map("driver_booking_id") @db.Uuid
+  delta           Decimal        @db.Decimal(5, 2)
+  reason          String
+  metadata        Json?
+  createdAt       DateTime       @default(now()) @map("created_at")
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  carBooking      CarBooking?    @relation(fields: [carBookingId], references: [id], onDelete: SetNull)
+  driverBooking   DriverBooking? @relation(fields: [driverBookingId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@map("trust_score_events")
+}
+
+model Review {
+  id              String         @id @default(uuid()) @db.Uuid
+  fromUserId      String         @map("from_user_id") @db.Uuid
+  toUserId        String         @map("to_user_id") @db.Uuid
+  carBookingId    String?        @map("car_booking_id") @db.Uuid
+  driverBookingId String?        @map("driver_booking_id") @db.Uuid
+  rating          Int
+  comment         String?
+  createdAt       DateTime       @default(now()) @map("created_at")
+  fromUser        User           @relation("ReviewAuthor", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUser          User           @relation("ReviewSubject", fields: [toUserId], references: [id], onDelete: Cascade)
+  carBooking      CarBooking?    @relation(fields: [carBookingId], references: [id], onDelete: SetNull)
+  driverBooking   DriverBooking? @relation(fields: [driverBookingId], references: [id], onDelete: SetNull)
+
+  @@map("reviews")
+}
+
+model Subscription {
+  id                String             @id @default(uuid()) @db.Uuid
+  userId            String             @map("user_id") @db.Uuid
+  carOwnerProfileId String?            @map("car_owner_profile_id") @db.Uuid
+  tier              SubscriptionTier
+  status            SubscriptionStatus
+  amountRwf         Int                @map("amount_rwf")
+  paymentMethod     PaymentMethod?     @map("payment_method")
+  externalRef       String?            @map("external_ref")
+  startsAt          DateTime           @map("starts_at")
+  renewsAt          DateTime?          @map("renews_at")
+  endsAt            DateTime?          @map("ends_at")
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  carOwnerProfile   CarOwnerProfile?   @relation(fields: [carOwnerProfileId], references: [id], onDelete: SetNull)
+
+  @@index([renewsAt])
+  @@map("subscriptions")
+}
+
+model Message {
+  id              String         @id @default(uuid()) @db.Uuid
+  senderId        String         @map("sender_id") @db.Uuid
+  receiverId      String         @map("receiver_id") @db.Uuid
+  carBookingId    String?        @map("car_booking_id") @db.Uuid
+  driverBookingId String?        @map("driver_booking_id") @db.Uuid
+  content         String
+  readAt          DateTime?      @map("read_at")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  sender          User           @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver        User           @relation("MessageReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  carBooking      CarBooking?    @relation(fields: [carBookingId], references: [id], onDelete: SetNull)
+  driverBooking   DriverBooking? @relation(fields: [driverBookingId], references: [id], onDelete: SetNull)
+
+  @@map("messages")
+}
+
+model Dispute {
+  id              String         @id @default(uuid()) @db.Uuid
+  openedById      String         @map("opened_by_id") @db.Uuid
+  againstUserId   String         @map("against_user_id") @db.Uuid
+  carBookingId    String?        @map("car_booking_id") @db.Uuid
+  driverBookingId String?        @map("driver_booking_id") @db.Uuid
+  reason          String
+  description     String?
+  status          DisputeStatus  @default(open)
+  resolutionNote  String?        @map("resolution_note")
+  adminNotes      String?        @map("admin_notes")
+  resolvedById    String?        @map("resolved_by") @db.Uuid
+  createdAt       DateTime       @default(now()) @map("created_at")
+  resolvedAt      DateTime?      @map("resolved_at")
+  openedBy        User           @relation("DisputeOpenedBy", fields: [openedById], references: [id], onDelete: Cascade)
+  againstUser     User           @relation("DisputeAgainst", fields: [againstUserId], references: [id], onDelete: Cascade)
+  resolvedBy      User?          @relation("DisputeResolvedBy", fields: [resolvedById], references: [id], onDelete: SetNull)
+  carBooking      CarBooking?    @relation(fields: [carBookingId], references: [id], onDelete: SetNull)
+  driverBooking   DriverBooking? @relation(fields: [driverBookingId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@map("disputes")
+}

@@ -1,0 +1,24 @@
+{
+  "nav": {
+    "home": "Ahabanza",
+    "search": "Shaka",
+    "cars": "Imodoka",
+    "drivers": "Abashoferi",
+    "dashboard": "Imbonerahamwe"
+  },
+  "auth": {
+    "signIn": "Injira",
+    "signOut": "Sohoka"
+  },
+  "booking": {
+    "request": "Saba booking",
+    "confirm": "Emeza booking",
+    "cancel": "Hagarika booking"
+  },
+  "search": {
+    "placeholder": "Shaka imodoka cyangwa umushoferi"
+  },
+  "trust": {
+    "score": "Amanota y'icyizere"
+  }
+}

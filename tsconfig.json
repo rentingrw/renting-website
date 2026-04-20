@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "baseUrl": ".",
+    "paths": {
+      "@rentingi/types": [
+        "packages/types/index.ts"
+      ],
+      "@rentingi/db": [
+        "packages/db/index.ts"
+      ],
+      "@rentingi/ui": [
+        "packages/ui/index.ts"
+      ],
+      "@rentingi/*": [
+        "packages/*/index.ts"
+      ]
+    }
+  }
+}

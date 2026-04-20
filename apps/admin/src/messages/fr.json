@@ -1,0 +1,24 @@
+{
+  "nav": {
+    "home": "Accueil",
+    "search": "Recherche",
+    "cars": "Voitures",
+    "drivers": "Chauffeurs",
+    "dashboard": "Tableau de bord"
+  },
+  "auth": {
+    "signIn": "Se connecter",
+    "signOut": "Se deconnecter"
+  },
+  "booking": {
+    "request": "Demander une reservation",
+    "confirm": "Confirmer la reservation",
+    "cancel": "Annuler la reservation"
+  },
+  "search": {
+    "placeholder": "Rechercher une voiture ou un chauffeur"
+  },
+  "trust": {
+    "score": "Score de confiance"
+  }
+}

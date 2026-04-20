@@ -1,0 +1,24 @@
+{
+  "nav": {
+    "home": "Home",
+    "search": "Search",
+    "cars": "Cars",
+    "drivers": "Drivers",
+    "dashboard": "Dashboard"
+  },
+  "auth": {
+    "signIn": "Sign in",
+    "signOut": "Sign out"
+  },
+  "booking": {
+    "request": "Request booking",
+    "confirm": "Confirm booking",
+    "cancel": "Cancel booking"
+  },
+  "search": {
+    "placeholder": "Search cars or drivers"
+  },
+  "trust": {
+    "score": "Trust score"
+  }
+}
