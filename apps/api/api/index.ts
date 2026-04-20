@@ -16,8 +16,21 @@ async function bootstrap() {
     logger: ['error', 'warn'],
   });
 
+  const allowedOrigins = [
+    process.env.NEXT_PUBLIC_APP_URL,
+    process.env.NEXT_PUBLIC_ADMIN_URL,
+  ].filter(Boolean) as string[];
+
   app.enableCors({
-    origin: [process.env.NEXT_PUBLIC_APP_URL, process.env.NEXT_PUBLIC_ADMIN_URL].filter(Boolean),
+    origin: (origin, callback) => {
+      // Allow requests with no origin (mobile apps, curl, server-to-server)
+      if (!origin) return callback(null, true);
+      // Allow exact matches
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      // Allow all Vercel preview deployments for rentingrw
+      if (/^https:\/\/renting(i|rw|-).*\.vercel\.app$/.test(origin)) return callback(null, true);
+      callback(new Error('Not allowed by CORS'));
+    },
     credentials: true,
   });
 
