@@ -1,5 +1,27 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "globalEnv": [
+    "DATABASE_URL",
+    "REDIS_URL",
+    "CLERK_SECRET_KEY",
+    "CLERK_WEBHOOK_SECRET",
+    "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY",
+    "CLOUDINARY_CLOUD_NAME",
+    "CLOUDINARY_API_KEY",
+    "CLOUDINARY_API_SECRET",
+    "FLW_PUBLIC_KEY",
+    "FLW_SECRET_KEY",
+    "FLW_WEBHOOK_SECRET",
+    "RESEND_API_KEY",
+    "RESEND_FROM_EMAIL",
+    "ADMIN_JWT_SECRET",
+    "AT_API_KEY",
+    "AT_USERNAME",
+    "NEXT_PUBLIC_APP_URL",
+    "NEXT_PUBLIC_ADMIN_URL",
+    "NEXT_PUBLIC_API_URL",
+    "NEXT_PUBLIC_GOOGLE_MAPS_API_KEY"
+  ],
   "tasks": {
     "generate": {
       "outputs": [
@@ -15,28 +37,6 @@
         ".next/**",
         "dist/**",
         "node_modules/.prisma/**"
-      ],
-      "env": [
-        "DATABASE_URL",
-        "REDIS_URL",
-        "CLERK_SECRET_KEY",
-        "CLERK_WEBHOOK_SECRET",
-        "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY",
-        "CLOUDINARY_CLOUD_NAME",
-        "CLOUDINARY_API_KEY",
-        "CLOUDINARY_API_SECRET",
-        "FLW_PUBLIC_KEY",
-        "FLW_SECRET_KEY",
-        "FLW_WEBHOOK_SECRET",
-        "RESEND_API_KEY",
-        "RESEND_FROM_EMAIL",
-        "ADMIN_JWT_SECRET",
-        "AT_API_KEY",
-        "AT_USERNAME",
-        "NEXT_PUBLIC_APP_URL",
-        "NEXT_PUBLIC_ADMIN_URL",
-        "NEXT_PUBLIC_API_URL",
-        "NEXT_PUBLIC_GOOGLE_MAPS_API_KEY"
       ]
     },
     "dev": {
