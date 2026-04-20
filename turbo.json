@@ -13,7 +13,8 @@
       ],
       "outputs": [
         ".next/**",
-        "dist/**"
+        "dist/**",
+        "node_modules/.prisma/**"
       ],
       "env": [
         "DATABASE_URL",
