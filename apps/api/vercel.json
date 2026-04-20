@@ -1,0 +1,17 @@
+{
+  "version": 2,
+  "buildCommand": "cd ../.. && pnpm turbo run build --filter=@rentingi/api",
+  "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
+  "functions": {
+    "api/index.ts": {
+      "memory": 1024,
+      "maxDuration": 30
+    }
+  },
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/api/index.ts"
+    }
+  ]
+}
