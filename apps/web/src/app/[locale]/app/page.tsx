@@ -789,7 +789,7 @@ export default function AppPage({ params }: AppPageProps) {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[#f5f0e8]">
       <DashboardHeader
         locale={currentLocale}
         onLocaleChange={(next) => handleLanguageChange(next)}
@@ -801,7 +801,7 @@ export default function AppPage({ params }: AppPageProps) {
         {/* Welcome + Search & Book (VELOCITY reference: button top-right of welcome) */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900 md:text-3xl">
+            <h1 className="text-2xl font-black tracking-tight text-neutral-900 md:text-3xl">
               {t('app.welcome')}, {profile?.fullName?.split(' ')[0] ?? 'there'}
             </h1>
             <p className="mt-1 text-sm text-gray-500">
@@ -840,30 +840,30 @@ export default function AppPage({ params }: AppPageProps) {
           </div>
         </div>
 
-      <div className="-mx-4 flex overflow-x-auto border-b border-gray-200 bg-white px-4 shadow-sm md:mx-0 md:px-0">
-        <nav className="flex gap-1 py-3" aria-label="Dashboard navigation">
+      <div className="-mx-4 flex overflow-x-auto border-b-2 border-neutral-900 bg-white px-4 md:mx-0 md:px-0">
+        <nav className="flex gap-1 py-2" aria-label="Dashboard navigation">
           {profile?.roles.includes('car_owner') ? (
             <>
               <Link
                 href={`/${currentLocale}/app`}
-                className={`shrink-0 rounded-lg px-4 py-2 text-sm font-medium transition ${
-                  activeSection === 'overview' ? 'bg-teal-600 text-white' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                className={`shrink-0 rounded border-2 px-3 py-1.5 text-xs font-black uppercase tracking-wide transition-all ${
+                  activeSection === 'overview' ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-transparent text-neutral-600 hover:border-neutral-300 hover:bg-neutral-100 hover:text-neutral-900'
                 }`}
               >
                 {t('app.nav.overview')}
               </Link>
               <Link
                 href={`/${currentLocale}/app/cars`}
-                className={`shrink-0 rounded-lg px-4 py-2 text-sm font-medium transition ${
-                  activeSection === 'cars' ? 'bg-teal-600 text-white' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                className={`shrink-0 rounded border-2 px-3 py-1.5 text-xs font-black uppercase tracking-wide transition-all ${
+                  activeSection === 'cars' ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-transparent text-neutral-600 hover:border-neutral-300 hover:bg-neutral-100 hover:text-neutral-900'
                 }`}
               >
                 {t('app.nav.cars')}
               </Link>
               <Link
                 href={`/${currentLocale}/app/subscription`}
-                className={`shrink-0 rounded-lg px-4 py-2 text-sm font-medium transition ${
-                  activeSection === 'subscription' ? 'bg-teal-600 text-white' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                className={`shrink-0 rounded border-2 px-3 py-1.5 text-xs font-black uppercase tracking-wide transition-all ${
+                  activeSection === 'subscription' ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-transparent text-neutral-600 hover:border-neutral-300 hover:bg-neutral-100 hover:text-neutral-900'
                 }`}
               >
                 {t('app.nav.subscription')}
@@ -872,24 +872,24 @@ export default function AppPage({ params }: AppPageProps) {
           ) : null}
           <Link
             href={`/${currentLocale}/app/bookings`}
-            className={`shrink-0 rounded-lg px-4 py-2 text-sm font-medium transition ${
-              activeSection === 'bookings' ? 'bg-teal-600 text-white' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+            className={`shrink-0 rounded border-2 px-3 py-1.5 text-xs font-black uppercase tracking-wide transition-all ${
+              activeSection === 'bookings' ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-transparent text-neutral-600 hover:border-neutral-300 hover:bg-neutral-100 hover:text-neutral-900'
             }`}
           >
             {t('app.nav.bookings')}
           </Link>
           <Link
             href={`/${currentLocale}/app/messages`}
-            className={`shrink-0 rounded-lg px-4 py-2 text-sm font-medium transition ${
-              activeSection === 'messages' ? 'bg-teal-600 text-white' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+            className={`shrink-0 rounded border-2 px-3 py-1.5 text-xs font-black uppercase tracking-wide transition-all ${
+              activeSection === 'messages' ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-transparent text-neutral-600 hover:border-neutral-300 hover:bg-neutral-100 hover:text-neutral-900'
             }`}
           >
             {t('app.nav.messages')}
           </Link>
           <Link
             href={`/${currentLocale}/app/settings`}
-            className={`shrink-0 rounded-lg px-4 py-2 text-sm font-medium transition ${
-              activeSection === 'settings' ? 'bg-teal-600 text-white' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+            className={`shrink-0 rounded border-2 px-3 py-1.5 text-xs font-black uppercase tracking-wide transition-all ${
+              activeSection === 'settings' ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-transparent text-neutral-600 hover:border-neutral-300 hover:bg-neutral-100 hover:text-neutral-900'
             }`}
           >
             {t('app.nav.settings')}
@@ -899,34 +899,26 @@ export default function AppPage({ params }: AppPageProps) {
 
       {activeSection === 'overview' ? (
         <section className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
-          <Card className="overflow-hidden border-gray-200 bg-white shadow-sm transition hover:shadow-md">
-            <CardContent className="p-6">
-              <p className="text-sm font-medium text-gray-500">{t('app.stats.pendingRequests')}</p>
-              <p className="mt-2 text-3xl font-bold tabular-nums text-gray-900">{pendingRequests.length}</p>
-            </CardContent>
-          </Card>
-          <Card className="overflow-hidden border-gray-200 bg-white shadow-sm transition hover:shadow-md">
-            <CardContent className="p-6">
-              <p className="text-sm font-medium text-gray-500">{t('app.stats.activeBookings')}</p>
-              <p className="mt-2 text-3xl font-bold tabular-nums text-gray-900">{activeBookings.length}</p>
-            </CardContent>
-          </Card>
-          <Card className="overflow-hidden border-gray-200 bg-white shadow-sm transition hover:shadow-md">
-            <CardContent className="p-6">
-              <p className="text-sm font-medium text-gray-500">{t('app.stats.completedBookings')}</p>
-              <p className="mt-2 text-3xl font-bold tabular-nums text-gray-900">{completedBookings.length}</p>
-            </CardContent>
-          </Card>
-          <Card className="overflow-hidden border-gray-200 bg-white shadow-sm transition hover:shadow-md">
-            <CardContent className="p-6">
-              <p className="text-sm font-medium text-gray-500">{t('app.stats.activeListingsJobs')}</p>
-              <p className="mt-2 text-3xl font-bold tabular-nums text-gray-900">
-                {profile?.roles.includes('car_owner')
-                  ? cars.filter((car) => car.status === 'active').length
-                  : driverProfile?.bookingStats.active ?? 0}
-              </p>
-            </CardContent>
-          </Card>
+          <div className="rounded-md border-2 border-neutral-900 bg-white p-5 shadow-brutal">
+            <p className="text-xs font-black uppercase tracking-widest text-neutral-500">{t('app.stats.pendingRequests')}</p>
+            <p className="mt-2 text-3xl font-black tabular-nums text-neutral-900">{pendingRequests.length}</p>
+          </div>
+          <div className="rounded-md border-2 border-neutral-900 bg-white p-5 shadow-brutal">
+            <p className="text-xs font-black uppercase tracking-widest text-neutral-500">{t('app.stats.activeBookings')}</p>
+            <p className="mt-2 text-3xl font-black tabular-nums text-neutral-900">{activeBookings.length}</p>
+          </div>
+          <div className="rounded-md border-2 border-neutral-900 bg-white p-5 shadow-brutal">
+            <p className="text-xs font-black uppercase tracking-widest text-neutral-500">{t('app.stats.completedBookings')}</p>
+            <p className="mt-2 text-3xl font-black tabular-nums text-neutral-900">{completedBookings.length}</p>
+          </div>
+          <div className="rounded-md border-2 border-neutral-900 bg-white p-5 shadow-brutal">
+            <p className="text-xs font-black uppercase tracking-widest text-neutral-500">{t('app.stats.activeListingsJobs')}</p>
+            <p className="mt-2 text-3xl font-black tabular-nums text-neutral-900">
+              {profile?.roles.includes('car_owner')
+                ? cars.filter((car) => car.status === 'active').length
+                : driverProfile?.bookingStats.active ?? 0}
+            </p>
+          </div>
 
           {profile?.roles.includes('driver') && driverProfile?.categories?.length ? (
             <Card className="overflow-hidden border-gray-200 bg-white shadow-sm sm:col-span-2 md:col-span-4">
@@ -1578,7 +1570,7 @@ export default function AppPage({ params }: AppPageProps) {
               </div>
               <div className="flex gap-2 border-t p-4">
                 <input
-                  className="min-w-0 flex-1 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 shadow-sm transition placeholder:text-gray-500 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+                  className="min-w-0 flex-1 rounded border-2 border-neutral-900 bg-white px-4 py-2.5 text-sm font-medium text-neutral-900 placeholder:text-neutral-400 focus:outline-none"
                   value={chatInput}
                   onChange={(event) => setChatInput(event.target.value)}
                   onKeyDown={(e) => {
@@ -1599,7 +1591,7 @@ export default function AppPage({ params }: AppPageProps) {
       ) : null}
 
       {(error || appBusy) ? (
-        <div className={`flex items-center gap-2 rounded-lg border px-4 py-3 text-sm ${error ? 'border-red-500/30 bg-red-500/10 text-red-600' : 'border-gray-200 bg-gray-100 text-gray-600'}`}>
+        <div className={`flex items-center gap-2 rounded border-2 px-4 py-3 text-sm font-semibold ${error ? 'border-red-600 bg-red-50 text-red-700' : 'border-neutral-300 bg-neutral-100 text-neutral-600'}`}>
           {appBusy && !error ? <LoadingSpinner className="h-4 w-4 shrink-0" /> : null}
           {error ?? 'Refreshing dashboard...'}
         </div>

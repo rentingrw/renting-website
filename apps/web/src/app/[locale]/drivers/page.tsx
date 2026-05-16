@@ -1,6 +1,5 @@
 'use client';
 
-import { Badge, Card, CardContent, Skeleton } from '@rentingi/ui';
 import { Search, UserRound } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -9,8 +8,8 @@ import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 
 import { AppHeader } from '@/components/web/app-header';
+import { SiteFooter } from '@/components/web/site-footer';
 import { AddressInput } from '@/components/web/address-input';
-import { LoadingSpinner } from '@/components/web/loading-states';
 import { isSupportedLocale, routing, type SupportedLocale } from '@/i18n/routing';
 import { searchMarketplace, type DriverCategory, type SearchDriver } from '@/lib/api';
 import { formatCurrencyRwf, formatRange, trustTierFromScore } from '@/lib/format';
@@ -21,6 +20,22 @@ const CATEGORY_LABELS: Record<string, string> = {
   city: 'City', outstation: 'Outstation', airport: 'Airport', chauffeur: 'Chauffeur', tour_guide: 'Tour Guide', delivery: 'Delivery',
 };
 const PAGE_SIZE = 20;
+
+function DriverCardSkeleton() {
+  return (
+    <div className="overflow-hidden rounded-md border-2 border-neutral-900 bg-white shadow-brutal animate-pulse">
+      <div className="border-b-2 border-neutral-900 bg-teal-50 p-5 flex flex-col items-center">
+        <div className="h-20 w-20 rounded-full border-2 border-neutral-900 bg-neutral-200" />
+        <div className="mt-3 h-5 w-32 rounded bg-neutral-200" />
+        <div className="mt-2 h-4 w-24 rounded bg-neutral-200" />
+      </div>
+      <div className="p-4 space-y-2">
+        <div className="h-5 w-20 rounded bg-neutral-200" />
+        <div className="h-4 w-28 rounded bg-neutral-200" />
+      </div>
+    </div>
+  );
+}
 
 export default function DriversPage({ params }: { params: Promise<{ locale: string }> }) {
   const t = useTranslations('web');
@@ -101,100 +116,103 @@ export default function DriversPage({ params }: { params: Promise<{ locale: stri
   }
 
   return (
-    <main className="min-h-screen bg-gray-50">
+    <main className="min-h-screen bg-[#f5f0e8]">
       <AppHeader locale={locale} variant="default" />
 
-      <div className="sticky top-[57px] z-40 border-b border-gray-200 bg-white shadow-sm">
-        <div className="mx-auto max-w-7xl space-y-3 px-4 py-4">
+      {/* Filter bar */}
+      <div className="sticky top-[57px] z-40 border-b-2 border-neutral-900 bg-white">
+        <div className="mx-auto max-w-7xl px-4 py-3 sm:px-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <div className="relative min-w-0 flex-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
               <AddressInput
                 value={location}
                 onChange={(v) => { setLocation(v); setLatitude(null); setLongitude(null); }}
                 onPlaceSelected={(p) => { setLocation(p.address); setLatitude(p.latitude); setLongitude(p.longitude); }}
                 placeholder={t('search.locationPlaceholder')}
-                className="h-11 w-full rounded-lg border border-gray-300 bg-white pl-10 pr-4 text-gray-900 placeholder:text-gray-500 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+                className="h-10 w-full rounded border-2 border-neutral-900 bg-white pl-9 pr-4 text-sm font-semibold text-neutral-900 placeholder:font-normal placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
               />
             </div>
-            <select
-              value={driverCategory}
-              onChange={(e) => setDriverCategory(e.target.value as DriverCategory | '')}
-              className="h-11 rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900"
-            >
-              <option value="">{t('filters.driverCategory')}</option>
-              {DRIVER_CATEGORIES.map((c) => (
-                <option key={c} value={c}>{CATEGORY_LABELS[c] ?? c}</option>
+            <div className="flex flex-wrap gap-2">
+              {DRIVER_CATEGORIES.map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setDriverCategory((prev) => (prev === cat ? '' : cat))}
+                  className={`rounded border-2 border-neutral-900 px-3 py-1.5 text-xs font-black uppercase tracking-wide transition-all ${
+                    driverCategory === cat
+                      ? 'bg-neutral-900 text-white'
+                      : 'bg-white text-neutral-700 hover:bg-neutral-100'
+                  }`}
+                >
+                  {CATEGORY_LABELS[cat] ?? cat}
+                </button>
               ))}
-            </select>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="mx-auto max-w-7xl px-4 py-8">
-        <h1 className="text-2xl font-bold text-gray-900">
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+        <h1 className="text-2xl font-black text-neutral-900">
           {location || 'Kigali'} — {t('tabs.drivers')}
         </h1>
-        <p className="mt-1 text-sm text-gray-500">
+        <p className="mt-1 text-sm font-medium text-neutral-500">
           {loading ? t('search.loading') : t('search.resultsCount', { count: drivers.length })}
         </p>
-        {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+        {error && (
+          <p className="mt-2 rounded border-2 border-red-600 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
+            {error}
+          </p>
+        )}
 
-        <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {loading ? (
-            [...Array(8)].map((_, i) => (
-              <Card key={i} className="overflow-hidden border-gray-200 bg-white">
-                <div className="flex items-center gap-4 p-4">
-                  <Skeleton className="h-20 w-20 shrink-0 rounded-full bg-gray-200" />
-                  <div className="min-w-0 flex-1 space-y-2">
-                    <Skeleton className="h-5 w-3/4 bg-gray-200" />
-                    <Skeleton className="h-4 w-1/2 bg-gray-200" />
-                    <Skeleton className="h-5 w-24 bg-gray-200" />
-                  </div>
-                </div>
-              </Card>
-            ))
+            [...Array(8)].map((_, i) => <DriverCardSkeleton key={i} />)
           ) : (
             drivers.map((driver) => (
-              <Link key={driver.id} href={`/${locale}/drivers/${driver.id}`}>
-                <Card className="overflow-hidden border-gray-200 bg-white shadow-sm transition hover:shadow-md">
-                  <CardContent className="flex flex-col items-center p-6 text-center sm:flex-row sm:items-center sm:text-left">
-                    <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-full border-2 border-gray-200 bg-gray-100">
-                      <Image
-                        src={driver.profilePhotoUrl ?? stockImages.drivers[0]}
-                        alt={driver.fullName}
-                        fill
-                        sizes="80px"
-                        className="object-cover"
-                      />
-                    </div>
-                    <div className="mt-4 min-w-0 flex-1 sm:mt-0 sm:ml-4">
-                      <p className="font-semibold text-gray-900">{driver.fullName}</p>
-                      <p className="mt-1 text-sm text-gray-500">
-                        {driver.primaryCity}
-                        {(driver.categories?.length || driver.driverCategory)
-                          ? ` · ${(driver.categories?.slice(0, 2).join(', ') || driver.driverCategory?.replace('_', ' ')) ?? ''}`
-                          : ''}
-                      </p>
-                      <div className="mt-2 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
-                        <Badge className="bg-teal-50 text-teal-700">
-                          {trustTierFromScore(driver.trustScore)}
-                        </Badge>
-                        <span className="text-sm font-medium text-teal-600">
-                          {driver.dailyRateRwf
-                            ? formatCurrencyRwf(driver.dailyRateRwf)
-                            : driver.approximateRateRangeRwf
-                              ? formatRange(
-                                  driver.approximateRateRangeRwf.daily.min,
-                                  driver.approximateRateRangeRwf.daily.max,
-                                )
-                              : t('home.priceUnavailable')}{' '}
-                          / {t('home.day')}
-                        </span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+              <Link
+                key={driver.id}
+                href={`/${locale}/drivers/${driver.id}`}
+                className="group block overflow-hidden rounded-md border-2 border-neutral-900 bg-white shadow-brutal transition-all hover:translate-x-px hover:translate-y-px hover:shadow-brutal-sm"
+              >
+                {/* Photo header */}
+                <div className="flex flex-col items-center border-b-2 border-neutral-900 bg-teal-50 px-4 py-5">
+                  <div className="relative h-20 w-20 overflow-hidden rounded-full border-2 border-neutral-900 bg-white">
+                    <Image
+                      src={driver.profilePhotoUrl ?? stockImages.drivers[0]}
+                      alt={driver.fullName}
+                      fill
+                      sizes="80px"
+                      className="object-cover"
+                    />
+                  </div>
+                  <p className="mt-3 text-center font-black text-neutral-900">{driver.fullName}</p>
+                  <p className="mt-1 text-center text-xs font-medium text-neutral-500">
+                    {driver.primaryCity}
+                    {(driver.categories?.length || driver.driverCategory)
+                      ? ` · ${(driver.categories?.slice(0, 2).join(', ') || driver.driverCategory?.replace('_', ' ')) ?? ''}`
+                      : ''}
+                  </p>
+                </div>
+
+                {/* Info footer */}
+                <div className="flex items-center justify-between p-4">
+                  <span className="rounded border-2 border-teal-600 bg-teal-50 px-2 py-0.5 text-xs font-black text-teal-700">
+                    {trustTierFromScore(driver.trustScore)}
+                  </span>
+                  <span className="text-sm font-black text-teal-700">
+                    {driver.dailyRateRwf
+                      ? formatCurrencyRwf(driver.dailyRateRwf)
+                      : driver.approximateRateRangeRwf
+                        ? formatRange(
+                            driver.approximateRateRangeRwf.daily.min,
+                            driver.approximateRateRangeRwf.daily.max,
+                          )
+                        : t('home.priceUnavailable')}{' '}
+                    / {t('home.day')}
+                  </span>
+                </div>
               </Link>
             ))
           )}
@@ -206,31 +224,24 @@ export default function DriversPage({ params }: { params: Promise<{ locale: stri
               type="button"
               onClick={handleLoadMore}
               disabled={loadingMore}
-              className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-6 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+              className="rounded border-2 border-neutral-900 bg-white px-6 py-2.5 text-sm font-black uppercase tracking-wide text-neutral-900 shadow-brutal-xs transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none disabled:opacity-50"
             >
-              {loadingMore ? (
-                <>
-                  <LoadingSpinner className="h-4 w-4" />
-                  {t('search.loadingMore')}
-                </>
-              ) : (
-                t('search.loadMore')
-              )}
+              {loadingMore ? t('search.loadingMore') : t('search.loadMore')}
             </button>
           </div>
         )}
 
         {!loading && drivers.length === 0 && (
           <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gray-100">
-              <UserRound className="h-8 w-8 text-gray-400" />
+            <div className="flex h-16 w-16 items-center justify-center rounded-md border-2 border-neutral-900 bg-white shadow-brutal">
+              <UserRound className="h-8 w-8 text-neutral-400" />
             </div>
-            <h3 className="mt-4 text-lg font-semibold text-gray-900">{t('search.noResults')}</h3>
-            <p className="mt-2 max-w-xs text-sm text-gray-500">{t('search.noResultsHint')}</p>
+            <h3 className="mt-5 text-xl font-black text-neutral-900">{t('search.noResults')}</h3>
+            <p className="mt-2 max-w-xs text-sm font-medium text-neutral-500">{t('search.noResultsHint')}</p>
             <button
               type="button"
               onClick={() => { setLocation(''); setLatitude(null); setLongitude(null); setDriverCategory(''); }}
-              className="mt-6 rounded-lg bg-teal-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-teal-700"
+              className="mt-6 rounded border-2 border-teal-800 bg-teal-600 px-5 py-2.5 text-sm font-black uppercase tracking-wide text-white shadow-brutal-teal-sm transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none"
             >
               {t('search.clearFilters')}
             </button>
@@ -238,9 +249,13 @@ export default function DriversPage({ params }: { params: Promise<{ locale: stri
         )}
 
         {!loading && !hasMore && drivers.length > 0 && (
-          <p className="mt-8 text-center text-sm text-gray-400">{t('search.allResultsShown', { count: drivers.length })}</p>
+          <p className="mt-8 text-center text-xs font-semibold uppercase tracking-widest text-neutral-400">
+            {t('search.allResultsShown', { count: drivers.length })}
+          </p>
         )}
       </div>
+
+      <SiteFooter locale={locale} />
     </main>
   );
 }

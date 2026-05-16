@@ -17,16 +17,20 @@ export default function CorporatePage({ params }: { params: Promise<{ locale: st
   }, [params]);
 
   return (
-    <main className="flex min-h-screen flex-col">
+    <main className="flex min-h-screen flex-col bg-[#f5f0e8]">
       <AppHeader locale={locale} />
 
       {/* Hero */}
-      <section className="bg-gradient-to-br from-teal-700 to-teal-900 px-4 py-12 text-white">
+      <section className="border-b-2 border-neutral-900 bg-teal-600 px-4 py-12 text-white">
         <div className="mx-auto flex max-w-5xl flex-col items-center gap-8 md:flex-row md:justify-between">
           <div className="text-center md:text-left">
-            <Building2 className="mb-4 h-12 w-12 text-teal-200 mx-auto md:mx-0" />
-            <h1 className="text-4xl font-extrabold sm:text-5xl">Corporate Solutions</h1>
-            <p className="mt-4 max-w-lg text-lg text-teal-100">
+            <div className="mb-4 flex justify-center md:justify-start">
+              <span className="flex h-14 w-14 items-center justify-center rounded-md border-2 border-white/30 bg-white/10">
+                <Building2 className="h-8 w-8 text-teal-100" />
+              </span>
+            </div>
+            <h1 className="text-4xl font-black sm:text-5xl">Corporate Solutions</h1>
+            <p className="mt-4 max-w-lg text-lg font-medium text-teal-50">
               Reliable, managed transportation for businesses, NGOs, embassies, and corporate teams
               operating in Rwanda.
             </p>
@@ -37,8 +41,8 @@ export default function CorporatePage({ params }: { params: Promise<{ locale: st
 
       {/* Features */}
       <section className="mx-auto max-w-5xl px-4 py-16 sm:px-6">
-        <h2 className="mb-10 text-center text-2xl font-bold text-gray-900">What We Offer</h2>
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <h2 className="mb-10 text-center text-2xl font-black text-neutral-900">What We Offer</h2>
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {[
             {
               icon: <Car className="h-8 w-8 text-teal-600" />,
@@ -53,7 +57,7 @@ export default function CorporatePage({ params }: { params: Promise<{ locale: st
             {
               icon: <Clock className="h-8 w-8 text-teal-600" />,
               title: 'On-Demand or Scheduled',
-              desc: 'Book on-demand or set up recurring trips. We adapt to your team\'s schedule.',
+              desc: "Book on-demand or set up recurring trips. We adapt to your team's schedule.",
             },
             {
               icon: <Building2 className="h-8 w-8 text-teal-600" />,
@@ -71,20 +75,20 @@ export default function CorporatePage({ params }: { params: Promise<{ locale: st
               desc: 'Corporate accounts get priority response from our support team — day and night.',
             },
           ].map((item) => (
-            <div key={item.title} className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+            <div key={item.title} className="rounded-md border-2 border-neutral-900 bg-white p-5 shadow-brutal">
               <div className="mb-3">{item.icon}</div>
-              <h3 className="mb-2 font-semibold text-gray-900">{item.title}</h3>
-              <p className="text-sm text-gray-600">{item.desc}</p>
+              <h3 className="mb-2 font-black text-neutral-900">{item.title}</h3>
+              <p className="text-sm font-medium text-neutral-600">{item.desc}</p>
             </div>
           ))}
         </div>
       </section>
 
       {/* Who we serve */}
-      <section className="bg-gray-50 px-4 py-14 sm:px-6">
+      <section className="border-t-2 border-b-2 border-neutral-900 bg-white px-4 py-14 sm:px-6">
         <div className="mx-auto max-w-3xl text-center">
-          <h2 className="mb-6 text-2xl font-bold text-gray-900">Who We Serve</h2>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+          <h2 className="mb-6 text-2xl font-black text-neutral-900">Who We Serve</h2>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {[
               'NGOs & Development Agencies',
               'Embassies & Diplomats',
@@ -93,7 +97,7 @@ export default function CorporatePage({ params }: { params: Promise<{ locale: st
               'Tour Companies',
               'Corporate Offices',
             ].map((c) => (
-              <div key={c} className="rounded-xl border bg-white px-4 py-3 text-sm font-medium text-gray-700 shadow-sm">
+              <div key={c} className="rounded-md border-2 border-neutral-900 bg-white px-4 py-3 text-sm font-black text-neutral-900 shadow-brutal-xs">
                 {c}
               </div>
             ))}
@@ -103,21 +107,21 @@ export default function CorporatePage({ params }: { params: Promise<{ locale: st
 
       {/* Contact CTA */}
       <section className="mx-auto max-w-3xl px-4 py-16 text-center sm:px-6">
-        <h2 className="mb-3 text-2xl font-bold text-gray-900">Get a Corporate Quote</h2>
-        <p className="mb-6 text-gray-600">
+        <h2 className="mb-3 text-2xl font-black text-neutral-900">Get a Corporate Quote</h2>
+        <p className="mb-6 font-medium text-neutral-600">
           Contact our team to discuss your requirements. We&apos;ll prepare a tailored solution and
           pricing for your organization.
         </p>
         <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
           <a
             href="tel:+250788781648"
-            className="flex items-center gap-2 rounded-full bg-teal-600 px-7 py-3 font-semibold text-white hover:bg-teal-700"
+            className="flex items-center gap-2 rounded border-2 border-teal-800 bg-teal-600 px-7 py-3 font-black uppercase tracking-wide text-white shadow-brutal-teal-sm transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none"
           >
             <Phone className="h-4 w-4" /> 0788 781 648
           </a>
           <a
             href="mailto:renting.rw@gmail.com"
-            className="flex items-center gap-2 rounded-full border border-teal-600 px-7 py-3 font-semibold text-teal-600 hover:bg-teal-50"
+            className="flex items-center gap-2 rounded border-2 border-neutral-900 bg-white px-7 py-3 font-black uppercase tracking-wide text-neutral-900 shadow-brutal-xs transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none"
           >
             <Mail className="h-4 w-4" /> renting.rw@gmail.com
           </a>

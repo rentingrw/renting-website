@@ -1,0 +1,14 @@
+/* Web app neo-brutalism overrides */
+:root {
+  --background: 47 33% 95%;
+  --foreground: 0 0% 7%;
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 7%;
+  --primary: 174 72% 32%;
+  --primary-foreground: 0 0% 100%;
+  --muted: 47 20% 89%;
+  --muted-foreground: 0 0% 38%;
+  --border: 0 0% 85%;
+  --input: 214.3 31.8% 91.4%;
+  --ring: 174 72% 32%;
+}

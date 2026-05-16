@@ -7,7 +7,6 @@ import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 
 import {
-  Button,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -34,8 +33,8 @@ export function AppHeader({ locale, variant = 'default' }: AppHeaderProps) {
         <button
           type="button"
           onClick={() => setSearchOpen(true)}
-          className={`rounded-lg p-2 transition ${
-            isDark ? 'text-zinc-400 hover:bg-zinc-800 hover:text-white' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+          className={`rounded p-2 transition ${
+            isDark ? 'text-zinc-400 hover:bg-zinc-800 hover:text-white' : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'
           }`}
           aria-label="Search"
         >
@@ -45,34 +44,39 @@ export function AppHeader({ locale, variant = 'default' }: AppHeaderProps) {
       <LanguageSelector locale={locale} variant={isDark ? 'dark' : 'light'} />
       {isSignedIn ? (
         <div className="flex items-center gap-2">
-          <Link href={`/${locale}/app`}>
-            <Button
-              variant="outline"
-              className={
-                isDark
-                  ? 'border-zinc-600 bg-transparent text-white hover:bg-zinc-800 hover:text-white'
-                  : ''
-              }
-            >
-              {t('nav.dashboard')}
-            </Button>
+          <Link
+            href={`/${locale}/app`}
+            className={`rounded border-2 px-3 py-1.5 text-sm font-bold transition-all ${
+              isDark
+                ? 'border-zinc-600 text-white hover:bg-zinc-800'
+                : 'border-neutral-900 bg-white text-neutral-900 shadow-brutal-xs hover:translate-x-px hover:translate-y-px hover:shadow-none'
+            }`}
+          >
+            {t('nav.dashboard')}
           </Link>
           <UserButton afterSignOutUrl={`/${locale}`} />
         </div>
       ) : (
         <>
           <SignInButton mode="modal">
-            <Button
-              variant="outline"
-              className={isDark ? 'border-zinc-600 bg-transparent text-white hover:bg-zinc-800 hover:text-white' : ''}
+            <button
+              type="button"
+              className={`rounded border-2 px-3 py-1.5 text-sm font-bold transition-all ${
+                isDark
+                  ? 'border-zinc-600 text-white hover:bg-zinc-800'
+                  : 'border-neutral-900 bg-white text-neutral-900 shadow-brutal-xs hover:translate-x-px hover:translate-y-px hover:shadow-none'
+              }`}
             >
               {t('auth.signIn')}
-            </Button>
+            </button>
           </SignInButton>
           <SignUpButton mode="modal">
-            <Button className={isDark ? 'bg-teal-600 text-white hover:bg-teal-700' : 'bg-teal-600 text-white hover:bg-teal-700'}>
+            <button
+              type="button"
+              className="rounded border-2 border-teal-800 bg-teal-600 px-3 py-1.5 text-sm font-bold text-white shadow-brutal-teal-sm transition-all hover:translate-x-px hover:translate-y-px hover:bg-teal-700 hover:shadow-none"
+            >
               {t('auth.createAccount')}
-            </Button>
+            </button>
           </SignUpButton>
         </>
       )}
@@ -81,48 +85,51 @@ export function AppHeader({ locale, variant = 'default' }: AppHeaderProps) {
 
   return (
     <header
-      className={`sticky top-0 z-50 border-b backdrop-blur ${
-        isDark ? 'border-zinc-800 bg-zinc-950/95' : 'bg-background/90'
+      className={`sticky top-0 z-50 border-b-2 ${
+        isDark ? 'border-zinc-800 bg-zinc-950' : 'border-neutral-900 bg-white'
       }`}
     >
       <div className="mx-auto flex w-full max-w-7xl min-w-0 items-center justify-between gap-2 px-4 py-3 sm:gap-4 sm:px-6">
         <Link
           href={`/${locale}`}
-          className={`shrink-0 text-lg font-bold sm:text-xl ${isDark ? 'text-white' : 'text-primary'}`}
+          className={`shrink-0 text-lg font-black tracking-tight sm:text-xl ${isDark ? 'text-white' : 'text-neutral-900'}`}
         >
           renting.rw
         </Link>
 
-        {/* Desktop: inline nav */}
-        <nav className={`hidden items-center gap-2 sm:flex sm:gap-3 ${isDark ? 'text-white' : ''}`}>
-          <Link href={`/${locale}/cars`} className={isDark ? 'text-zinc-300 hover:text-white' : ''}>
+        {/* Desktop nav */}
+        <nav className={`hidden items-center gap-3 sm:flex ${isDark ? 'text-white' : ''}`}>
+          <Link
+            href={`/${locale}/cars`}
+            className={`text-sm font-bold transition-colors ${isDark ? 'text-zinc-300 hover:text-white' : 'text-neutral-700 hover:text-teal-600'}`}
+          >
             {t('nav.cars')}
           </Link>
-          <Link href={`/${locale}/drivers`} className={isDark ? 'text-zinc-300 hover:text-white' : ''}>
+          <Link
+            href={`/${locale}/drivers`}
+            className={`text-sm font-bold transition-colors ${isDark ? 'text-zinc-300 hover:text-white' : 'text-neutral-700 hover:text-teal-600'}`}
+          >
             {t('nav.drivers')}
           </Link>
           {navContent}
         </nav>
 
-        {/* Mobile: hamburger menu */}
+        {/* Mobile hamburger */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button
-              variant="outline"
-              size="icon"
-              className={`shrink-0 sm:hidden ${isDark ? 'border-zinc-600 bg-transparent text-white hover:bg-zinc-800' : ''}`}
+            <button
+              type="button"
+              className={`shrink-0 rounded border-2 p-1.5 sm:hidden ${isDark ? 'border-zinc-600 text-white hover:bg-zinc-800' : 'border-neutral-900 bg-white text-neutral-900'}`}
             >
               <Menu className="h-5 w-5" aria-label="Open menu" />
-            </Button>
+            </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className={`w-56 ${isDark ? 'border-zinc-800 bg-zinc-900' : ''}`}>
+          <DropdownMenuContent align="end" className={`w-56 border-2 border-neutral-900 shadow-brutal ${isDark ? 'bg-zinc-900' : 'bg-white'}`}>
             <div className={`flex flex-col gap-2 p-2 ${isDark ? 'text-white' : ''}`}>
               {isSignedIn ? (
                 <DropdownMenuItem
                   onClick={() => setSearchOpen(true)}
-                  className={`flex cursor-pointer items-center gap-2 ${
-                    isDark ? 'focus:bg-zinc-800 focus:text-white' : 'focus:bg-gray-100'
-                  }`}
+                  className="flex cursor-pointer items-center gap-2 rounded font-semibold"
                 >
                   <Search className="h-4 w-4" />
                   {t('app.cta.searchButton')}
@@ -132,10 +139,7 @@ export function AppHeader({ locale, variant = 'default' }: AppHeaderProps) {
               {isSignedIn ? (
                 <>
                   <DropdownMenuItem asChild>
-                    <Link
-                      href={`/${locale}/app`}
-                      className={`flex cursor-pointer items-center ${isDark ? 'focus:bg-zinc-800 focus:text-white' : ''}`}
-                    >
+                    <Link href={`/${locale}/app`} className="flex cursor-pointer items-center font-semibold">
                       {t('nav.dashboard')}
                     </Link>
                   </DropdownMenuItem>
@@ -147,12 +151,12 @@ export function AppHeader({ locale, variant = 'default' }: AppHeaderProps) {
                 <>
                   <SignInButton mode="modal">
                     <DropdownMenuItem asChild>
-                      <span className="cursor-pointer">{t('auth.signIn')}</span>
+                      <span className="cursor-pointer font-semibold">{t('auth.signIn')}</span>
                     </DropdownMenuItem>
                   </SignInButton>
                   <SignUpButton mode="modal">
                     <DropdownMenuItem asChild>
-                      <span className="cursor-pointer">{t('auth.createAccount')}</span>
+                      <span className="cursor-pointer font-semibold">{t('auth.createAccount')}</span>
                     </DropdownMenuItem>
                   </SignUpButton>
                 </>

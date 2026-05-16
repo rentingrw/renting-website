@@ -17,16 +17,16 @@ export default function AboutPage({ params }: { params: Promise<{ locale: string
   }, [params]);
 
   return (
-    <main className="flex min-h-screen flex-col">
+    <main className="flex min-h-screen flex-col bg-[#f5f0e8]">
       <AppHeader locale={locale} />
 
       {/* Hero */}
-      <section className="bg-gradient-to-br from-teal-700 to-teal-900 px-4 py-16 text-white">
+      <section className="border-b-2 border-neutral-900 bg-teal-600 px-4 py-16 text-white">
         <div className="mx-auto flex max-w-5xl flex-col items-center gap-8 md:flex-row md:justify-between">
           <div className="text-center md:text-left">
-            <p className="mb-2 text-sm font-semibold uppercase tracking-widest text-teal-200">Our Story</p>
-            <h1 className="text-4xl font-extrabold sm:text-5xl">About renting.rw</h1>
-            <p className="mt-4 max-w-xl text-lg text-teal-100">
+            <p className="mb-2 text-xs font-black uppercase tracking-widest text-teal-100">Our Story</p>
+            <h1 className="text-4xl font-black sm:text-5xl">About renting.rw</h1>
+            <p className="mt-4 max-w-xl text-lg font-medium text-teal-50">
               Rwanda&apos;s most trusted marketplace for car rentals and professional drivers — built by
               CARIRWA LTD to make mobility seamless, safe, and accessible.
             </p>
@@ -39,26 +39,26 @@ export default function AboutPage({ params }: { params: Promise<{ locale: string
       <section className="mx-auto max-w-4xl px-4 py-16 sm:px-6">
         <div className="grid gap-12 md:grid-cols-2">
           <div>
-            <h2 className="mb-4 text-2xl font-bold text-gray-900">Our Mission</h2>
-            <p className="text-gray-600 leading-relaxed">
+            <h2 className="mb-4 text-2xl font-black text-neutral-900">Our Mission</h2>
+            <p className="font-medium leading-relaxed text-neutral-600">
               renting.rw was founded with a simple belief: getting around Rwanda should be easy,
               transparent, and trustworthy. We connect verified car owners and professional drivers
               with people who need reliable transportation — whether it&apos;s a day trip to Musanze,
               an airport transfer, or a full week across the country.
             </p>
-            <p className="mt-4 text-gray-600 leading-relaxed">
+            <p className="mt-4 font-medium leading-relaxed text-neutral-600">
               Every listing on our platform goes through a verification process. Every driver has a
               background check. Every booking is protected by our trust system.
             </p>
           </div>
           <div>
-            <h2 className="mb-4 text-2xl font-bold text-gray-900">Who We Are</h2>
-            <p className="text-gray-600 leading-relaxed">
-              We are <strong>CARIRWA LTD</strong>, a Rwanda-registered company headquartered in
+            <h2 className="mb-4 text-2xl font-black text-neutral-900">Who We Are</h2>
+            <p className="font-medium leading-relaxed text-neutral-600">
+              We are <strong className="text-neutral-900">CARIRWA LTD</strong>, a Rwanda-registered company headquartered in
               Kigali. Our team combines deep local knowledge with modern technology to build a
               marketplace that works for Rwandans and visitors alike.
             </p>
-            <p className="mt-4 text-gray-600 leading-relaxed">
+            <p className="mt-4 font-medium leading-relaxed text-neutral-600">
               renting.rw is our flagship product — a platform that puts safety, reliability, and
               fair pricing at the center of every transaction.
             </p>
@@ -67,10 +67,10 @@ export default function AboutPage({ params }: { params: Promise<{ locale: string
       </section>
 
       {/* Values */}
-      <section className="bg-gray-50 px-4 py-16 sm:px-6">
+      <section className="border-t-2 border-b-2 border-neutral-900 bg-white px-4 py-16 sm:px-6">
         <div className="mx-auto max-w-5xl">
-          <h2 className="mb-10 text-center text-2xl font-bold text-gray-900">What We Stand For</h2>
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          <h2 className="mb-10 text-center text-2xl font-black text-neutral-900">What We Stand For</h2>
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {[
               {
                 icon: <ShieldCheck className="h-8 w-8 text-teal-600" />,
@@ -95,11 +95,11 @@ export default function AboutPage({ params }: { params: Promise<{ locale: string
             ].map((v) => (
               <div
                 key={v.title}
-                className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm"
+                className="rounded-md border-2 border-neutral-900 bg-white p-5 shadow-brutal"
               >
                 <div className="mb-3">{v.icon}</div>
-                <h3 className="mb-2 font-semibold text-gray-900">{v.title}</h3>
-                <p className="text-sm text-gray-600">{v.desc}</p>
+                <h3 className="mb-2 font-black text-neutral-900">{v.title}</h3>
+                <p className="text-sm font-medium text-neutral-600">{v.desc}</p>
               </div>
             ))}
           </div>
@@ -107,7 +107,7 @@ export default function AboutPage({ params }: { params: Promise<{ locale: string
       </section>
 
       {/* Car illustration banner */}
-      <section className="bg-teal-50 px-4 py-8 sm:px-6">
+      <section className="border-b-2 border-neutral-900 bg-teal-50 px-4 py-8 sm:px-6">
         <div className="mx-auto max-w-2xl">
           <IllustrationCarRental className="mx-auto w-full max-w-lg" />
         </div>
@@ -115,16 +115,18 @@ export default function AboutPage({ params }: { params: Promise<{ locale: string
 
       {/* Headquarters */}
       <section className="mx-auto max-w-3xl px-4 py-16 text-center sm:px-6">
-        <MapPin className="mx-auto mb-3 h-8 w-8 text-teal-600" />
-        <h2 className="mb-3 text-2xl font-bold text-gray-900">Find Us</h2>
-        <p className="text-gray-600">
+        <div className="mx-auto inline-flex h-14 w-14 items-center justify-center rounded-md border-2 border-neutral-900 bg-white shadow-brutal">
+          <MapPin className="h-7 w-7 text-teal-600" />
+        </div>
+        <h2 className="mb-3 mt-5 text-2xl font-black text-neutral-900">Find Us</h2>
+        <p className="font-medium text-neutral-600">
           CARIRWA LTD — Kigali, Rwanda
           <br />
-          <a href="tel:+250788781648" className="text-teal-600 hover:underline">
+          <a href="tel:+250788781648" className="font-black text-teal-700 hover:underline">
             0788 781 648
           </a>
           {' · '}
-          <a href="mailto:renting.rw@gmail.com" className="text-teal-600 hover:underline">
+          <a href="mailto:renting.rw@gmail.com" className="font-black text-teal-700 hover:underline">
             renting.rw@gmail.com
           </a>
         </p>

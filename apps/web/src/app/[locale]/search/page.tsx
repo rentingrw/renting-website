@@ -1,16 +1,14 @@
 'use client';
 
-import { Badge, Card, CardContent, Skeleton, Tabs, TabsList, TabsTrigger } from '@rentingi/ui';
 import dynamic from 'next/dynamic';
+import Image from 'next/image';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useEffect, useMemo, useState } from 'react';
 
-import Image from 'next/image';
 import { AppHeader } from '@/components/web/app-header';
 import { AddressInput } from '@/components/web/address-input';
-import { LoadingSpinner } from '@/components/web/loading-states';
 import { isSupportedLocale, routing, type SupportedLocale } from '@/i18n/routing';
 import {
   searchMarketplace,
@@ -28,8 +26,8 @@ const SearchResultsMap = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="flex h-full min-h-[400px] items-center justify-center bg-gray-100">
-        <LoadingSpinner className="h-8 w-8 text-teal-600" />
+      <div className="flex h-full min-h-[400px] items-center justify-center border-l-2 border-neutral-900 bg-neutral-100">
+        <span className="text-sm font-semibold text-neutral-500">Loading map…</span>
       </div>
     ),
   },
@@ -50,6 +48,19 @@ function parseCoordinate(value: string | null): number | null {
   if (!value) return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function ResultSkeleton() {
+  return (
+    <div className="flex animate-pulse gap-3 rounded-md border-2 border-neutral-900 bg-white p-3">
+      <div className="h-14 w-20 shrink-0 rounded bg-neutral-200" />
+      <div className="min-w-0 flex-1 space-y-2">
+        <div className="h-4 w-3/4 rounded bg-neutral-200" />
+        <div className="h-3 w-1/2 rounded bg-neutral-200" />
+        <div className="h-4 w-24 rounded bg-neutral-200" />
+      </div>
+    </div>
+  );
 }
 
 export default function SearchPage({ params }: SearchPageProps) {
@@ -81,14 +92,10 @@ export default function SearchPage({ params }: SearchPageProps) {
     let cancelled = false;
     async function resolveParams() {
       const routeParams = await params;
-      if (!cancelled && isSupportedLocale(routeParams.locale)) {
-        setLocale(routeParams.locale);
-      }
+      if (!cancelled && isSupportedLocale(routeParams.locale)) setLocale(routeParams.locale);
     }
     resolveParams();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [params]);
 
   useEffect(() => {
@@ -99,8 +106,7 @@ export default function SearchPage({ params }: SearchPageProps) {
       setOffset(0);
       try {
         const data = await searchMarketplace({
-          type,
-          location,
+          type, location,
           latitude: latitude ?? undefined,
           longitude: longitude ?? undefined,
           from: from || undefined,
@@ -108,8 +114,7 @@ export default function SearchPage({ params }: SearchPageProps) {
           serviceType: serviceType || undefined,
           vehicleType: vehicleType || undefined,
           driverCategory: driverCategory || undefined,
-          limit: PAGE_SIZE,
-          offset: 0,
+          limit: PAGE_SIZE, offset: 0,
         });
         if (!cancelled) {
           setCars(data.cars);
@@ -119,17 +124,13 @@ export default function SearchPage({ params }: SearchPageProps) {
           setActivePin(data.cars[0]?.id ?? data.drivers[0]?.id ?? null);
         }
       } catch (searchError) {
-        if (!cancelled) {
-          setError(searchError instanceof Error ? searchError.message : t('search.error'));
-        }
+        if (!cancelled) setError(searchError instanceof Error ? searchError.message : t('search.error'));
       } finally {
         if (!cancelled) setLoading(false);
       }
     }
     runSearch();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [driverCategory, from, latitude, location, longitude, serviceType, t, to, type, vehicleType]);
 
   async function handleLoadMore() {
@@ -138,8 +139,7 @@ export default function SearchPage({ params }: SearchPageProps) {
     setError(null);
     try {
       const data = await searchMarketplace({
-        type,
-        location,
+        type, location,
         latitude: latitude ?? undefined,
         longitude: longitude ?? undefined,
         from: from || undefined,
@@ -147,11 +147,10 @@ export default function SearchPage({ params }: SearchPageProps) {
         serviceType: serviceType || undefined,
         vehicleType: vehicleType || undefined,
         driverCategory: driverCategory || undefined,
-        limit: PAGE_SIZE,
-        offset: nextOffset,
+        limit: PAGE_SIZE, offset: nextOffset,
       });
-      setCars((previous) => [...previous, ...data.cars]);
-      setDrivers((previous) => [...previous, ...data.drivers]);
+      setCars((prev) => [...prev, ...data.cars]);
+      setDrivers((prev) => [...prev, ...data.drivers]);
       setOffset(nextOffset);
       setHasMoreCars(Boolean(data.pagination?.hasMoreCars));
       setHasMoreDrivers(Boolean(data.pagination?.hasMoreDrivers));
@@ -166,114 +165,106 @@ export default function SearchPage({ params }: SearchPageProps) {
     const includeCars = type === 'all' || type === 'cars';
     const includeDrivers = type === 'all' || type === 'drivers';
     return [
-      ...(includeCars
-        ? cars.map((car) => {
-            const priceLabel = car.dailyRateKigaliRwf
-              ? formatCurrencyRwf(car.dailyRateKigaliRwf) + '/day'
-              : car.approximateDailyRateRangeRwf
-                ? formatRange(car.approximateDailyRateRangeRwf.kigali.min, car.approximateDailyRateRangeRwf.kigali.max) + '/day'
-                : null;
-            return {
-              id: car.id,
-              label: car.title,
-              address: car.locationText,
-              photo: car.photos?.[0] ?? null,
-              priceLabel,
-              href: `/${locale}/cars/${car.id}`,
-              kind: 'car' as const,
-              description: [car.vehicleType, car.serviceType.replace('_', ' ')].filter(Boolean).join(' • '),
-              latitude: car.pickupLatitude,
-              longitude: car.pickupLongitude,
-            };
-          })
-        : []),
-      ...(includeDrivers
-        ? drivers.map((driver) => {
-            const priceLabel = driver.dailyRateRwf
-              ? formatCurrencyRwf(driver.dailyRateRwf) + '/day'
-              : driver.approximateRateRangeRwf
-                ? formatRange(driver.approximateRateRangeRwf.daily.min, driver.approximateRateRangeRwf.daily.max) + '/day'
-                : null;
-            return {
-              id: driver.id,
-              label: driver.fullName,
-              address: driver.primaryCity,
-              photo: driver.profilePhotoUrl ?? null,
-              priceLabel,
-              href: `/${locale}/drivers/${driver.id}`,
-              kind: 'driver' as const,
-              description: driver.categories.slice(0, 2).join(' • '),
-              latitude: driver.primaryCityLatitude,
-              longitude: driver.primaryCityLongitude,
-            };
-          })
-        : []),
+      ...(includeCars ? cars.map((car) => {
+        const priceLabel = car.dailyRateKigaliRwf
+          ? formatCurrencyRwf(car.dailyRateKigaliRwf) + '/day'
+          : car.approximateDailyRateRangeRwf
+            ? formatRange(car.approximateDailyRateRangeRwf.kigali.min, car.approximateDailyRateRangeRwf.kigali.max) + '/day'
+            : null;
+        return {
+          id: car.id, label: car.title, address: car.locationText, photo: car.photos?.[0] ?? null,
+          priceLabel, href: `/${locale}/cars/${car.id}`, kind: 'car' as const,
+          description: [car.vehicleType, car.serviceType.replace('_', ' ')].filter(Boolean).join(' • '),
+          latitude: car.pickupLatitude, longitude: car.pickupLongitude,
+        };
+      }) : []),
+      ...(includeDrivers ? drivers.map((driver) => {
+        const priceLabel = driver.dailyRateRwf
+          ? formatCurrencyRwf(driver.dailyRateRwf) + '/day'
+          : driver.approximateRateRangeRwf
+            ? formatRange(driver.approximateRateRangeRwf.daily.min, driver.approximateRateRangeRwf.daily.max) + '/day'
+            : null;
+        return {
+          id: driver.id, label: driver.fullName, address: driver.primaryCity, photo: driver.profilePhotoUrl ?? null,
+          priceLabel, href: `/${locale}/drivers/${driver.id}`, kind: 'driver' as const,
+          description: driver.categories.slice(0, 2).join(' • '),
+          latitude: driver.primaryCityLatitude, longitude: driver.primaryCityLongitude,
+        };
+      }) : []),
     ];
   }, [cars, drivers, locale, type]);
 
+  const tabs: { value: SearchType; label: string }[] = [
+    { value: 'all', label: t('tabs.all') },
+    { value: 'cars', label: t('tabs.cars') },
+    { value: 'drivers', label: t('tabs.drivers') },
+  ];
+
+  const hasMore = type === 'all' ? hasMoreCars || hasMoreDrivers : type === 'cars' ? hasMoreCars : hasMoreDrivers;
+
   return (
-    <main className="min-h-screen bg-gray-50">
+    <main className="flex min-h-screen flex-col bg-[#f5f0e8]">
       <AppHeader locale={locale} variant="default" />
-      <div className="sticky top-[57px] z-40 border-b border-gray-200 bg-white shadow-sm">
+
+      {/* Filter bar */}
+      <div className="sticky top-[57px] z-40 border-b-2 border-neutral-900 bg-white">
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:gap-3">
           <AddressInput
             value={location}
-            onChange={(nextValue) => {
-              setLocation(nextValue);
-              setLatitude(null);
-              setLongitude(null);
-            }}
-            onPlaceSelected={(place) => {
-              setLocation(place.address);
-              setLatitude(place.latitude);
-              setLongitude(place.longitude);
-            }}
-            className="h-10 min-w-0 flex-1 rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-500 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+            onChange={(v) => { setLocation(v); setLatitude(null); setLongitude(null); }}
+            onPlaceSelected={(p) => { setLocation(p.address); setLatitude(p.latitude); setLongitude(p.longitude); }}
+            className="h-10 min-w-0 flex-1 rounded border-2 border-neutral-900 bg-white px-4 text-sm font-semibold text-neutral-900 placeholder:font-normal placeholder:text-neutral-400 focus:outline-none"
             placeholder={t('search.locationPlaceholder')}
           />
           <div className="flex gap-2">
             <input
               type="date"
               value={from}
-              onChange={(event) => setFrom(event.target.value)}
-              className="h-10 min-w-0 flex-1 rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 sm:flex-initial"
+              onChange={(e) => setFrom(e.target.value)}
+              className="h-10 min-w-0 flex-1 rounded border-2 border-neutral-900 bg-white px-3 text-sm font-semibold text-neutral-900 sm:flex-initial focus:outline-none"
             />
             <input
               type="date"
               value={to}
-              onChange={(event) => setTo(event.target.value)}
-              className="h-10 min-w-0 flex-1 rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 sm:flex-initial"
+              onChange={(e) => setTo(e.target.value)}
+              className="h-10 min-w-0 flex-1 rounded border-2 border-neutral-900 bg-white px-3 text-sm font-semibold text-neutral-900 sm:flex-initial focus:outline-none"
             />
           </div>
         </div>
       </div>
 
-      <div className="grid min-h-[50vh] grid-cols-1 md:grid-cols-[440px_1fr] md:h-[calc(100vh-120px)]">
-        <section className="overflow-y-auto border-r border-gray-200 bg-white p-4">
-          <Tabs value={type} onValueChange={(value) => setType(value as SearchType)}>
-            <TabsList className="w-full bg-gray-100">
-              <TabsTrigger value="all" className="flex-1 data-[state=active]:bg-teal-600 data-[state=active]:text-white">
-                {t('tabs.all')}
-              </TabsTrigger>
-              <TabsTrigger value="cars" className="flex-1 data-[state=active]:bg-teal-600 data-[state=active]:text-white">
-                {t('tabs.cars')}
-              </TabsTrigger>
-              <TabsTrigger value="drivers" className="flex-1 data-[state=active]:bg-teal-600 data-[state=active]:text-white">
-                {t('tabs.drivers')}
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
+      <div className="grid flex-1 grid-cols-1 md:grid-cols-[440px_1fr] md:h-[calc(100vh-113px)]">
+        {/* Results panel */}
+        <section className="overflow-y-auto border-r-2 border-neutral-900 bg-white p-4">
+          {/* Type tabs */}
+          <div className="flex rounded border-2 border-neutral-900 overflow-hidden">
+            {tabs.map((tab) => (
+              <button
+                key={tab.value}
+                type="button"
+                onClick={() => setType(tab.value)}
+                className={`flex-1 py-2 text-xs font-black uppercase tracking-wide transition-colors ${
+                  type === tab.value
+                    ? 'bg-neutral-900 text-white'
+                    : 'bg-white text-neutral-700 hover:bg-neutral-100'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
 
-          <div className="mt-4 flex flex-wrap gap-2">
+          {/* Filters */}
+          <div className="mt-3 flex flex-wrap gap-2">
             {SERVICE_TYPES.map((value) => (
               <button
                 key={value}
                 type="button"
                 onClick={() => setServiceType((prev) => (prev === value ? '' : value))}
-                className={`rounded-full border px-3 py-1 text-xs ${
+                className={`rounded border-2 border-neutral-900 px-2.5 py-1 text-xs font-black uppercase tracking-wide transition-all ${
                   serviceType === value
-                    ? 'border-teal-600 bg-teal-600 text-white'
-                    : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
+                    ? 'bg-neutral-900 text-white'
+                    : 'bg-white text-neutral-700 hover:bg-neutral-100'
                 }`}
               >
                 {value === 'self_drive' ? t('filters.selfDrive') : t('filters.withDriver')}
@@ -284,8 +275,8 @@ export default function SearchPage({ params }: SearchPageProps) {
           <div className="mt-2 grid grid-cols-2 gap-2">
             <select
               value={vehicleType}
-              onChange={(event) => setVehicleType(event.target.value as VehicleType | '')}
-              className="h-9 rounded-md border border-gray-300 bg-white px-2 text-sm text-gray-900"
+              onChange={(e) => setVehicleType(e.target.value as VehicleType | '')}
+              className="h-9 rounded border-2 border-neutral-900 bg-white px-2 text-xs font-black uppercase tracking-wide text-neutral-900 focus:outline-none"
             >
               <option value="">{t('filters.carType')}</option>
               {VEHICLE_TYPES.map((item) => (
@@ -294,8 +285,8 @@ export default function SearchPage({ params }: SearchPageProps) {
             </select>
             <select
               value={driverCategory}
-              onChange={(event) => setDriverCategory(event.target.value as DriverCategory | '')}
-              className="h-9 rounded-md border border-gray-300 bg-white px-2 text-sm text-gray-900"
+              onChange={(e) => setDriverCategory(e.target.value as DriverCategory | '')}
+              className="h-9 rounded border-2 border-neutral-900 bg-white px-2 text-xs font-black uppercase tracking-wide text-neutral-900 focus:outline-none"
             >
               <option value="">{t('filters.driverCategory')}</option>
               {DRIVER_CATEGORIES.map((item) => (
@@ -304,132 +295,118 @@ export default function SearchPage({ params }: SearchPageProps) {
             </select>
           </div>
 
-          <p className="mt-4 text-xs text-gray-500">
+          <p className="mt-3 text-xs font-semibold uppercase tracking-widest text-neutral-400">
             {loading ? t('search.loading') : t('search.resultsCount', { count: mergedResults.length })}
           </p>
-          {error ? <p className="mt-2 text-sm text-red-600">{error}</p> : null}
+          {error ? (
+            <p className="mt-2 rounded border-2 border-red-600 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{error}</p>
+          ) : null}
 
-          <div className="mt-3 space-y-3">
+          <div className="mt-3 space-y-2">
             {loading ? (
-              <>
-                {[1, 2, 3, 4, 5].map((i) => (
-                  <div key={i} className="flex gap-3 rounded-lg border border-gray-200 bg-white p-4">
-                    <Skeleton className="h-14 w-20 shrink-0 rounded bg-gray-200" />
-                    <div className="min-w-0 flex-1 space-y-2">
-                      <Skeleton className="h-4 w-3/4 bg-gray-200" />
-                      <Skeleton className="h-3 w-1/2 bg-gray-200" />
-                      <Skeleton className="h-4 w-24 bg-gray-200" />
-                    </div>
-                  </div>
-                ))}
-              </>
+              [1, 2, 3, 4, 5].map((i) => <ResultSkeleton key={i} />)
             ) : (
               <>
-                {(type === 'all' || type === 'cars') &&
-                  cars.map((car) => (
-                    <Link key={car.id} href={`/${locale}/cars/${car.id}`}>
-                      <Card
-                        onMouseEnter={() => setActivePin(car.id)}
-                        className={`cursor-pointer overflow-hidden border-gray-200 bg-white transition hover:border-teal-500/50 hover:shadow-md ${
-                          activePin === car.id ? 'border-teal-500 shadow-md ring-1 ring-teal-500/20' : ''
-                        }`}
-                      >
-                        <CardContent className="flex gap-3 p-3">
-                          <div className="relative h-16 w-24 shrink-0 overflow-hidden rounded-md bg-gray-100">
-                            <Image
-                              src={car.photos?.[0] ?? '/placeholder-car.jpg'}
-                              alt={car.title}
-                              fill
-                              sizes="96px"
-                              className="object-cover"
-                            />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-semibold text-gray-900">{car.title}</p>
-                            <p className="text-xs text-gray-500">
-                              {car.vehicleType} • {car.serviceType.replace('_', ' ')}
-                            </p>
-                            {car.distanceMeters != null && (
-                              <p className="text-xs text-gray-400">{(car.distanceMeters / 1000).toFixed(1)} km away</p>
-                            )}
-                            <p className="mt-1 text-sm font-semibold text-teal-600">
-                              {car.dailyRateKigaliRwf
-                                ? formatCurrencyRwf(car.dailyRateKigaliRwf)
-                                : car.approximateDailyRateRangeRwf
-                                  ? formatRange(car.approximateDailyRateRangeRwf.kigali.min, car.approximateDailyRateRangeRwf.kigali.max)
-                                  : t('home.priceUnavailable')}
-                              <span className="text-xs font-normal text-gray-400"> /day</span>
-                            </p>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </Link>
-                  ))}
+                {(type === 'all' || type === 'cars') && cars.map((car) => (
+                  <Link key={car.id} href={`/${locale}/cars/${car.id}`}>
+                    <div
+                      onMouseEnter={() => setActivePin(car.id)}
+                      className={`flex cursor-pointer gap-3 rounded-md border-2 bg-white p-3 transition-all hover:translate-x-px hover:translate-y-px ${
+                        activePin === car.id
+                          ? 'border-teal-600 shadow-brutal-teal-sm'
+                          : 'border-neutral-900 shadow-brutal-xs hover:shadow-none'
+                      }`}
+                    >
+                      <div className="relative h-16 w-24 shrink-0 overflow-hidden rounded bg-neutral-100 border border-neutral-300">
+                        <Image
+                          src={car.photos?.[0] ?? '/placeholder-car.jpg'}
+                          alt={car.title}
+                          fill
+                          sizes="96px"
+                          className="object-cover"
+                        />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-black text-neutral-900">{car.title}</p>
+                        <p className="text-xs font-medium text-neutral-500">
+                          {car.vehicleType} · {car.serviceType.replace('_', ' ')}
+                        </p>
+                        {car.distanceMeters != null && (
+                          <p className="text-xs text-neutral-400">{(car.distanceMeters / 1000).toFixed(1)} km away</p>
+                        )}
+                        <p className="mt-1 text-sm font-black text-teal-700">
+                          {car.dailyRateKigaliRwf
+                            ? formatCurrencyRwf(car.dailyRateKigaliRwf)
+                            : car.approximateDailyRateRangeRwf
+                              ? formatRange(car.approximateDailyRateRangeRwf.kigali.min, car.approximateDailyRateRangeRwf.kigali.max)
+                              : t('home.priceUnavailable')}
+                          <span className="text-xs font-medium text-neutral-400"> /day</span>
+                        </p>
+                      </div>
+                    </div>
+                  </Link>
+                ))}
 
-                {(type === 'all' || type === 'drivers') &&
-              drivers.map((driver) => (
-                <Link key={driver.id} href={`/${locale}/drivers/${driver.id}`}>
-                  <Card
-                    onMouseEnter={() => setActivePin(driver.id)}
-                    className={`cursor-pointer overflow-hidden border-gray-200 bg-white transition hover:border-teal-500/50 hover:shadow-md ${
-                      activePin === driver.id ? 'border-teal-500 shadow-md ring-1 ring-teal-500/20' : ''
-                    }`}
-                  >
-                    <CardContent className="flex gap-3 p-3">
-                      <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full border border-gray-200 bg-gray-100">
+                {(type === 'all' || type === 'drivers') && drivers.map((driver) => (
+                  <Link key={driver.id} href={`/${locale}/drivers/${driver.id}`}>
+                    <div
+                      onMouseEnter={() => setActivePin(driver.id)}
+                      className={`flex cursor-pointer gap-3 rounded-md border-2 bg-white p-3 transition-all hover:translate-x-px hover:translate-y-px ${
+                        activePin === driver.id
+                          ? 'border-teal-600 shadow-brutal-teal-sm'
+                          : 'border-neutral-900 shadow-brutal-xs hover:shadow-none'
+                      }`}
+                    >
+                      <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full border-2 border-neutral-900 bg-neutral-100">
                         {driver.profilePhotoUrl ? (
                           <Image src={driver.profilePhotoUrl} alt={driver.fullName} fill sizes="56px" className="object-cover" />
                         ) : (
-                          <div className="flex h-full w-full items-center justify-center text-gray-400 text-xs font-bold uppercase">
+                          <div className="flex h-full w-full items-center justify-center text-xs font-black uppercase text-neutral-400">
                             {driver.fullName.charAt(0)}
                           </div>
                         )}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-gray-900">{driver.fullName}</p>
-                        <p className="text-xs text-gray-500">{driver.categories.slice(0, 2).join(' • ')}</p>
+                        <p className="truncate text-sm font-black text-neutral-900">{driver.fullName}</p>
+                        <p className="text-xs font-medium text-neutral-500">{driver.categories.slice(0, 2).join(' · ')}</p>
                         {driver.distanceMeters != null && (
-                          <p className="text-xs text-gray-400">{(driver.distanceMeters / 1000).toFixed(1)} km away</p>
+                          <p className="text-xs text-neutral-400">{(driver.distanceMeters / 1000).toFixed(1)} km away</p>
                         )}
                         <div className="mt-1 flex items-center gap-2">
-                          <Badge className="bg-teal-50 text-teal-700 text-xs">{trustTierFromScore(driver.trustScore)}</Badge>
-                          <p className="text-xs font-semibold text-teal-600">
+                          <span className="rounded border border-teal-600 bg-teal-50 px-1.5 py-0.5 text-xs font-black text-teal-700">
+                            {trustTierFromScore(driver.trustScore)}
+                          </span>
+                          <p className="text-xs font-black text-teal-700">
                             {driver.dailyRateRwf
                               ? formatCurrencyRwf(driver.dailyRateRwf)
                               : driver.approximateRateRangeRwf
                                 ? formatRange(driver.approximateRateRangeRwf.daily.min, driver.approximateRateRangeRwf.daily.max)
                                 : t('home.priceUnavailable')}
-                            <span className="font-normal text-gray-400"> /day</span>
+                            <span className="font-medium text-neutral-400"> /day</span>
                           </p>
                         </div>
                       </div>
-                    </CardContent>
-                  </Card>
-                </Link>
-              ))}
-                {(type === 'all' ? hasMoreCars || hasMoreDrivers : type === 'cars' ? hasMoreCars : hasMoreDrivers) ? (
-              <button
-                type="button"
-                onClick={handleLoadMore}
-                disabled={loadingMore}
-                className="flex w-full items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
-              >
-                {loadingMore ? (
-                  <>
-                    <LoadingSpinner className="h-4 w-4" />
-                    {t('search.loadingMore')}
-                  </>
-                ) : (
-                  t('search.loadMore')
+                    </div>
+                  </Link>
+                ))}
+
+                {hasMore && (
+                  <button
+                    type="button"
+                    onClick={handleLoadMore}
+                    disabled={loadingMore}
+                    className="w-full rounded border-2 border-neutral-900 bg-white py-2.5 text-xs font-black uppercase tracking-wide text-neutral-900 shadow-brutal-xs transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none disabled:opacity-50"
+                  >
+                    {loadingMore ? t('search.loadingMore') : t('search.loadMore')}
+                  </button>
                 )}
-              </button>
-            ) : null}
               </>
             )}
           </div>
         </section>
 
-        <section className="relative hidden bg-gray-100 md:block">
+        {/* Map panel */}
+        <section className="relative hidden bg-neutral-100 md:block">
           <SearchResultsMap
             centerHint={location || 'Kigali'}
             centerLatitude={latitude ?? undefined}

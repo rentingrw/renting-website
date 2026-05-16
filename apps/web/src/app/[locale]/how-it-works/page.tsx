@@ -63,16 +63,16 @@ export default function HowItWorksPage({ params }: { params: Promise<{ locale: s
   ];
 
   return (
-    <main className="flex min-h-screen flex-col">
+    <main className="flex min-h-screen flex-col bg-[#f5f0e8]">
       <AppHeader locale={locale} />
 
       {/* Hero */}
-      <section className="bg-gradient-to-br from-teal-700 to-teal-900 px-4 py-12 text-white">
+      <section className="border-b-2 border-neutral-900 bg-teal-600 px-4 py-12 text-white">
         <div className="mx-auto flex max-w-5xl flex-col items-center gap-6 md:flex-row md:justify-between">
           <div className="text-center md:text-left">
-            <p className="mb-2 text-sm font-semibold uppercase tracking-widest text-teal-200">Simple &amp; Transparent</p>
-            <h1 className="text-4xl font-extrabold sm:text-5xl">How It Works</h1>
-            <p className="mt-4 max-w-lg text-lg text-teal-100">
+            <p className="mb-2 text-xs font-black uppercase tracking-widest text-teal-100">Simple &amp; Transparent</p>
+            <h1 className="text-4xl font-black sm:text-5xl">How It Works</h1>
+            <p className="mt-4 max-w-lg text-lg font-medium text-teal-50">
               Whether you&apos;re renting a car, hiring a driver, or listing your vehicle — the process is
               straightforward and secure.
             </p>
@@ -85,20 +85,20 @@ export default function HowItWorksPage({ params }: { params: Promise<{ locale: s
       <section className="mx-auto w-full max-w-5xl px-4 py-16 sm:px-6">
         <div className="mb-6 flex flex-col items-start gap-6 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-teal-100 text-teal-700">
+            <span className="flex h-10 w-10 items-center justify-center rounded-md border-2 border-neutral-900 bg-teal-600 text-white shadow-brutal-xs">
               <UserRound className="h-5 w-5" />
             </span>
-            <h2 className="text-2xl font-bold text-gray-900">For Renters &amp; Customers</h2>
+            <h2 className="text-2xl font-black text-neutral-900">For Renters &amp; Customers</h2>
           </div>
           <IllustrationSearch className="w-full max-w-[200px] shrink-0 opacity-80" />
         </div>
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {renterSteps.map((step, i) => (
-            <div key={step.title} className="relative rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-              <span className="absolute right-4 top-4 text-3xl font-black text-gray-100">{i + 1}</span>
+            <div key={step.title} className="relative rounded-md border-2 border-neutral-900 bg-white p-5 shadow-brutal">
+              <span className="absolute right-4 top-4 text-3xl font-black text-neutral-100">{i + 1}</span>
               <div className="mb-3">{step.icon}</div>
-              <h3 className="mb-2 font-semibold text-gray-900">{step.title}</h3>
-              <p className="text-sm text-gray-600">{step.desc}</p>
+              <h3 className="mb-2 font-black text-neutral-900">{step.title}</h3>
+              <p className="text-sm font-medium text-neutral-600">{step.desc}</p>
             </div>
           ))}
         </div>
@@ -106,38 +106,40 @@ export default function HowItWorksPage({ params }: { params: Promise<{ locale: s
 
       {/* Divider */}
       <div className="mx-auto w-full max-w-5xl px-4 sm:px-6">
-        <hr className="border-gray-200" />
+        <hr className="border-t-2 border-neutral-900" />
       </div>
 
       {/* For Owners */}
       <section className="mx-auto w-full max-w-5xl px-4 py-16 sm:px-6">
         <div className="mb-6 flex flex-col items-start gap-6 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-teal-100 text-teal-700">
+            <span className="flex h-10 w-10 items-center justify-center rounded-md border-2 border-neutral-900 bg-neutral-900 text-white shadow-brutal-xs">
               <Car className="h-5 w-5" />
             </span>
-            <h2 className="text-2xl font-bold text-gray-900">For Car Owners &amp; Drivers</h2>
+            <h2 className="text-2xl font-black text-neutral-900">For Car Owners &amp; Drivers</h2>
           </div>
           <IllustrationDriver className="w-full max-w-[180px] shrink-0 opacity-80" />
         </div>
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {ownerSteps.map((step, i) => (
-            <div key={step.title} className="relative rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-              <span className="absolute right-4 top-4 text-3xl font-black text-gray-100">{i + 1}</span>
+            <div key={step.title} className="relative rounded-md border-2 border-neutral-900 bg-white p-5 shadow-brutal">
+              <span className="absolute right-4 top-4 text-3xl font-black text-neutral-100">{i + 1}</span>
               <div className="mb-3">{step.icon}</div>
-              <h3 className="mb-2 font-semibold text-gray-900">{step.title}</h3>
-              <p className="text-sm text-gray-600">{step.desc}</p>
+              <h3 className="mb-2 font-black text-neutral-900">{step.title}</h3>
+              <p className="text-sm font-medium text-neutral-600">{step.desc}</p>
             </div>
           ))}
         </div>
       </section>
 
       {/* Trust system callout */}
-      <section className="bg-teal-50 px-4 py-12 sm:px-6">
-        <div className="mx-auto max-w-3xl text-center">
-          <CheckCircle className="mx-auto mb-3 h-10 w-10 text-teal-600" />
-          <h2 className="mb-2 text-xl font-bold text-gray-900">Powered by a Trust Score System</h2>
-          <p className="text-gray-600">
+      <section className="border-t-2 border-b-2 border-neutral-900 bg-teal-600 px-4 py-12 sm:px-6">
+        <div className="mx-auto max-w-3xl text-center text-white">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-md border-2 border-white/30 bg-white/10">
+            <CheckCircle className="h-7 w-7 text-white" />
+          </div>
+          <h2 className="mb-2 text-xl font-black">Powered by a Trust Score System</h2>
+          <p className="font-medium text-teal-50">
             Every user on renting.rw has a public trust score based on their verification level,
             booking history, and reviews. Higher scores mean more visibility and faster approvals.
           </p>

@@ -6,6 +6,7 @@ import { Inter } from 'next/font/google';
 import { notFound } from 'next/navigation';
 
 import '@rentingi/ui/globals.css';
+import '../web.css';
 
 import { AppQueryClientProvider } from '@/lib/query-client';
 import { routing } from '@/i18n/routing';

@@ -20,16 +20,20 @@ export default function ListYourCarPage({ params }: { params: Promise<{ locale: 
   }, [params]);
 
   return (
-    <main className="flex min-h-screen flex-col">
+    <main className="flex min-h-screen flex-col bg-[#f5f0e8]">
       <AppHeader locale={locale} />
 
       {/* Hero */}
-      <section className="bg-gradient-to-br from-teal-700 to-teal-900 px-4 py-12 text-white">
+      <section className="border-b-2 border-neutral-900 bg-teal-600 px-4 py-12 text-white">
         <div className="mx-auto flex max-w-5xl flex-col items-center gap-8 md:flex-row md:justify-between">
           <div className="text-center md:text-left">
-            <Car className="mb-4 h-12 w-12 text-teal-200 mx-auto md:mx-0" />
-            <h1 className="text-4xl font-extrabold sm:text-5xl">List Your Car on renting.rw</h1>
-            <p className="mt-4 max-w-lg text-lg text-teal-100">
+            <div className="mb-4 flex justify-center md:justify-start">
+              <span className="flex h-14 w-14 items-center justify-center rounded-md border-2 border-white/30 bg-white/10">
+                <Car className="h-8 w-8 text-teal-100" />
+              </span>
+            </div>
+            <h1 className="text-4xl font-black sm:text-5xl">List Your Car on renting.rw</h1>
+            <p className="mt-4 max-w-lg text-lg font-medium text-teal-50">
               Turn your idle vehicle into a source of income. Reach thousands of verified renters across
               Rwanda with full control over your pricing and availability.
             </p>
@@ -37,21 +41,21 @@ export default function ListYourCarPage({ params }: { params: Promise<{ locale: 
               {isSignedIn ? (
                 <Link
                   href={`/${locale}/app/cars`}
-                  className="rounded-full bg-white px-8 py-3 font-semibold text-teal-700 shadow hover:bg-teal-50"
+                  className="rounded border-2 border-neutral-900 bg-white px-8 py-3 font-black uppercase tracking-wide text-neutral-900 shadow-brutal-xs transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none"
                 >
                   Go to My Cars
                 </Link>
               ) : (
                 <Link
                   href={`/${locale}/app`}
-                  className="rounded-full bg-white px-8 py-3 font-semibold text-teal-700 shadow hover:bg-teal-50"
+                  className="rounded border-2 border-neutral-900 bg-white px-8 py-3 font-black uppercase tracking-wide text-neutral-900 shadow-brutal-xs transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none"
                 >
                   Get Started — It&apos;s Free
                 </Link>
               )}
               <Link
                 href={`/${locale}/how-it-works`}
-                className="rounded-full border border-white/50 px-8 py-3 font-semibold text-white hover:border-white"
+                className="rounded border-2 border-white/40 bg-white/10 px-8 py-3 font-black uppercase tracking-wide text-white transition-all hover:border-white/70"
               >
                 How It Works
               </Link>
@@ -63,8 +67,8 @@ export default function ListYourCarPage({ params }: { params: Promise<{ locale: 
 
       {/* Benefits */}
       <section className="mx-auto max-w-5xl px-4 py-16 sm:px-6">
-        <h2 className="mb-10 text-center text-2xl font-bold text-gray-900">Why List With Us?</h2>
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        <h2 className="mb-10 text-center text-2xl font-black text-neutral-900">Why List With Us?</h2>
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {[
             {
               icon: <DollarSign className="h-8 w-8 text-teal-600" />,
@@ -87,20 +91,20 @@ export default function ListYourCarPage({ params }: { params: Promise<{ locale: 
               desc: 'Collect reviews, build your reputation, and unlock more bookings with our subscription tiers.',
             },
           ].map((item) => (
-            <div key={item.title} className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+            <div key={item.title} className="rounded-md border-2 border-neutral-900 bg-white p-5 shadow-brutal">
               <div className="mb-3">{item.icon}</div>
-              <h3 className="mb-2 font-semibold text-gray-900">{item.title}</h3>
-              <p className="text-sm text-gray-600">{item.desc}</p>
+              <h3 className="mb-2 font-black text-neutral-900">{item.title}</h3>
+              <p className="text-sm font-medium text-neutral-600">{item.desc}</p>
             </div>
           ))}
         </div>
       </section>
 
       {/* Steps */}
-      <section className="bg-gray-50 px-4 py-14 sm:px-6">
+      <section className="border-t-2 border-b-2 border-neutral-900 bg-white px-4 py-14 sm:px-6">
         <div className="mx-auto max-w-3xl">
-          <h2 className="mb-8 text-center text-2xl font-bold text-gray-900">Getting Started in 4 Steps</h2>
-          <ol className="space-y-6">
+          <h2 className="mb-8 text-center text-2xl font-black text-neutral-900">Getting Started in 4 Steps</h2>
+          <ol className="space-y-5">
             {[
               { step: '1', title: 'Create an account', desc: 'Sign up with your email in under 2 minutes.' },
               { step: '2', title: 'Verify your identity', desc: 'Submit your national ID for KYC. This unlocks the car_owner role.' },
@@ -108,12 +112,12 @@ export default function ListYourCarPage({ params }: { params: Promise<{ locale: 
               { step: '4', title: 'Accept your first booking', desc: 'Respond to booking requests within 1 hour and start earning.' },
             ].map((s) => (
               <li key={s.step} className="flex gap-4">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-teal-600 text-white font-bold">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border-2 border-neutral-900 bg-neutral-900 text-white font-black shadow-brutal-xs">
                   {s.step}
                 </span>
-                <div>
-                  <p className="font-semibold text-gray-900">{s.title}</p>
-                  <p className="text-sm text-gray-600">{s.desc}</p>
+                <div className="pt-1.5">
+                  <p className="font-black text-neutral-900">{s.title}</p>
+                  <p className="mt-0.5 text-sm font-medium text-neutral-600">{s.desc}</p>
                 </div>
               </li>
             ))}
@@ -123,11 +127,11 @@ export default function ListYourCarPage({ params }: { params: Promise<{ locale: 
 
       {/* CTA */}
       <section className="px-4 py-14 text-center sm:px-6">
-        <h2 className="mb-3 text-2xl font-bold text-gray-900">Ready to start earning?</h2>
-        <p className="mb-6 text-gray-600">Join car owners across Rwanda already earning on renting.rw.</p>
+        <h2 className="mb-3 text-2xl font-black text-neutral-900">Ready to start earning?</h2>
+        <p className="mb-6 font-medium text-neutral-600">Join car owners across Rwanda already earning on renting.rw.</p>
         <Link
           href={isSignedIn ? `/${locale}/app/cars` : `/${locale}/app`}
-          className="inline-block rounded-full bg-teal-600 px-10 py-3 font-semibold text-white shadow hover:bg-teal-700"
+          className="inline-block rounded border-2 border-teal-800 bg-teal-600 px-10 py-3 font-black uppercase tracking-wide text-white shadow-brutal-teal-sm transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none"
         >
           {isSignedIn ? 'Manage My Cars' : 'Create Free Account'}
         </Link>

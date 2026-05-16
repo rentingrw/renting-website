@@ -20,11 +20,11 @@ const FAQS = [
       },
       {
         q: 'Can I cancel a booking?',
-        a: 'Yes. You can cancel from your dashboard. Cancellations within 24 hours of the trip start may affect your trust score. Review the cancellation policy on each listing before booking.',
+        a: "Yes. You can cancel from your dashboard. Cancellations within 24 hours of the trip start may affect your trust score. Review the cancellation policy on each listing before booking.",
       },
       {
         q: 'What if the owner cancels on me?',
-        a: 'If an owner cancels your confirmed booking, you will receive a full refund and the owner\'s trust score is affected. Contact support if you need help finding an alternative.',
+        a: "If an owner cancels your confirmed booking, you will receive a full refund and the owner's trust score is affected. Contact support if you need help finding an alternative.",
       },
     ],
   },
@@ -74,8 +74,8 @@ const FAQS = [
         a: 'Your trust score is calculated from your ID verification status, number of completed bookings, and average review rating. A higher score means more trust from the community.',
       },
       {
-        q: 'Are drivers background-checked?',
-        a: 'Drivers on renting.rw are required to submit their driver\'s license and national ID. Verified badges are only shown on profiles that have passed our review.',
+        q: "Are drivers background-checked?",
+        a: "Drivers on renting.rw are required to submit their driver's license and national ID. Verified badges are only shown on profiles that have passed our review.",
       },
       {
         q: 'What if I have a problem during a trip?',
@@ -88,19 +88,20 @@ const FAQS = [
 function FAQItem({ q, a }: { q: string; a: string }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="border-b border-gray-200">
+    <div className={`border-b-2 border-neutral-900 last:border-b-0 ${open ? 'bg-teal-50' : ''}`}>
       <button
+        type="button"
         onClick={() => setOpen(!open)}
-        className="flex w-full items-center justify-between py-4 text-left"
+        className="flex w-full items-center justify-between px-0 py-4 text-left"
       >
-        <span className="pr-4 font-medium text-gray-900">{q}</span>
+        <span className="pr-4 font-black text-neutral-900">{q}</span>
         {open ? (
           <ChevronUp className="h-5 w-5 shrink-0 text-teal-600" />
         ) : (
-          <ChevronDown className="h-5 w-5 shrink-0 text-gray-400" />
+          <ChevronDown className="h-5 w-5 shrink-0 text-neutral-400" />
         )}
       </button>
-      {open && <p className="pb-4 text-sm leading-relaxed text-gray-600">{a}</p>}
+      {open && <p className="pb-4 text-sm font-medium leading-relaxed text-neutral-600">{a}</p>}
     </div>
   );
 }
@@ -115,16 +116,14 @@ export default function FAQPage({ params }: { params: Promise<{ locale: string }
   }, [params]);
 
   return (
-    <main className="flex min-h-screen flex-col">
+    <main className="flex min-h-screen flex-col bg-[#f5f0e8]">
       <AppHeader locale={locale} />
 
       {/* Hero */}
-      <section className="bg-gradient-to-br from-teal-700 to-teal-900 px-4 py-20 text-center text-white">
-        <p className="mb-2 text-sm font-semibold uppercase tracking-widest text-teal-200">
-          Got Questions?
-        </p>
-        <h1 className="text-4xl font-extrabold sm:text-5xl">Frequently Asked Questions</h1>
-        <p className="mx-auto mt-4 max-w-xl text-lg text-teal-100">
+      <section className="border-b-2 border-neutral-900 bg-teal-600 px-4 py-20 text-center text-white">
+        <p className="mb-2 text-xs font-black uppercase tracking-widest text-teal-100">Got Questions?</p>
+        <h1 className="text-4xl font-black sm:text-5xl">Frequently Asked Questions</h1>
+        <p className="mx-auto mt-4 max-w-xl text-lg font-medium text-teal-50">
           Everything you need to know about booking, payments, and listing on renting.rw.
         </p>
       </section>
@@ -132,33 +131,35 @@ export default function FAQPage({ params }: { params: Promise<{ locale: string }
       {/* FAQ content */}
       <section className="mx-auto w-full max-w-3xl px-4 py-16 sm:px-6">
         {FAQS.map((section) => (
-          <div key={section.category} className="mb-12">
-            <h2 className="mb-4 text-lg font-bold text-teal-700 uppercase tracking-wide">
+          <div key={section.category} className="mb-10">
+            <h2 className="mb-1 inline-block rounded border-2 border-neutral-900 bg-neutral-900 px-3 py-1 text-xs font-black uppercase tracking-widest text-white">
               {section.category}
             </h2>
-            {section.items.map((item) => (
-              <FAQItem key={item.q} q={item.q} a={item.a} />
-            ))}
+            <div className="mt-3 rounded-md border-2 border-neutral-900 bg-white px-5 shadow-brutal">
+              {section.items.map((item) => (
+                <FAQItem key={item.q} q={item.q} a={item.a} />
+              ))}
+            </div>
           </div>
         ))}
       </section>
 
       {/* Still need help */}
-      <section className="bg-gray-50 px-4 py-12 text-center sm:px-6">
-        <h2 className="mb-2 text-xl font-bold text-gray-900">Still have questions?</h2>
-        <p className="mb-4 text-gray-600">
+      <section className="border-t-2 border-neutral-900 bg-white px-4 py-12 text-center sm:px-6">
+        <h2 className="mb-2 text-xl font-black text-neutral-900">Still have questions?</h2>
+        <p className="mb-6 font-medium text-neutral-600">
           Our support team is available Mon–Sat and happy to help.
         </p>
         <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
           <a
             href="tel:+250788781648"
-            className="rounded-full bg-teal-600 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-700"
+            className="rounded border-2 border-teal-800 bg-teal-600 px-6 py-2.5 text-sm font-black uppercase tracking-wide text-white shadow-brutal-teal-sm transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none"
           >
             Call 0788 781 648
           </a>
           <a
             href="mailto:renting.rw@gmail.com"
-            className="rounded-full border border-teal-600 px-6 py-2.5 text-sm font-semibold text-teal-600 transition hover:bg-teal-50"
+            className="rounded border-2 border-neutral-900 bg-white px-6 py-2.5 text-sm font-black uppercase tracking-wide text-neutral-900 shadow-brutal-xs transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none"
           >
             Email Us
           </a>
