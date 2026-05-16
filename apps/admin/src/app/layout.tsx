@@ -1,6 +1,7 @@
 import { Inter } from 'next/font/google';
 
 import '@rentingi/ui/globals.css';
+import './admin.css';
 
 const inter = Inter({ subsets: ['latin'] });
 

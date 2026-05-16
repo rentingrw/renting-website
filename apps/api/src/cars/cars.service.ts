@@ -388,10 +388,9 @@ export class CarsService {
     const timestamp = Math.floor(Date.now() / 1000);
     const safeFolder = (folder ?? 'rentingi/cars').trim() || 'rentingi/cars';
     const allowedFormats = 'jpg,jpeg,png,webp,heic,heif';
-    const maxFileSize = 10 * 1024 * 1024; // 10 MB enforced by Cloudinary
 
-    // Parameters must be sorted alphabetically for Cloudinary signature
-    const signaturePayload = `allowed_formats=${allowedFormats}&folder=${safeFolder}&max_file_size=${maxFileSize}&timestamp=${timestamp}${apiSecret}`;
+    // Only include params Cloudinary signs — max_file_size is not a signable param
+    const signaturePayload = `allowed_formats=${allowedFormats}&folder=${safeFolder}&timestamp=${timestamp}${apiSecret}`;
     const signature = createHash('sha1').update(signaturePayload).digest('hex');
 
     return {
@@ -401,7 +400,6 @@ export class CarsService {
         timestamp,
         folder: safeFolder,
         allowed_formats: allowedFormats,
-        max_file_size: maxFileSize,
         signature,
       },
     };

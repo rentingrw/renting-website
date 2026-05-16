@@ -15,14 +15,24 @@ import {
   type ListUsersFilters,
 } from '@/lib/api';
 import { useAuthToken } from '@/lib/use-auth-token';
+import { TableRowSkeleton } from '@/components/ui/skeleton';
 
-const AUTH_ERROR_MSG =
-  'Session not ready. Please refresh the page or sign out and sign in again.';
+const AUTH_ERROR_MSG = 'Session not ready. Please refresh the page or sign out and sign in again.';
 
 const ROLES = ['renter', 'car_owner', 'driver'] as const;
 const STATUSES = ['active', 'suspended', 'pending_verification', 'deactivated', 'banned'] as const;
 const TRUST_TIERS = ['platinum', 'gold', 'silver', 'bronze', 'standard', 'warning', 'suspended'] as const;
 const PAGE_SIZE = 20;
+
+const TRUST_COLORS: Record<string, string> = {
+  platinum: 'bg-emerald-100 text-emerald-900 border-emerald-400',
+  gold: 'bg-amber-100 text-amber-900 border-amber-400',
+  silver: 'bg-neutral-100 text-neutral-700 border-neutral-400',
+  bronze: 'bg-orange-100 text-orange-900 border-orange-400',
+  standard: 'bg-blue-100 text-blue-900 border-blue-400',
+  warning: 'bg-red-100 text-red-700 border-red-300',
+  suspended: 'bg-red-900 text-white border-red-950',
+};
 
 export default function AdminUsersPage() {
   const { fetchToken, isLoaded, isSignedIn } = useAuthToken();
@@ -50,10 +60,7 @@ export default function AdminUsersPage() {
     try {
       const token = await fetchToken();
       if (!token) throw new Error(AUTH_ERROR_MSG);
-      const payload: ListUsersFilters = {
-        page: filters.page,
-        pageSize: PAGE_SIZE,
-      };
+      const payload: ListUsersFilters = { page: filters.page, pageSize: PAGE_SIZE };
       if (filters.search?.trim()) payload.search = filters.search.trim();
       if (filters.role) payload.role = filters.role;
       if (filters.status) payload.status = filters.status;
@@ -67,11 +74,12 @@ export default function AdminUsersPage() {
     }
   }, [fetchToken, isLoaded, isSignedIn, filters.page, filters.search, filters.role, filters.status, filters.trustTier]);
 
-  useEffect(() => {
-    void loadUsers();
-  }, [loadUsers]);
+  useEffect(() => { void loadUsers(); }, [loadUsers]);
 
-  const onUserAction = async (action: 'suspend' | 'reinstate' | 'verify' | 'verify-kyc' | 'trust' | 'grant-admin' | 'revoke-admin', userId: string) => {
+  const onUserAction = async (
+    action: 'suspend' | 'reinstate' | 'verify' | 'verify-kyc' | 'trust' | 'grant-admin' | 'revoke-admin',
+    userId: string,
+  ) => {
     setActingId(userId);
     setError(null);
     try {
@@ -111,162 +119,123 @@ export default function AdminUsersPage() {
 
   const totalPages = Math.ceil(data.total / PAGE_SIZE) || 1;
 
+  const inputClass = 'h-9 rounded border-2 border-neutral-900 bg-white px-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-amber-400';
+  const btnGhost = 'rounded border-2 border-neutral-900 bg-white px-2.5 py-1 text-xs font-bold shadow-brutal-xs hover:translate-x-px hover:translate-y-px hover:shadow-none transition-all active:translate-x-[1px] active:translate-y-[1px] active:shadow-none disabled:opacity-40';
+
   return (
     <main className="mx-auto max-w-7xl space-y-6 p-6">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Users</h1>
-          <p className="text-sm text-muted-foreground">Manage account status, verification, and trust score adjustments.</p>
+          <h1 className="text-2xl font-black tracking-tight text-neutral-900">Users</h1>
+          <p className="text-sm font-medium text-neutral-500">Manage account status, verification, and trust score adjustments.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <input
             value={filters.search ?? ''}
             onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value, page: 1 }))}
-            placeholder="Search name/email/phone"
-            className="h-9 rounded-md border px-3 text-sm"
+            placeholder="Search name / email / phone"
+            className={inputClass}
           />
           <select
-            className="h-9 rounded-md border px-2 text-sm"
+            className={inputClass}
             value={filters.role ?? ''}
             onChange={(e) => setFilters((f) => ({ ...f, role: e.target.value || undefined, page: 1 }))}
           >
             <option value="">All roles</option>
-            {ROLES.map((r) => (
-              <option key={r} value={r}>
-                {r.replace('_', ' ')}
-              </option>
-            ))}
+            {ROLES.map((r) => <option key={r} value={r}>{r.replace('_', ' ')}</option>)}
           </select>
           <select
-            className="h-9 rounded-md border px-2 text-sm"
+            className={inputClass}
             value={filters.status ?? ''}
             onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value || undefined, page: 1 }))}
           >
             <option value="">All statuses</option>
-            {STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {s.replace('_', ' ')}
-              </option>
-            ))}
+            {STATUSES.map((s) => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
           </select>
           <select
-            className="h-9 rounded-md border px-2 text-sm"
+            className={inputClass}
             value={filters.trustTier ?? ''}
             onChange={(e) => setFilters((f) => ({ ...f, trustTier: e.target.value || undefined, page: 1 }))}
           >
             <option value="">All trust tiers</option>
-            {TRUST_TIERS.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
+            {TRUST_TIERS.map((t) => <option key={t} value={t}>{t}</option>)}
           </select>
-          <button type="button" className="rounded-md border px-3 py-2 text-sm hover:bg-muted" onClick={() => void loadUsers()}>
+          <button
+            type="button"
+            className="h-9 rounded border-2 border-neutral-900 bg-neutral-900 px-4 text-sm font-black text-white shadow-brutal-sm hover:bg-neutral-800 hover:translate-x-px hover:translate-y-px hover:shadow-none transition-all"
+            onClick={() => void loadUsers()}
+          >
             Search
           </button>
         </div>
       </header>
 
-      {error ? <div className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
+      {error ? (
+        <div className="rounded border-2 border-red-700 bg-red-50 p-3 text-sm font-semibold text-red-700 shadow-[3px_3px_0_#991b1b]">
+          {error}
+        </div>
+      ) : null}
 
-      <section className="rounded-xl border">
+      <section className="rounded-md border-2 border-neutral-900 bg-white shadow-brutal overflow-hidden">
         <div className="overflow-auto">
           <table className="min-w-full text-left text-sm">
-            <thead className="bg-muted/40">
-              <tr>
-                <th className="px-4 py-2 font-medium">User</th>
-                <th className="px-4 py-2 font-medium">Roles</th>
-                <th className="px-4 py-2 font-medium">Trust</th>
-                <th className="px-4 py-2 font-medium">Status</th>
-                <th className="px-4 py-2 font-medium text-right">Actions</th>
+            <thead>
+              <tr className="bg-neutral-900 text-white">
+                <th className="px-4 py-3 text-xs font-black uppercase tracking-wider">User</th>
+                <th className="px-4 py-3 text-xs font-black uppercase tracking-wider">Roles</th>
+                <th className="px-4 py-3 text-xs font-black uppercase tracking-wider">Trust</th>
+                <th className="px-4 py-3 text-xs font-black uppercase tracking-wider">Status</th>
+                <th className="px-4 py-3 text-xs font-black uppercase tracking-wider text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr>
-                  <td className="px-4 py-4 text-muted-foreground" colSpan={5}>
-                    Loading users...
-                  </td>
-                </tr>
+                Array.from({ length: 5 }).map((_, i) => <TableRowSkeleton key={i} cols={5} />)
               ) : data.items.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-4 text-muted-foreground" colSpan={5}>
+                  <td className="px-4 py-8 font-semibold text-neutral-400 text-center" colSpan={5}>
                     No users found.
                   </td>
                 </tr>
               ) : (
                 data.items.map((user) => (
-                  <tr key={user.id} className="border-t">
+                  <tr key={user.id} className="border-t-2 border-neutral-900 hover:bg-amber-50 transition-colors">
                     <td className="px-4 py-3">
-                      <div className="font-medium">{user.fullName}</div>
-                      <div className="text-xs text-muted-foreground">{user.email}</div>
+                      <div className="font-bold text-neutral-900">{user.fullName}</div>
+                      <div className="text-xs font-medium text-neutral-500">{user.email}</div>
                     </td>
-                    <td className="px-4 py-3 text-xs">{user.roles.join(', ')}</td>
+                    <td className="px-4 py-3 text-xs font-semibold text-neutral-600">{user.roles.join(', ')}</td>
                     <td className="px-4 py-3">
-                      {user.trustScore} <span className="text-xs text-muted-foreground">({user.trustTier})</span>
+                      <span className={`rounded border-2 px-2 py-0.5 text-xs font-black capitalize ${TRUST_COLORS[user.trustTier] ?? 'bg-neutral-100 border-neutral-400 text-neutral-700'}`}>
+                        {user.trustTier}
+                      </span>
+                      <span className="ml-1.5 text-xs font-bold text-neutral-400">({user.trustScore})</span>
                     </td>
                     <td className="px-4 py-3">
-                      {user.status}
-                      {!user.isVerified ? <span className="ml-2 text-xs text-amber-700">phone unverified</span> : null}
+                      <span className="font-semibold capitalize text-neutral-700">{user.status}</span>
+                      {!user.isVerified ? <span className="ml-2 text-xs font-bold text-amber-700">unverified</span> : null}
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex justify-end gap-2">
-                        <button
-                          type="button"
-                          className="rounded-md border px-2 py-1 text-xs hover:bg-muted disabled:opacity-50"
-                          disabled={actingId === user.id}
-                          onClick={() => void onUserAction('trust', user.id)}
-                        >
-                          Trust
-                        </button>
-                        <button
-                          type="button"
-                          className="rounded-md border px-2 py-1 text-xs hover:bg-muted disabled:opacity-50"
-                          disabled={actingId === user.id}
-                          onClick={() => void onUserAction('verify', user.id)}
-                        >
-                          Verify phone
-                        </button>
-                        <button
-                          type="button"
-                          className="rounded-md border border-teal-300 px-2 py-1 text-xs text-teal-700 hover:bg-teal-50 disabled:opacity-50"
-                          disabled={actingId === user.id}
-                          onClick={() => void onUserAction('verify-kyc', user.id)}
-                        >
-                          Verify KYC
-                        </button>
-                        <button
-                          type="button"
-                          className="rounded-md border px-2 py-1 text-xs hover:bg-muted disabled:opacity-50"
-                          disabled={actingId === user.id}
-                          onClick={() => void onUserAction('reinstate', user.id)}
-                        >
-                          Reinstate
-                        </button>
-                        <button
-                          type="button"
-                          className="rounded-md border px-2 py-1 text-xs hover:bg-muted disabled:opacity-50"
-                          disabled={actingId === user.id}
-                          onClick={() => void onUserAction('suspend', user.id)}
-                        >
-                          Suspend
-                        </button>
-                        <button
-                          type="button"
-                          className="rounded-md border border-violet-300 px-2 py-1 text-xs text-violet-700 hover:bg-violet-50 disabled:opacity-50"
-                          disabled={actingId === user.id}
-                          onClick={() => void onUserAction('grant-admin', user.id)}
-                        >
-                          Grant admin
-                        </button>
-                        <button
-                          type="button"
-                          className="rounded-md border border-orange-300 px-2 py-1 text-xs text-orange-700 hover:bg-orange-50 disabled:opacity-50"
-                          disabled={actingId === user.id}
-                          onClick={() => void onUserAction('revoke-admin', user.id)}
-                        >
-                          Revoke admin
-                        </button>
+                      <div className="flex flex-wrap justify-end gap-1.5">
+                        {[
+                          { key: 'trust' as const, label: 'Trust ±' },
+                          { key: 'verify' as const, label: 'Verify phone' },
+                          { key: 'verify-kyc' as const, label: 'KYC' },
+                          { key: 'reinstate' as const, label: 'Reinstate' },
+                          { key: 'suspend' as const, label: 'Suspend' },
+                          { key: 'grant-admin' as const, label: 'Grant admin' },
+                          { key: 'revoke-admin' as const, label: 'Revoke admin' },
+                        ].map(({ key, label }) => (
+                          <button
+                            key={key}
+                            type="button"
+                            className={btnGhost}
+                            disabled={actingId === user.id}
+                            onClick={() => void onUserAction(key, user.id)}
+                          >
+                            {label}
+                          </button>
+                        ))}
                       </div>
                     </td>
                   </tr>
@@ -276,26 +245,26 @@ export default function AdminUsersPage() {
           </table>
         </div>
         {totalPages > 1 && (
-          <div className="flex items-center justify-between border-t px-4 py-3">
-            <p className="text-sm text-muted-foreground">
-              Page {data.page} of {totalPages} ({data.total} total)
+          <div className="flex items-center justify-between border-t-2 border-neutral-900 px-4 py-3 bg-neutral-50">
+            <p className="text-sm font-semibold text-neutral-500">
+              Page {data.page} of {totalPages} · {data.total} total
             </p>
             <div className="flex gap-2">
               <button
                 type="button"
-                className="rounded-md border px-2 py-1 text-sm disabled:opacity-50"
+                className="rounded border-2 border-neutral-900 px-3 py-1.5 text-sm font-bold shadow-brutal-xs hover:translate-x-px hover:translate-y-px hover:shadow-none transition-all disabled:opacity-40"
                 disabled={data.page <= 1}
                 onClick={() => setFilters((f) => ({ ...f, page: Math.max(1, f.page ?? 1) - 1 }))}
               >
-                Previous
+                ← Previous
               </button>
               <button
                 type="button"
-                className="rounded-md border px-2 py-1 text-sm disabled:opacity-50"
+                className="rounded border-2 border-neutral-900 px-3 py-1.5 text-sm font-bold shadow-brutal-xs hover:translate-x-px hover:translate-y-px hover:shadow-none transition-all disabled:opacity-40"
                 disabled={data.page >= totalPages}
                 onClick={() => setFilters((f) => ({ ...f, page: Math.min(totalPages, (f.page ?? 1) + 1) }))}
               >
-                Next
+                Next →
               </button>
             </div>
           </div>

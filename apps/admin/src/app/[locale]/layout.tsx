@@ -25,7 +25,7 @@ export default async function LocaleLayout({
       <AppQueryClientProvider>
         <div className="flex min-h-screen">
           <AdminNav />
-          <div className="ml-56 flex-1 min-h-screen bg-muted/30">
+          <div className="ml-56 flex-1 min-h-screen bg-background">
             {children}
           </div>
         </div>

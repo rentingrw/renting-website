@@ -35,6 +35,7 @@ import {
   type AdminOverview,
 } from '@/lib/api';
 import { useAuthToken } from '@/lib/use-auth-token';
+import { Skeleton, TableRowSkeleton } from '@/components/ui/skeleton';
 
 const AUTH_ERROR_MSG = 'Session not ready. Please refresh the page or sign out and sign in again.';
 
@@ -124,14 +125,14 @@ export default function AdminHomePage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Platform overview and analytics</p>
+          <h1 className="text-2xl font-black tracking-tight text-neutral-900">Dashboard</h1>
+          <p className="text-sm text-neutral-500 mt-0.5 font-medium">Platform overview and analytics</p>
         </div>
         <button
           type="button"
           onClick={() => void loadData()}
           disabled={isLoading}
-          className="flex items-center gap-2 rounded-lg border bg-background px-3 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50"
+          className="flex items-center gap-2 rounded border-2 border-neutral-900 bg-white px-3 py-2 text-sm font-bold shadow-brutal-sm hover:translate-x-px hover:translate-y-px hover:shadow-none transition-all active:translate-x-[2px] active:translate-y-[2px] active:shadow-none disabled:opacity-40"
         >
           <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
           Refresh
@@ -140,22 +141,24 @@ export default function AdminHomePage() {
 
       {/* Error */}
       {error && (
-        <div className="flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <div className="flex items-center gap-3 rounded border-2 border-red-700 bg-red-50 p-3 text-sm font-semibold text-red-700 shadow-[3px_3px_0_#991b1b]">
           <AlertCircle className="h-4 w-4 shrink-0" />
           <span className="flex-1">{error}</span>
-          <button type="button" onClick={() => void loadData()} className="font-medium underline">Retry</button>
+          <button type="button" onClick={() => void loadData()} className="font-black underline">Retry</button>
         </div>
       )}
 
       {/* Tabs */}
-      <div className="flex gap-1 rounded-lg border bg-background p-1 w-fit">
+      <div className="flex gap-1 border-2 border-neutral-900 bg-white p-1 w-fit rounded shadow-brutal-sm">
         {(['overview', 'analytics'] as const).map((t) => (
           <button
             key={t}
             type="button"
             onClick={() => setTab(t)}
-            className={`flex items-center gap-2 rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
-              tab === t ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+            className={`flex items-center gap-2 rounded px-4 py-1.5 text-sm font-bold transition-colors ${
+              tab === t
+                ? 'bg-neutral-900 text-white'
+                : 'text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100'
             }`}
           >
             {t === 'overview' ? <LayoutDashboard className="h-3.5 w-3.5" /> : <BarChart3 className="h-3.5 w-3.5" />}
@@ -195,14 +198,14 @@ export default function AdminHomePage() {
           </div>
 
           {/* Open disputes table */}
-          <div className="rounded-xl border bg-background shadow-sm">
-            <div className="flex items-center justify-between border-b px-5 py-3.5">
+          <div className="rounded-md border-2 border-neutral-900 bg-white shadow-brutal overflow-hidden">
+            <div className="flex items-center justify-between border-b-2 border-neutral-900 px-5 py-3.5 bg-white">
               <div>
-                <h2 className="font-semibold">Open Disputes</h2>
-                <p className="text-xs text-muted-foreground mt-0.5">Requiring moderation action</p>
+                <h2 className="font-black text-neutral-900">Open Disputes</h2>
+                <p className="text-xs text-neutral-500 font-medium mt-0.5">Requiring moderation action</p>
               </div>
               {(overview?.openDisputes.length ?? 0) > 0 && (
-                <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">
+                <span className="rounded border-2 border-neutral-900 bg-red-500 px-2 py-0.5 text-xs font-black text-white shadow-brutal-xs">
                   {overview?.openDisputes.length}
                 </span>
               )}
@@ -210,40 +213,40 @@ export default function AdminHomePage() {
             <div className="overflow-auto">
               <table className="min-w-full text-left text-sm">
                 <thead>
-                  <tr className="border-b bg-muted/30">
-                    <th className="px-5 py-2.5 font-medium text-muted-foreground">Priority</th>
-                    <th className="px-5 py-2.5 font-medium text-muted-foreground">Reason</th>
-                    <th className="px-5 py-2.5 font-medium text-muted-foreground">Parties</th>
-                    <th className="px-5 py-2.5 font-medium text-muted-foreground">Booking</th>
-                    <th className="px-5 py-2.5 font-medium text-muted-foreground">Status</th>
-                    <th className="px-5 py-2.5 font-medium text-muted-foreground text-right">Actions</th>
+                  <tr className="bg-neutral-900 text-white">
+                    <th className="px-5 py-3 text-xs font-black uppercase tracking-wider">Priority</th>
+                    <th className="px-5 py-3 text-xs font-black uppercase tracking-wider">Reason</th>
+                    <th className="px-5 py-3 text-xs font-black uppercase tracking-wider">Parties</th>
+                    <th className="px-5 py-3 text-xs font-black uppercase tracking-wider">Booking</th>
+                    <th className="px-5 py-3 text-xs font-black uppercase tracking-wider">Status</th>
+                    <th className="px-5 py-3 text-xs font-black uppercase tracking-wider text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {isLoading ? (
-                    <tr><td colSpan={6} className="px-5 py-8 text-center text-muted-foreground">Loading…</td></tr>
+                    Array.from({ length: 3 }).map((_, i) => <TableRowSkeleton key={i} cols={6} />)
                   ) : (overview?.openDisputes.length ?? 0) === 0 ? (
                     <tr>
                       <td colSpan={6} className="px-5 py-10 text-center">
                         <CheckCircle2 className="mx-auto mb-2 h-8 w-8 text-green-500" />
-                        <p className="text-sm text-muted-foreground">No open disputes — all clear!</p>
+                        <p className="text-sm font-semibold text-neutral-500">No open disputes — all clear!</p>
                       </td>
                     </tr>
                   ) : (
                     overview?.openDisputes.map((dispute) => (
-                      <tr key={dispute.id} className="border-t hover:bg-muted/20">
+                      <tr key={dispute.id} className="border-t-2 border-neutral-900 hover:bg-amber-50 transition-colors">
                         <td className="px-5 py-3">
                           <PriorityBadge priority={dispute.priority} />
                         </td>
-                        <td className="px-5 py-3 font-medium">{dispute.reason}</td>
-                        <td className="px-5 py-3 text-muted-foreground">
-                          {dispute.openedBy.fullName} <span className="text-xs">vs</span> {dispute.againstUser.fullName}
+                        <td className="px-5 py-3 font-semibold">{dispute.reason}</td>
+                        <td className="px-5 py-3 text-neutral-600">
+                          {dispute.openedBy.fullName} <span className="text-xs font-black">vs</span> {dispute.againstUser.fullName}
                         </td>
-                        <td className="px-5 py-3 text-xs text-muted-foreground capitalize">
+                        <td className="px-5 py-3 text-xs text-neutral-500 capitalize">
                           {dispute.bookingType} · <span className="font-mono">{dispute.bookingId?.slice(0, 8)}</span>
                         </td>
                         <td className="px-5 py-3">
-                          <span className="rounded-full border px-2 py-0.5 text-xs capitalize">{dispute.status.replace('_', ' ')}</span>
+                          <span className="rounded border-2 border-neutral-900 px-2 py-0.5 text-xs font-bold capitalize">{dispute.status.replace('_', ' ')}</span>
                         </td>
                         <td className="px-5 py-3">
                           <div className="flex justify-end gap-2">
@@ -251,7 +254,7 @@ export default function AdminHomePage() {
                               type="button"
                               disabled={actingId === dispute.id}
                               onClick={() => void handleDismiss(dispute.id)}
-                              className="flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium hover:bg-muted disabled:opacity-50"
+                              className="flex items-center gap-1 rounded border-2 border-neutral-900 bg-white px-2.5 py-1 text-xs font-bold shadow-brutal-xs hover:translate-x-px hover:translate-y-px hover:shadow-none transition-all active:translate-x-[1px] active:translate-y-[1px] active:shadow-none disabled:opacity-40"
                             >
                               <XCircle className="h-3 w-3" />
                               Dismiss
@@ -260,7 +263,7 @@ export default function AdminHomePage() {
                               type="button"
                               disabled={actingId === dispute.id}
                               onClick={() => void handleResolve(dispute.id)}
-                              className="flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
+                              className="flex items-center gap-1 rounded border-2 border-neutral-900 bg-neutral-900 px-2.5 py-1 text-xs font-black text-white shadow-brutal-xs hover:bg-neutral-800 disabled:opacity-40"
                             >
                               <CheckCircle2 className="h-3 w-3" />
                               Resolve
@@ -286,12 +289,12 @@ export default function AdminHomePage() {
 
 function PriorityBadge({ priority }: { priority: 'low' | 'medium' | 'high' }) {
   const map = {
-    high: 'bg-red-100 text-red-700',
-    medium: 'bg-amber-100 text-amber-700',
-    low: 'bg-blue-100 text-blue-700',
+    high: 'bg-red-500 text-white border-red-700',
+    medium: 'bg-amber-400 text-neutral-900 border-amber-600',
+    low: 'bg-blue-100 text-blue-900 border-blue-300',
   };
   return (
-    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold capitalize ${map[priority]}`}>
+    <span className={`rounded border-2 px-2 py-0.5 text-xs font-black capitalize ${map[priority]}`}>
       {priority}
     </span>
   );
@@ -310,13 +313,21 @@ function MetricCard({
   loading: boolean;
   highlight?: 'warn' | 'danger';
 }) {
+  const borderColor =
+    highlight === 'danger' ? 'border-red-600' : highlight === 'warn' ? 'border-amber-500' : 'border-neutral-900';
+  const shadowColor =
+    highlight === 'danger' ? 'shadow-brutal-red' : 'shadow-brutal';
+  const valueColor =
+    highlight === 'danger' ? 'text-red-600' : highlight === 'warn' ? 'text-amber-600' : 'text-neutral-900';
+
   return (
-    <div className={`rounded-xl border bg-background p-4 shadow-sm ${highlight === 'danger' ? 'border-red-200' : highlight === 'warn' ? 'border-amber-200' : ''}`}>
-      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{title}</p>
-      <p className={`mt-2 text-2xl font-bold ${highlight === 'danger' ? 'text-red-600' : highlight === 'warn' ? 'text-amber-600' : ''}`}>
-        {loading ? <span className="inline-block h-7 w-16 animate-pulse rounded bg-muted" /> : value}
+    <div className={`rounded-md border-2 ${borderColor} bg-white p-4 ${shadowColor}`}>
+      <p className="text-[10px] font-black uppercase tracking-widest text-neutral-500">{title}</p>
+      <p className={`mt-2 text-2xl font-black ${valueColor}`}>
+        {loading ? <Skeleton className="h-7 w-20" /> : value}
       </p>
-      {sub && <p className="mt-1.5 text-xs text-muted-foreground">{sub}</p>}
+      {sub && !loading && <p className="mt-1.5 text-xs font-medium text-neutral-500">{sub}</p>}
+      {sub && loading && <Skeleton className="mt-1.5 h-3 w-32" />}
     </div>
   );
 }
@@ -324,10 +335,23 @@ function MetricCard({
 function AnalyticsTab({ analytics, loading }: { analytics: AdminAnalytics | null; loading: boolean }) {
   if (loading) {
     return (
-      <div className="grid gap-4 lg:grid-cols-2">
-        {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="h-72 animate-pulse rounded-xl border bg-background" />
-        ))}
+      <div className="space-y-4">
+        <div className="grid gap-4 sm:grid-cols-3">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="rounded-md border-2 border-neutral-900 bg-white p-4 shadow-brutal">
+              <Skeleton className="h-3 w-24 mb-3" />
+              <Skeleton className="h-7 w-16" />
+            </div>
+          ))}
+        </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="rounded-md border-2 border-neutral-900 bg-white p-5 shadow-brutal">
+              <Skeleton className="h-4 w-40 mb-4" />
+              <Skeleton className="h-56 w-full" />
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -368,13 +392,13 @@ function AnalyticsTab({ analytics, loading }: { analytics: AdminAnalytics | null
           { label: 'No-show rate', value: `${(analytics.cancellationNoShowRates.noShowRate * 100).toFixed(1)}%`, icon: TrendingUp },
           { label: 'Tracked bookings', value: String(analytics.cancellationNoShowRates.totalBookings), icon: BarChart3 },
         ].map(({ label, value, icon: Icon }) => (
-          <div key={label} className="flex items-center gap-3 rounded-xl border bg-background p-4 shadow-sm">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
-              <Icon className="h-4 w-4 text-primary" />
+          <div key={label} className="flex items-center gap-3 rounded-md border-2 border-neutral-900 bg-white p-4 shadow-brutal">
+            <div className="flex h-9 w-9 items-center justify-center rounded border-2 border-neutral-900 bg-amber-400">
+              <Icon className="h-4 w-4 text-neutral-900" />
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">{label}</p>
-              <p className="text-xl font-bold">{value}</p>
+              <p className="text-[10px] font-black uppercase tracking-widest text-neutral-500">{label}</p>
+              <p className="text-xl font-black text-neutral-900">{value}</p>
             </div>
           </div>
         ))}
@@ -383,9 +407,9 @@ function AnalyticsTab({ analytics, loading }: { analytics: AdminAnalytics | null
       <div className="grid gap-4 lg:grid-cols-2">
         <ChartCard title="Subscription Revenue by Tier (RWF)">
           <LineChart data={revenueData}>
-            <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-            <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-            <YAxis tick={{ fontSize: 11 }} tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}k`} />
+            <CartesianGrid strokeDasharray="3 3" stroke="#e5e5e5" />
+            <XAxis dataKey="month" tick={{ fontSize: 11, fontWeight: 600 }} />
+            <YAxis tick={{ fontSize: 11, fontWeight: 600 }} tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}k`} />
             <Tooltip formatter={(v: number) => [`${v.toLocaleString()} RWF`]} />
             <Legend />
             <Line type="monotone" dataKey="Basic" stroke="#3b82f6" strokeWidth={2} dot={false} />
@@ -397,9 +421,9 @@ function AnalyticsTab({ analytics, loading }: { analytics: AdminAnalytics | null
 
         <ChartCard title="Booking Volume — Cars vs Drivers">
           <BarChart data={bookingVolumeData}>
-            <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-            <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-            <YAxis tick={{ fontSize: 11 }} />
+            <CartesianGrid strokeDasharray="3 3" stroke="#e5e5e5" />
+            <XAxis dataKey="month" tick={{ fontSize: 11, fontWeight: 600 }} />
+            <YAxis tick={{ fontSize: 11, fontWeight: 600 }} />
             <Tooltip />
             <Legend />
             <Bar dataKey="Car" stackId="a" fill="#10b981" />
@@ -409,9 +433,9 @@ function AnalyticsTab({ analytics, loading }: { analytics: AdminAnalytics | null
 
         <ChartCard title="User Growth by Role">
           <BarChart data={userGrowthData}>
-            <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-            <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-            <YAxis tick={{ fontSize: 11 }} />
+            <CartesianGrid strokeDasharray="3 3" stroke="#e5e5e5" />
+            <XAxis dataKey="month" tick={{ fontSize: 11, fontWeight: 600 }} />
+            <YAxis tick={{ fontSize: 11, fontWeight: 600 }} />
             <Tooltip />
             <Legend />
             <Bar dataKey="Renter" stackId="b" fill="#8b5cf6" />
@@ -446,9 +470,9 @@ function AnalyticsTab({ analytics, loading }: { analytics: AdminAnalytics | null
             <div className="flex flex-col gap-2">
               {trustPieData.map(({ name, value }) => (
                 <div key={name} className="flex items-center gap-2">
-                  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: TRUST_TIER_COLORS[name] ?? '#94a3b8' }} />
-                  <span className="text-sm capitalize">{name}</span>
-                  <span className="ml-auto pl-4 font-semibold text-sm">{value}</span>
+                  <span className="h-2.5 w-2.5 rounded-sm border border-neutral-400" style={{ backgroundColor: TRUST_TIER_COLORS[name] ?? '#94a3b8' }} />
+                  <span className="text-sm font-semibold capitalize">{name}</span>
+                  <span className="ml-auto pl-4 font-black text-sm">{value}</span>
                 </div>
               ))}
             </div>
@@ -461,8 +485,8 @@ function AnalyticsTab({ analytics, loading }: { analytics: AdminAnalytics | null
 
 function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-xl border bg-background p-5 shadow-sm">
-      <h3 className="mb-4 font-semibold text-sm">{title}</h3>
+    <div className="rounded-md border-2 border-neutral-900 bg-white p-5 shadow-brutal">
+      <h3 className="mb-4 font-black text-sm uppercase tracking-wide text-neutral-900">{title}</h3>
       <div className="h-56">
         <ResponsiveContainer width="100%" height="100%">
           {children as React.ReactElement}

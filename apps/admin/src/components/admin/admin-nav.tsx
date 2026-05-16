@@ -36,10 +36,10 @@ export function AdminNav() {
   };
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-30 flex w-56 flex-col border-r bg-background">
-      <div className="flex h-14 items-center border-b px-4">
-        <span className="text-base font-bold tracking-tight">renting.rw</span>
-        <span className="ml-1.5 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-primary">
+    <aside className="fixed inset-y-0 left-0 z-30 flex w-56 flex-col bg-neutral-900 border-r-4 border-neutral-900">
+      <div className="flex h-14 items-center border-b-2 border-neutral-700 px-4">
+        <span className="text-base font-black tracking-tight text-white">renting.rw</span>
+        <span className="ml-2 rounded bg-amber-400 px-1.5 py-0.5 text-[9px] font-black uppercase text-neutral-900 border border-amber-600">
           Admin
         </span>
       </div>
@@ -56,10 +56,10 @@ export function AdminNav() {
             <Link
               key={item.label}
               href={href}
-              className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+              className={`flex items-center gap-2.5 rounded px-3 py-2 text-sm font-semibold transition-colors ${
                 active
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                  ? 'bg-amber-400 text-neutral-900'
+                  : 'text-neutral-400 hover:bg-neutral-800 hover:text-white'
               }`}
             >
               <Icon className="h-4 w-4 shrink-0" />
@@ -69,11 +69,11 @@ export function AdminNav() {
         })}
       </nav>
 
-      <div className="border-t p-2">
+      <div className="border-t-2 border-neutral-700 p-2">
         <button
           type="button"
           onClick={() => void onSignOut()}
-          className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          className="flex w-full items-center gap-2.5 rounded px-3 py-2 text-sm font-semibold text-neutral-400 transition-colors hover:bg-red-900 hover:text-white"
         >
           <LogOut className="h-4 w-4 shrink-0" />
           Sign out

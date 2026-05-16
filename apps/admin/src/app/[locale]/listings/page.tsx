@@ -16,11 +16,21 @@ import {
   type ListListingsFilters,
 } from '@/lib/api';
 import { useAuthToken } from '@/lib/use-auth-token';
+import { Skeleton, TableRowSkeleton } from '@/components/ui/skeleton';
 
 const VEHICLE_TYPES = ['sedan', 'suv', 'hatchback', 'pickup', 'van', 'truck'] as const;
 const SERVICE_TYPES = ['self_drive', 'with_driver', 'private_driver', 'airport_transfer', 'corporate'] as const;
 const STATUSES = ['pending_approval', 'active', 'draft', 'paused', 'rejected', 'archived'] as const;
 const PAGE_SIZE = 20;
+
+const STATUS_STYLE: Record<string, string> = {
+  pending_approval: 'bg-amber-400 text-neutral-900 border-amber-600',
+  active: 'bg-emerald-100 text-emerald-900 border-emerald-400',
+  rejected: 'bg-red-500 text-white border-red-700',
+  draft: 'bg-neutral-100 text-neutral-600 border-neutral-400',
+  paused: 'bg-blue-100 text-blue-900 border-blue-400',
+  archived: 'bg-neutral-100 text-neutral-500 border-neutral-300',
+};
 
 function fmt(n: number) {
   return new Intl.NumberFormat('en-RW').format(n);
@@ -43,15 +53,7 @@ function exportCsv(items: AdminListingItem[]) {
   URL.revokeObjectURL(url);
 }
 
-function PhotoUploader({
-  token,
-  photos,
-  onChange,
-}: {
-  token: string;
-  photos: string[];
-  onChange: (photos: string[]) => void;
-}) {
+function PhotoUploader({ token, photos, onChange }: { token: string; photos: string[]; onChange: (photos: string[]) => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -82,15 +84,15 @@ function PhotoUploader({
 
   return (
     <div className="space-y-2">
-      <label className="text-xs font-medium">Photos</label>
+      <label className="block text-xs font-black uppercase tracking-wider text-neutral-600">Photos</label>
       <div className="flex flex-wrap gap-2">
         {photos.map((url, i) => (
           <div key={url} className="relative">
-            <Image src={url} alt={`photo ${i + 1}`} width={72} height={52} className="h-13 w-18 rounded border object-cover" />
+            <Image src={url} alt={`photo ${i + 1}`} width={72} height={52} className="h-13 w-18 rounded border-2 border-neutral-900 object-cover" />
             <button
               type="button"
               onClick={() => onChange(photos.filter((_, j) => j !== i))}
-              className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-white"
+              className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full border-2 border-neutral-900 bg-red-600 text-white"
             >
               <X className="h-2.5 w-2.5" />
             </button>
@@ -100,23 +102,18 @@ function PhotoUploader({
           type="button"
           onClick={() => inputRef.current?.click()}
           disabled={uploading}
-          className="flex h-13 w-18 items-center justify-center rounded border-2 border-dashed text-muted-foreground hover:border-primary hover:text-primary disabled:opacity-50"
+          className="flex h-13 w-18 items-center justify-center rounded border-2 border-dashed border-neutral-900 text-neutral-500 hover:border-solid hover:bg-amber-50 disabled:opacity-50 transition-colors"
         >
-          {uploading ? <span className="text-xs">Uploading…</span> : <ImagePlus className="h-5 w-5" />}
+          {uploading ? <span className="text-[10px] font-bold">Uploading…</span> : <ImagePlus className="h-5 w-5" />}
         </button>
       </div>
-      {uploadError && <p className="text-xs text-red-600">{uploadError}</p>}
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        multiple
-        className="hidden"
-        onChange={(e) => void handleFiles(e.target.files)}
-      />
+      {uploadError && <p className="text-xs font-semibold text-red-700">{uploadError}</p>}
+      <input ref={inputRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => void handleFiles(e.target.files)} />
     </div>
   );
 }
+
+const fieldClass = 'h-9 w-full rounded border-2 border-neutral-900 bg-white px-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-400';
 
 function AddCarModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const { fetchToken } = useAuthToken();
@@ -130,9 +127,7 @@ function AddCarModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    fetchToken().then(setToken).catch(() => null);
-  }, [fetchToken]);
+  useEffect(() => { fetchToken().then(setToken).catch(() => null); }, [fetchToken]);
 
   const set = (k: string, v: unknown) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -155,26 +150,26 @@ function AddCarModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
 
   const textField = (label: string, key: string, required = true, type = 'text') => (
     <div>
-      <label className="mb-1 block text-xs font-medium text-muted-foreground">{label}{required && ' *'}</label>
+      <label className="mb-1 block text-xs font-black uppercase tracking-wider text-neutral-600">{label}{required && ' *'}</label>
       <input
         type={type}
         required={required}
         value={(form[key as keyof typeof form] as string | number) ?? ''}
         onChange={(e) => set(key, type === 'number' ? Number(e.target.value) : e.target.value)}
-        className="h-9 w-full rounded-lg border bg-muted/30 px-3 text-sm focus:bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+        className={fieldClass}
       />
     </div>
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="flex w-full max-w-2xl flex-col rounded-2xl border bg-background shadow-2xl">
-        <div className="flex items-center justify-between border-b px-6 py-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div className="flex w-full max-w-2xl flex-col rounded-md border-2 border-neutral-900 bg-white shadow-brutal">
+        <div className="flex items-center justify-between border-b-2 border-neutral-900 px-6 py-4 bg-neutral-900">
           <div>
-            <h2 className="font-semibold">Add Car Listing</h2>
-            <p className="text-xs text-muted-foreground">Create a listing on behalf of an owner</p>
+            <h2 className="font-black text-white">Add Car Listing</h2>
+            <p className="text-xs font-medium text-neutral-400">Create a listing on behalf of an owner</p>
           </div>
-          <button type="button" onClick={onClose} className="rounded-lg p-1.5 hover:bg-muted">
+          <button type="button" onClick={onClose} className="rounded border-2 border-neutral-600 p-1.5 text-neutral-400 hover:border-white hover:text-white transition-colors">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -187,22 +182,14 @@ function AddCarModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
             {textField('Year', 'year', true, 'number')}
             {textField('Seats', 'seats', true, 'number')}
             <div>
-              <label className="mb-1 block text-xs font-medium text-muted-foreground">Vehicle Type *</label>
-              <select
-                value={form.vehicleType ?? 'sedan'}
-                onChange={(e) => set('vehicleType', e.target.value)}
-                className="h-9 w-full rounded-lg border bg-muted/30 px-3 text-sm focus:bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
-              >
+              <label className="mb-1 block text-xs font-black uppercase tracking-wider text-neutral-600">Vehicle Type *</label>
+              <select value={form.vehicleType ?? 'sedan'} onChange={(e) => set('vehicleType', e.target.value)} className={fieldClass}>
                 {VEHICLE_TYPES.map((t) => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-muted-foreground">Service Type *</label>
-              <select
-                value={form.serviceType ?? 'self_drive'}
-                onChange={(e) => set('serviceType', e.target.value)}
-                className="h-9 w-full rounded-lg border bg-muted/30 px-3 text-sm focus:bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
-              >
+              <label className="mb-1 block text-xs font-black uppercase tracking-wider text-neutral-600">Service Type *</label>
+              <select value={form.serviceType ?? 'self_drive'} onChange={(e) => set('serviceType', e.target.value)} className={fieldClass}>
                 {SERVICE_TYPES.map((t) => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
               </select>
             </div>
@@ -214,38 +201,38 @@ function AddCarModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
           </div>
 
           <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">Description</label>
+            <label className="mb-1 block text-xs font-black uppercase tracking-wider text-neutral-600">Description</label>
             <textarea
               rows={3}
               value={form.description ?? ''}
               onChange={(e) => set('description', e.target.value)}
-              className="w-full rounded-lg border bg-muted/30 px-3 py-2 text-sm focus:bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+              className="w-full rounded border-2 border-neutral-900 bg-white px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-400"
             />
           </div>
 
           {token && (
-            <PhotoUploader
-              token={token}
-              photos={form.photos ?? []}
-              onChange={(p) => set('photos', p)}
-            />
+            <PhotoUploader token={token} photos={form.photos ?? []} onChange={(p) => set('photos', p)} />
           )}
 
           {error && (
-            <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            <div className="flex items-center gap-2 rounded border-2 border-red-700 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
               <X className="h-4 w-4 shrink-0" />
               {error}
             </div>
           )}
 
           <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={onClose} className="rounded-lg border px-4 py-2 text-sm hover:bg-muted">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded border-2 border-neutral-900 bg-white px-4 py-2 text-sm font-bold shadow-brutal-xs hover:translate-x-px hover:translate-y-px hover:shadow-none transition-all"
+            >
               Cancel
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
+              className="flex items-center gap-2 rounded border-2 border-neutral-900 bg-neutral-900 px-4 py-2 text-sm font-black text-white shadow-brutal-sm hover:bg-neutral-800 hover:translate-x-px hover:translate-y-px hover:shadow-none transition-all disabled:opacity-40"
             >
               {saving ? 'Creating…' : (<><Plus className="h-4 w-4" /> Create Listing</>)}
             </button>
@@ -325,24 +312,25 @@ export default function AdminListingsPage() {
   };
 
   const totalPages = Math.ceil(data.total / PAGE_SIZE) || 1;
+  const inputClass = 'h-9 rounded border-2 border-neutral-900 bg-white px-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-amber-400';
 
   return (
     <main className="min-h-screen p-6 space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+          <h1 className="text-2xl font-black tracking-tight text-neutral-900 flex items-center gap-2">
             Listings
-            {filters.status === 'pending_approval' && data.total > 0 && (
-              <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-sm font-semibold text-amber-700">
+            {filters.status === 'pending_approval' && data.total > 0 && !loading && (
+              <span className="rounded border-2 border-amber-600 bg-amber-400 px-2 py-0.5 text-sm font-black text-neutral-900">
                 {data.total} pending
               </span>
             )}
           </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Review, approve, and manage car listings.</p>
+          <p className="text-sm font-medium text-neutral-500 mt-0.5">Review, approve, and manage car listings.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <select
-            className="h-9 rounded-lg border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+            className={inputClass}
             value={filters.status ?? 'pending_approval'}
             onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value || undefined, page: 1 }))}
           >
@@ -352,7 +340,7 @@ export default function AdminListingsPage() {
             type="button"
             onClick={() => exportCsv(data.items)}
             disabled={data.items.length === 0}
-            className="flex items-center gap-1.5 rounded-lg border bg-background px-3 py-2 text-sm hover:bg-muted disabled:opacity-50"
+            className="flex items-center gap-1.5 rounded border-2 border-neutral-900 bg-white px-3 py-2 text-sm font-bold shadow-brutal-xs hover:translate-x-px hover:translate-y-px hover:shadow-none transition-all disabled:opacity-40"
           >
             <Download className="h-4 w-4" />
             Export CSV
@@ -360,7 +348,7 @@ export default function AdminListingsPage() {
           <button
             type="button"
             onClick={() => void loadListings()}
-            className="flex items-center gap-1.5 rounded-lg border bg-background px-3 py-2 text-sm hover:bg-muted"
+            className="flex items-center gap-1.5 rounded border-2 border-neutral-900 bg-white px-3 py-2 text-sm font-bold shadow-brutal-xs hover:translate-x-px hover:translate-y-px hover:shadow-none transition-all"
           >
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             Refresh
@@ -368,7 +356,7 @@ export default function AdminListingsPage() {
           <button
             type="button"
             onClick={() => setShowAddCar(true)}
-            className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
+            className="flex items-center gap-1.5 rounded border-2 border-neutral-900 bg-neutral-900 px-3 py-2 text-sm font-black text-white shadow-brutal-sm hover:bg-neutral-800 hover:translate-x-px hover:translate-y-px hover:shadow-none transition-all"
           >
             <Plus className="h-4 w-4" />
             Add Car
@@ -379,61 +367,83 @@ export default function AdminListingsPage() {
       {showAddCar && <AddCarModal onClose={() => setShowAddCar(false)} onCreated={() => void loadListings()} />}
 
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+        <div className="rounded border-2 border-red-700 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 shadow-[3px_3px_0_#991b1b]">{error}</div>
       )}
 
-      <div className="rounded-xl border bg-background shadow-sm">
+      <div className="rounded-md border-2 border-neutral-900 bg-white shadow-brutal overflow-hidden">
         <div className="overflow-auto">
           <table className="min-w-full text-left text-sm">
             <thead>
-              <tr className="border-b bg-muted/30">
-                <th className="px-5 py-3 font-medium text-muted-foreground">Listing</th>
-                <th className="px-5 py-3 font-medium text-muted-foreground">Owner</th>
-                <th className="px-5 py-3 font-medium text-muted-foreground">Location</th>
-                <th className="px-5 py-3 font-medium text-muted-foreground">Rate (Kigali)</th>
-                <th className="px-5 py-3 font-medium text-muted-foreground">Status</th>
-                <th className="px-5 py-3 font-medium text-muted-foreground">Added</th>
-                <th className="px-5 py-3 font-medium text-muted-foreground text-right">Actions</th>
+              <tr className="bg-neutral-900 text-white">
+                <th className="px-5 py-3 text-xs font-black uppercase tracking-wider">Listing</th>
+                <th className="px-5 py-3 text-xs font-black uppercase tracking-wider">Owner</th>
+                <th className="px-5 py-3 text-xs font-black uppercase tracking-wider">Location</th>
+                <th className="px-5 py-3 text-xs font-black uppercase tracking-wider">Rate (Kigali)</th>
+                <th className="px-5 py-3 text-xs font-black uppercase tracking-wider">Status</th>
+                <th className="px-5 py-3 text-xs font-black uppercase tracking-wider">Added</th>
+                <th className="px-5 py-3 text-xs font-black uppercase tracking-wider text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={7} className="px-5 py-10 text-center text-muted-foreground">Loading listings…</td></tr>
+                Array.from({ length: 5 }).map((_, i) => (
+                  <tr key={i} className="border-t-2 border-neutral-900">
+                    <td className="px-5 py-3">
+                      <div className="flex items-center gap-3">
+                        <Skeleton className="h-10 w-14 rounded" />
+                        <div className="space-y-1.5">
+                          <Skeleton className="h-4 w-28" />
+                          <Skeleton className="h-3 w-20" />
+                        </div>
+                      </div>
+                    </td>
+                    {Array.from({ length: 5 }).map((__, j) => (
+                      <td key={j} className="px-5 py-3"><Skeleton className="h-4 w-full max-w-[100px]" /></td>
+                    ))}
+                    <td className="px-5 py-3"><Skeleton className="h-4 w-16 ml-auto" /></td>
+                  </tr>
+                ))
               ) : data.items.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-5 py-12 text-center">
                     <CheckCircle2 className="mx-auto mb-2 h-8 w-8 text-green-500" />
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-sm font-semibold text-neutral-500">
                       {filters.status === 'pending_approval' ? 'No listings pending approval — all clear!' : 'No listings found.'}
                     </p>
                   </td>
                 </tr>
               ) : (
                 data.items.map((listing) => (
-                  <tr key={listing.id} className="border-t hover:bg-muted/20">
+                  <tr key={listing.id} className="border-t-2 border-neutral-900 hover:bg-amber-50 transition-colors">
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-3">
                         {listing.photos[0] ? (
-                          <Image src={listing.photos[0]} alt={listing.title} width={56} height={40} className="h-10 w-14 rounded-lg object-cover" />
+                          <Image src={listing.photos[0]} alt={listing.title} width={56} height={40} className="h-10 w-14 rounded border-2 border-neutral-900 object-cover" />
                         ) : (
-                          <div className="flex h-10 w-14 items-center justify-center rounded-lg bg-muted text-xs text-muted-foreground">No photo</div>
+                          <div className="flex h-10 w-14 items-center justify-center rounded border-2 border-neutral-900 bg-neutral-100 text-[10px] font-bold text-neutral-400">
+                            No photo
+                          </div>
                         )}
                         <div>
-                          <div className="font-medium">{listing.title}</div>
-                          <div className="text-xs text-muted-foreground">{listing.year} {listing.brand} {listing.model} · {listing.vehicleType}</div>
+                          <div className="font-bold text-neutral-900">{listing.title}</div>
+                          <div className="text-xs font-medium text-neutral-500">{listing.year} {listing.brand} {listing.model} · {listing.vehicleType}</div>
                         </div>
                       </div>
                     </td>
                     <td className="px-5 py-3">
-                      <div className="font-medium">{listing.owner.fullName}</div>
-                      <div className="text-xs text-muted-foreground">{listing.owner.email}</div>
+                      <div className="font-bold text-neutral-900">{listing.owner.fullName}</div>
+                      <div className="text-xs font-medium text-neutral-500">{listing.owner.email}</div>
                     </td>
-                    <td className="px-5 py-3 text-sm text-muted-foreground">{listing.locationText}</td>
-                    <td className="px-5 py-3 text-sm font-medium">RWF {fmt(listing.dailyRateKigaliRwf)}<span className="text-xs font-normal text-muted-foreground">/day</span></td>
+                    <td className="px-5 py-3 text-sm font-medium text-neutral-600">{listing.locationText}</td>
+                    <td className="px-5 py-3 text-sm font-bold text-neutral-900">
+                      RWF {fmt(listing.dailyRateKigaliRwf)}<span className="text-xs font-normal text-neutral-500">/day</span>
+                    </td>
                     <td className="px-5 py-3">
-                      <StatusBadge status={listing.status} />
+                      <span className={`rounded border-2 px-2 py-0.5 text-xs font-black capitalize ${STATUS_STYLE[listing.status] ?? 'bg-neutral-100 border-neutral-400 text-neutral-700'}`}>
+                        {listing.status.replace(/_/g, ' ')}
+                      </span>
                     </td>
-                    <td className="px-5 py-3 text-xs text-muted-foreground">{new Date(listing.createdAt).toLocaleDateString()}</td>
+                    <td className="px-5 py-3 text-xs font-medium text-neutral-500">{new Date(listing.createdAt).toLocaleDateString()}</td>
                     <td className="px-5 py-3">
                       <div className="flex justify-end gap-1.5">
                         {listing.status === 'pending_approval' && (
@@ -442,7 +452,7 @@ export default function AdminListingsPage() {
                               type="button"
                               disabled={actingId === listing.id}
                               onClick={() => void onReject(listing.id)}
-                              className="rounded-lg border border-red-200 px-2.5 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                              className="rounded border-2 border-red-700 bg-red-50 px-2.5 py-1 text-xs font-bold text-red-700 hover:bg-red-100 disabled:opacity-40 transition-colors"
                             >
                               Reject
                             </button>
@@ -450,7 +460,7 @@ export default function AdminListingsPage() {
                               type="button"
                               disabled={actingId === listing.id}
                               onClick={() => void onApprove(listing.id)}
-                              className="rounded-lg bg-green-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-50"
+                              className="rounded border-2 border-emerald-700 bg-emerald-600 px-2.5 py-1 text-xs font-black text-white hover:bg-emerald-700 disabled:opacity-40 shadow-brutal-xs hover:translate-x-px hover:translate-y-px hover:shadow-none transition-all"
                             >
                               {actingId === listing.id ? '…' : 'Approve'}
                             </button>
@@ -460,7 +470,7 @@ export default function AdminListingsPage() {
                           type="button"
                           disabled={actingId === listing.id}
                           onClick={() => void onDelete(listing.id)}
-                          className="rounded-lg border border-red-200 p-1.5 text-red-600 hover:bg-red-50 disabled:opacity-50"
+                          className="rounded border-2 border-red-700 p-1.5 text-red-700 hover:bg-red-50 disabled:opacity-40 transition-colors"
                           title="Delete listing"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -474,45 +484,29 @@ export default function AdminListingsPage() {
           </table>
         </div>
         {totalPages > 1 && (
-          <div className="flex items-center justify-between border-t px-5 py-3">
-            <p className="text-sm text-muted-foreground">Page {data.page} of {totalPages} ({data.total} total)</p>
+          <div className="flex items-center justify-between border-t-2 border-neutral-900 px-5 py-3 bg-neutral-50">
+            <p className="text-sm font-semibold text-neutral-500">Page {data.page} of {totalPages} · {data.total} total</p>
             <div className="flex gap-2">
               <button
                 type="button"
-                className="rounded-lg border px-3 py-1.5 text-sm disabled:opacity-50"
+                className="rounded border-2 border-neutral-900 px-3 py-1.5 text-sm font-bold shadow-brutal-xs hover:translate-x-px hover:translate-y-px hover:shadow-none transition-all disabled:opacity-40"
                 disabled={data.page <= 1}
                 onClick={() => setFilters((f) => ({ ...f, page: (f.page ?? 1) - 1 }))}
               >
-                Previous
+                ← Previous
               </button>
               <button
                 type="button"
-                className="rounded-lg border px-3 py-1.5 text-sm disabled:opacity-50"
+                className="rounded border-2 border-neutral-900 px-3 py-1.5 text-sm font-bold shadow-brutal-xs hover:translate-x-px hover:translate-y-px hover:shadow-none transition-all disabled:opacity-40"
                 disabled={data.page >= totalPages}
                 onClick={() => setFilters((f) => ({ ...f, page: (f.page ?? 1) + 1 }))}
               >
-                Next
+                Next →
               </button>
             </div>
           </div>
         )}
       </div>
     </main>
-  );
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, string> = {
-    pending_approval: 'bg-amber-100 text-amber-700',
-    active: 'bg-green-100 text-green-700',
-    rejected: 'bg-red-100 text-red-700',
-    draft: 'bg-gray-100 text-gray-600',
-    paused: 'bg-blue-100 text-blue-700',
-    archived: 'bg-gray-100 text-gray-500',
-  };
-  return (
-    <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${map[status] ?? 'bg-muted text-muted-foreground'}`}>
-      {status.replace(/_/g, ' ')}
-    </span>
   );
 }
