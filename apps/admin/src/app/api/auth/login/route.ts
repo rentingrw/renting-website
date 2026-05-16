@@ -6,22 +6,22 @@ const COOKIE_NAME = 'admin_session';
 const TOKEN_TTL_SECONDS = 8 * 60 * 60; // 8 hours
 
 export async function POST(req: Request) {
-  const body = await req.json().catch(() => ({})) as { username?: string; password?: string };
+  const body = await req.json().catch(() => ({})) as { email?: string; password?: string };
 
-  const validUsername = process.env.ADMIN_USERNAME;
+  const validEmail = process.env.ADMIN_USERNAME;
   const validPassword = process.env.ADMIN_PASSWORD;
   const secret = process.env.ADMIN_JWT_SECRET;
 
-  if (!validUsername || !validPassword || !secret) {
+  if (!validEmail || !validPassword || !secret) {
     return NextResponse.json({ message: 'Server misconfiguration.' }, { status: 500 });
   }
 
-  if (body.username !== validUsername || body.password !== validPassword) {
+  if (body.email !== validEmail || body.password !== validPassword) {
     return NextResponse.json({ message: 'Invalid credentials.' }, { status: 401 });
   }
 
   const encodedSecret = new TextEncoder().encode(secret);
-  const token = await new SignJWT({ role: 'admin', username: validUsername })
+  const token = await new SignJWT({ role: 'admin', email: validEmail })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime(`${TOKEN_TTL_SECONDS}s`)

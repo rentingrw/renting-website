@@ -4,13 +4,112 @@ import Image from 'next/image';
 import { useCallback, useEffect, useState } from 'react';
 
 import {
+  adminCreateCar,
   approveListing,
+  deleteListing,
   listAdminListings,
   rejectListing,
+  type AdminCreateCarPayload,
   type AdminListingItem,
   type ListListingsFilters,
 } from '@/lib/api';
 import { useAuthToken } from '@/lib/use-auth-token';
+
+const VEHICLE_TYPES = ['sedan', 'suv', 'hatchback', 'pickup', 'van', 'minibus', 'bus', 'coupe', 'convertible', 'wagon', 'truck'] as const;
+const SERVICE_TYPES = ['self_drive', 'chauffeur', 'both'] as const;
+
+function AddCarModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const { fetchToken } = useAuthToken();
+  const [form, setForm] = useState<Partial<AdminCreateCarPayload>>({ vehicleType: 'sedan', serviceType: 'self_drive', seats: 5 });
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const set = (k: keyof AdminCreateCarPayload, v: unknown) => setForm((f) => ({ ...f, [k]: v }));
+
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      const token = await fetchToken();
+      if (!token) throw new Error('Not authenticated.');
+      await adminCreateCar(token, form as AdminCreateCarPayload);
+      onCreated();
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create listing.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const field = (label: string, key: keyof AdminCreateCarPayload, type = 'text', required = true) => (
+    <div>
+      <label className="mb-1 block text-xs font-medium">{label}{required && ' *'}</label>
+      <input
+        type={type}
+        required={required}
+        value={(form[key] as string | number) ?? ''}
+        onChange={(e) => set(key, type === 'number' ? Number(e.target.value) : e.target.value)}
+        className="h-9 w-full rounded border px-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+      />
+    </div>
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-2xl rounded-xl border bg-background shadow-xl">
+        <div className="flex items-center justify-between border-b px-6 py-4">
+          <h2 className="font-semibold">Add Car Listing</h2>
+          <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">✕</button>
+        </div>
+        <form onSubmit={(e) => void onSubmit(e)} className="max-h-[70vh] overflow-y-auto p-6">
+          <div className="grid grid-cols-2 gap-4">
+            {field('Owner User ID', 'userId')}
+            {field('Listing Title', 'title')}
+            {field('Brand', 'brand')}
+            {field('Model', 'model')}
+            {field('Year', 'year', 'number')}
+            {field('Seats', 'seats', 'number')}
+            <div>
+              <label className="mb-1 block text-xs font-medium">Vehicle Type *</label>
+              <select value={form.vehicleType ?? 'sedan'} onChange={(e) => set('vehicleType', e.target.value)} className="h-9 w-full rounded border px-2 text-sm">
+                {VEHICLE_TYPES.map((t) => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium">Service Type *</label>
+              <select value={form.serviceType ?? 'self_drive'} onChange={(e) => set('serviceType', e.target.value)} className="h-9 w-full rounded border px-2 text-sm">
+                {SERVICE_TYPES.map((t) => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
+              </select>
+            </div>
+            {field('Daily Rate Kigali (RWF)', 'dailyRateKigaliRwf', 'number')}
+            {field('Daily Rate Countryside (RWF)', 'dailyRateCountrysideRwf', 'number')}
+            {field('Location Text', 'locationText')}
+            {field('Transmission', 'transmission', 'text', false)}
+            {field('Fuel Type', 'fuelType', 'text', false)}
+          </div>
+          <div className="mt-4">
+            <label className="mb-1 block text-xs font-medium">Description</label>
+            <textarea
+              rows={3}
+              value={form.description ?? ''}
+              onChange={(e) => set('description', e.target.value)}
+              className="w-full rounded border px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+          </div>
+          {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+          <div className="mt-4 flex justify-end gap-2">
+            <button type="button" onClick={onClose} className="rounded border px-3 py-1.5 text-sm hover:bg-muted">Cancel</button>
+            <button type="submit" disabled={saving} className="rounded bg-primary px-4 py-1.5 text-sm text-primary-foreground hover:opacity-90 disabled:opacity-50">
+              {saving ? 'Creating…' : 'Create Listing'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
 
 const AUTH_ERROR_MSG = 'Session not ready. Please refresh the page or sign out and sign in again.';
 
@@ -36,6 +135,7 @@ export default function AdminListingsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actingId, setActingId] = useState<string | null>(null);
+  const [showAddCar, setShowAddCar] = useState(false);
 
   const loadListings = useCallback(async () => {
     if (!isLoaded || !isSignedIn) return;
@@ -93,6 +193,22 @@ export default function AdminListingsPage() {
     }
   };
 
+  const onDelete = async (listingId: string) => {
+    if (!window.confirm('Permanently delete this listing? This cannot be undone.')) return;
+    setActingId(listingId);
+    setError(null);
+    try {
+      const token = await fetchToken();
+      if (!token) throw new Error(AUTH_ERROR_MSG);
+      await deleteListing(token, listingId);
+      await loadListings();
+    } catch (actionError) {
+      setError(actionError instanceof Error ? actionError.message : 'Failed to delete listing.');
+    } finally {
+      setActingId(null);
+    }
+  };
+
   const totalPages = Math.ceil(data.total / PAGE_SIZE) || 1;
   const pendingCount = filters.status === 'pending_approval' ? data.total : null;
 
@@ -131,8 +247,16 @@ export default function AdminListingsPage() {
           >
             Refresh
           </button>
+          <button
+            type="button"
+            className="rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground hover:opacity-90"
+            onClick={() => setShowAddCar(true)}
+          >
+            + Add Car
+          </button>
         </div>
       </header>
+      {showAddCar && <AddCarModal onClose={() => setShowAddCar(false)} onCreated={() => void loadListings()} />}
 
       {error ? (
         <div className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-700">{error}</div>
@@ -220,7 +344,7 @@ export default function AdminListingsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-2">
-                        {listing.status === 'pending_approval' ? (
+                        {listing.status === 'pending_approval' && (
                           <>
                             <button
                               type="button"
@@ -239,9 +363,15 @@ export default function AdminListingsPage() {
                               {actingId === listing.id ? 'Approving…' : 'Approve'}
                             </button>
                           </>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">—</span>
                         )}
+                        <button
+                          type="button"
+                          className="rounded-md border border-red-300 px-2 py-1 text-xs text-red-700 hover:bg-red-50 disabled:opacity-50"
+                          disabled={actingId === listing.id}
+                          onClick={() => void onDelete(listing.id)}
+                        >
+                          Delete
+                        </button>
                       </div>
                     </td>
                   </tr>

@@ -2,11 +2,14 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import {
   BookingStatus,
   DisputeStatus,
+  DriverCategory,
+  Language,
   ListingStatus,
   Prisma,
+  RoleType,
   SubscriptionStatus,
   UserStatus,
-  type RoleType,
+  VehicleType,
 } from '@prisma/client';
 import { createClerkClient } from '@clerk/backend';
 
@@ -25,6 +28,9 @@ import type { ListSubscriptionsQueryDto } from './dto/list-subscriptions.query.d
 import { TrustTierFilter, type ListUsersQueryDto } from './dto/list-users.query.dto';
 import type { ListListingsQueryDto } from './dto/list-listings.query.dto';
 import type { RejectListingDto } from './dto/reject-listing.dto';
+import type { ListDriversQueryDto } from './dto/list-drivers.query.dto';
+import type { AdminCreateCarDto } from './dto/admin-create-car.dto';
+import type { AdminCreateDriverDto } from './dto/admin-create-driver.dto';
 
 const OPEN_DISPUTE_STATUSES: DisputeStatus[] = [
   DisputeStatus.open,
@@ -1041,6 +1047,126 @@ export class AdminService {
     );
 
     return { ...updated, rejectionReason: payload.reason };
+  }
+
+  async deleteListing(listingId: string) {
+    const listing = await prisma.carListing.findUnique({ where: { id: listingId } });
+    if (!listing) throw new NotFoundException('Listing not found.');
+    await prisma.carListing.delete({ where: { id: listingId } });
+    return { deleted: true, listingId };
+  }
+
+  async adminCreateCar(payload: AdminCreateCarDto) {
+    const owner = await prisma.user.findUnique({
+      where: { id: payload.userId },
+      select: { id: true, roles: { select: { role: true } } },
+    });
+    if (!owner) throw new NotFoundException('User not found.');
+
+    const hasOwnerRole = owner.roles.some((r) => r.role === RoleType.car_owner);
+    if (!hasOwnerRole) {
+      await prisma.userRole.create({ data: { userId: owner.id, role: RoleType.car_owner } });
+      await prisma.user.update({
+        where: { id: owner.id },
+        data: { primaryRole: RoleType.car_owner },
+      });
+    }
+
+    const listing = await prisma.carListing.create({
+      data: {
+        ownerId: owner.id,
+        title: payload.title,
+        description: payload.description,
+        vehicleType: payload.vehicleType,
+        serviceType: payload.serviceType,
+        brand: payload.brand,
+        model: payload.model,
+        year: payload.year,
+        seats: payload.seats,
+        transmission: payload.transmission,
+        fuelType: payload.fuelType,
+        dailyRateKigaliRwf: payload.dailyRateKigaliRwf,
+        dailyRateCountrysideRwf: payload.dailyRateCountrysideRwf,
+        locationText: payload.locationText,
+        photos: payload.photos ?? [],
+        features: payload.features ?? [],
+        status: ListingStatus.active,
+      },
+    });
+
+    return listing;
+  }
+
+  async listDrivers(query: ListDriversQueryDto) {
+    const page = query.page ?? 1;
+    const pageSize = query.pageSize ?? 20;
+    const search = query.search?.trim();
+
+    const userWhere: Prisma.UserWhereInput = search
+      ? { OR: [{ fullName: { contains: search, mode: 'insensitive' } }, { email: { contains: search, mode: 'insensitive' } }] }
+      : {};
+
+    const [total, profiles] = await Promise.all([
+      prisma.driverProfile.count({ where: { user: userWhere } }),
+      prisma.driverProfile.findMany({
+        where: { user: userWhere },
+        include: {
+          user: { select: { id: true, fullName: true, email: true, phone: true, status: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+    ]);
+
+    return { page, pageSize, total, items: profiles };
+  }
+
+  async deleteDriver(driverProfileId: string) {
+    const profile = await prisma.driverProfile.findUnique({ where: { id: driverProfileId } });
+    if (!profile) throw new NotFoundException('Driver profile not found.');
+    await prisma.driverProfile.delete({ where: { id: driverProfileId } });
+    return { deleted: true, driverProfileId };
+  }
+
+  async adminCreateDriver(payload: AdminCreateDriverDto) {
+    const user = await prisma.user.findUnique({
+      where: { id: payload.userId },
+      select: { id: true, roles: { select: { role: true } } },
+    });
+    if (!user) throw new NotFoundException('User not found.');
+
+    const existing = await prisma.driverProfile.findUnique({ where: { userId: user.id } });
+    if (existing) throw new BadRequestException('User already has a driver profile.');
+
+    const hasDriverRole = user.roles.some((r) => r.role === RoleType.driver);
+    if (!hasDriverRole) {
+      await prisma.userRole.create({ data: { userId: user.id, role: RoleType.driver } });
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { primaryRole: RoleType.driver },
+      });
+    }
+
+    const profile = await prisma.driverProfile.create({
+      data: {
+        userId: user.id,
+        driverCategory: payload.driverCategory,
+        yearsExperience: payload.yearsExperience,
+        biography: payload.biography,
+        dailyRateRwf: payload.dailyRateRwf,
+        hourlyRateRwf: payload.hourlyRateRwf,
+        primaryCity: payload.primaryCity,
+        languages: payload.languages,
+        categories: payload.categories,
+        vehicleTypes: payload.vehicleTypes,
+        certifications: payload.certifications ?? [],
+        serviceAreas: payload.serviceAreas,
+        availabilityCalendar: [],
+      },
+    });
+
+    return profile;
   }
 
   async grantAdminRole(userId: string) {

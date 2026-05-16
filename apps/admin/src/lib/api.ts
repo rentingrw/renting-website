@@ -489,3 +489,108 @@ export async function revokeAdminRole(token: string, userId: string) {
     'Failed to revoke admin role.',
   );
 }
+
+export async function deleteListing(token: string, listingId: string) {
+  await authRequest<void>(
+    token,
+    `/admin/listings/${listingId}`,
+    { method: 'DELETE' },
+    'Failed to delete listing.',
+  );
+}
+
+export type AdminCreateCarPayload = {
+  userId: string;
+  title: string;
+  brand: string;
+  model: string;
+  year: number;
+  vehicleType: string;
+  serviceType: string;
+  seats: number;
+  dailyRateKigaliRwf: number;
+  dailyRateCountrysideRwf: number;
+  locationText: string;
+  transmission?: string;
+  fuelType?: string;
+  description?: string;
+};
+
+export async function adminCreateCar(token: string, payload: AdminCreateCarPayload) {
+  return authRequest<AdminListingItem>(
+    token,
+    '/admin/cars',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...payload, photos: [], features: [] }),
+    },
+    'Failed to create listing.',
+  );
+}
+
+export type AdminDriverItem = {
+  id: string;
+  driverCategory: string;
+  yearsExperience: number;
+  dailyRateRwf: number;
+  primaryCity: string;
+  createdAt: string;
+  user: { id: string; fullName: string; email: string; phone: string | null; status: string };
+};
+
+export type ListDriversFilters = {
+  search?: string;
+  page?: number;
+  pageSize?: number;
+};
+
+export async function listAdminDrivers(token: string, filters: ListDriversFilters = {}) {
+  const params = new URLSearchParams();
+  if (filters.search) params.set('search', filters.search);
+  if (filters.page != null) params.set('page', String(filters.page));
+  if (filters.pageSize != null) params.set('pageSize', String(filters.pageSize));
+  const suffix = params.toString() ? `?${params.toString()}` : '';
+  return authRequest<Paginated<AdminDriverItem>>(
+    token,
+    `/admin/drivers${suffix}`,
+    undefined,
+    'Failed to load drivers.',
+  );
+}
+
+export async function deleteDriver(token: string, driverProfileId: string) {
+  await authRequest<void>(
+    token,
+    `/admin/drivers/${driverProfileId}`,
+    { method: 'DELETE' },
+    'Failed to delete driver.',
+  );
+}
+
+export type AdminCreateDriverPayload = {
+  userId: string;
+  driverCategory: string;
+  yearsExperience: number;
+  dailyRateRwf: number;
+  hourlyRateRwf?: number;
+  primaryCity: string;
+  languages: string[];
+  categories: string[];
+  vehicleTypes: string[];
+  serviceAreas: string[];
+  biography?: string;
+};
+
+export async function adminCreateDriver(token: string, payload: AdminCreateDriverPayload) {
+  return authRequest<AdminDriverItem>(
+    token,
+    '/admin/driver-profiles',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...payload, certifications: [] }),
+    },
+    'Failed to create driver profile.',
+  );
+}

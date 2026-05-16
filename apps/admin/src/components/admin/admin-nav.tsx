@@ -6,6 +6,7 @@ import { useParams, usePathname, useRouter } from 'next/navigation';
 const ITEMS = [
   { href: '', label: 'Overview' },
   { href: '/listings', label: 'Listings' },
+  { href: '/drivers', label: 'Drivers' },
   { href: '/users', label: 'Users' },
   { href: '/disputes', label: 'Disputes' },
   { href: '/subscriptions', label: 'Subscriptions' },

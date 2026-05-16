@@ -25,6 +25,9 @@ import { ListSubscriptionsQueryDto } from './dto/list-subscriptions.query.dto';
 import { ListUsersQueryDto } from './dto/list-users.query.dto';
 import { ListListingsQueryDto } from './dto/list-listings.query.dto';
 import { RejectListingDto } from './dto/reject-listing.dto';
+import { ListDriversQueryDto } from './dto/list-drivers.query.dto';
+import { AdminCreateCarDto } from './dto/admin-create-car.dto';
+import { AdminCreateDriverDto } from './dto/admin-create-driver.dto';
 
 @ApiTags('Admin')
 @ApiBearerAuth()
@@ -118,6 +121,36 @@ export class AdminController {
   @ApiOperation({ summary: 'Reject a pending car listing with a reason' })
   rejectListing(@Param('id') listingId: string, @Body() payload: RejectListingDto) {
     return this.adminService.rejectListing(listingId, payload);
+  }
+
+  @Delete('listings/:id')
+  @ApiOperation({ summary: 'Permanently delete a car listing' })
+  deleteListing(@Param('id') listingId: string) {
+    return this.adminService.deleteListing(listingId);
+  }
+
+  @Post('cars')
+  @ApiOperation({ summary: 'Create a car listing on behalf of a user' })
+  adminCreateCar(@Body() payload: AdminCreateCarDto) {
+    return this.adminService.adminCreateCar(payload);
+  }
+
+  @Get('drivers')
+  @ApiOperation({ summary: 'List all driver profiles' })
+  listDrivers(@Query() query: ListDriversQueryDto) {
+    return this.adminService.listDrivers(query);
+  }
+
+  @Delete('drivers/:id')
+  @ApiOperation({ summary: 'Delete a driver profile' })
+  deleteDriver(@Param('id') driverProfileId: string) {
+    return this.adminService.deleteDriver(driverProfileId);
+  }
+
+  @Post('driver-profiles')
+  @ApiOperation({ summary: 'Create a driver profile on behalf of a user' })
+  adminCreateDriver(@Body() payload: AdminCreateDriverDto) {
+    return this.adminService.adminCreateDriver(payload);
   }
 
   @Get('subscriptions')
