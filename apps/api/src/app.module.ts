@@ -47,7 +47,9 @@ const envSchema = z.object({
   REDIS_URL: z
     .string()
     .min(1)
-    .transform((v) => (v.startsWith('redis') ? v : `redis://${v}`)),
+    .transform((v) => (v.startsWith('redis') ? v : `redis://${v}`))
+    .optional(),
+  ADMIN_JWT_SECRET: isProduction ? z.string().min(1) : z.string().min(1).optional(),
   CLERK_SECRET_KEY: isProduction ? z.string().min(1) : z.string().min(1).optional(),
   CLERK_WEBHOOK_SECRET: isProduction ? z.string().min(1) : z.string().min(1).optional(),
   CLOUDINARY_CLOUD_NAME: isProduction ? z.string().min(1) : z.string().min(1).optional(),

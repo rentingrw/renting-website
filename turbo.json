@@ -24,9 +24,8 @@
   ],
   "tasks": {
     "generate": {
-      "outputs": [
-        "node_modules/.prisma/**"
-      ]
+      "cache": false,
+      "outputs": []
     },
     "build": {
       "dependsOn": [

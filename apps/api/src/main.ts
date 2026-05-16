@@ -4,6 +4,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import express from 'express';
 
 import { AppModule } from './app.module';
+import { buildCorsOptions } from './cors';
 import { RedisIoAdapter } from './realtime/redis-io.adapter';
 
 async function bootstrap() {
@@ -20,10 +21,7 @@ async function bootstrap() {
     );
   }
 
-  app.enableCors({
-    origin: [process.env.NEXT_PUBLIC_APP_URL, process.env.NEXT_PUBLIC_ADMIN_URL].filter(Boolean),
-    credentials: true,
-  });
+  app.enableCors(buildCorsOptions());
 
   app.use('/webhooks/clerk', express.raw({ type: 'application/json' }));
   app.use('/subscriptions/webhook/flutterwave', express.json());
