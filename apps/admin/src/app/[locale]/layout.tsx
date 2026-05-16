@@ -23,8 +23,12 @@ export default async function LocaleLayout({
   return (
     <NextIntlClientProvider messages={messages} locale={locale}>
       <AppQueryClientProvider>
-        <AdminNav />
-        {children}
+        <div className="flex min-h-screen">
+          <AdminNav />
+          <div className="ml-56 flex-1 min-h-screen bg-muted/30">
+            {children}
+          </div>
+        </div>
       </AppQueryClientProvider>
     </NextIntlClientProvider>
   );

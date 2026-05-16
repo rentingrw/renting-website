@@ -24,7 +24,6 @@ async function bootstrap() {
   app.enableCors(buildCorsOptions());
 
   app.use('/webhooks/clerk', express.raw({ type: 'application/json' }));
-  app.use('/subscriptions/webhook/flutterwave', express.json());
 
   app.useGlobalPipes(
     new ValidationPipe({

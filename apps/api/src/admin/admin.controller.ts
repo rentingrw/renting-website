@@ -16,6 +16,7 @@ import { DismissDisputeDto } from '../disputes/dto/dismiss-dispute.dto';
 import { ResolveDisputeDto } from '../disputes/dto/resolve-dispute.dto';
 import { AdminService } from './admin.service';
 import { UsersService } from '../users/users.service';
+import { CarsService } from '../cars/cars.service';
 import { AdjustTrustScoreDto } from './dto/adjust-trust-score.dto';
 import { AdminNoteDto } from './dto/admin-note.dto';
 import { CancelBookingAdminDto } from './dto/cancel-booking-admin.dto';
@@ -37,6 +38,7 @@ export class AdminController {
   constructor(
     private readonly adminService: AdminService,
     private readonly usersService: UsersService,
+    private readonly carsService: CarsService,
   ) {}
 
   @Get('overview')
@@ -49,6 +51,12 @@ export class AdminController {
   @ApiOperation({ summary: 'Get detailed platform analytics and metrics' })
   getAnalytics() {
     return this.adminService.getAnalytics();
+  }
+
+  @Get('upload-url')
+  @ApiOperation({ summary: 'Get a Cloudinary signed upload URL for admin image uploads' })
+  getUploadUrl(@Query('folder') folder?: string) {
+    return this.carsService.getSignedUploadUrl(folder ?? 'rentingi/admin');
   }
 
   @Get('users')

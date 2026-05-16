@@ -594,3 +594,17 @@ export async function adminCreateDriver(token: string, payload: AdminCreateDrive
     'Failed to create driver profile.',
   );
 }
+
+export type AdminUploadUrlResult = {
+  uploadUrl: string;
+  fields: Record<string, string | number>;
+};
+
+export async function adminGetUploadUrl(token: string, folder = 'rentingi/cars'): Promise<AdminUploadUrlResult> {
+  return authRequest<AdminUploadUrlResult>(
+    token,
+    `/admin/upload-url?folder=${encodeURIComponent(folder)}`,
+    undefined,
+    'Failed to get upload URL.',
+  );
+}
