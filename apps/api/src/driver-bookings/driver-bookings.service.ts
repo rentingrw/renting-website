@@ -12,6 +12,13 @@ import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import type { AuthenticatedUser } from '../auth/types/authenticated-request.interface';
 import { prisma } from '../database/prisma';
 import { NotificationsService } from '../notifications/notifications.service';
+import {
+  bookingRequestEmailHtml,
+  bookingConfirmedEmailHtml,
+  bookingDeclinedEmailHtml,
+  bookingAutoCancelledEmailHtml,
+  bookingCompletedEmailHtml,
+} from '../notifications/email-templates';
 import { realtimeEvents } from '../realtime/realtime.events';
 import { TrustScoreService } from '../trust-score/trust-score.service';
 import type { CreateDriverBookingDto } from './dto/create-driver-booking.dto';
@@ -98,6 +105,12 @@ export class DriverBookingsService {
       [booking.driverId],
       'You have a new Rentingi driver booking request waiting for confirmation.',
     );
+    this.notificationsService.queueEmailToUsers(
+      [booking.driverId],
+      'New booking request — renting.rw',
+      `${booking.renter.fullName} has sent you a driver booking request.`,
+      bookingRequestEmailHtml(booking.driver.fullName, booking.renter.fullName, `Driver service (${booking.serviceType})`, booking.startAt, booking.endAt),
+    );
 
     return booking;
   }
@@ -155,6 +168,12 @@ export class DriverBookingsService {
       [updated.confirmed.renterId],
       'Your Rentingi driver booking request was confirmed.',
     );
+    this.notificationsService.queueEmailToUsers(
+      [updated.confirmed.renterId],
+      'Booking confirmed — renting.rw',
+      `Your driver booking with ${updated.confirmed.driver.fullName} has been confirmed.`,
+      bookingConfirmedEmailHtml(updated.confirmed.renter.fullName, `Driver: ${updated.confirmed.driver.fullName}`, updated.confirmed.startAt, updated.confirmed.endAt),
+    );
 
     if (updated.overlappingBookings.length > 0) {
       this.notificationsService.emitInAppToUsers(
@@ -201,6 +220,12 @@ export class DriverBookingsService {
     this.notificationsService.queueSmsToUsers(
       [declined.renterId],
       'Your Rentingi driver booking request was declined.',
+    );
+    this.notificationsService.queueEmailToUsers(
+      [declined.renterId],
+      'Booking declined — renting.rw',
+      `Your driver booking request with ${declined.driver.fullName} was declined.`,
+      bookingDeclinedEmailHtml(declined.renter.fullName, `Driver: ${declined.driver.fullName}`),
     );
 
     return declined;
@@ -418,6 +443,9 @@ export class DriverBookingsService {
         id: true,
         driverId: true,
         renterId: true,
+        serviceType: true,
+        driver: { select: { fullName: true } },
+        renter: { select: { fullName: true } },
       },
     });
 
@@ -454,6 +482,12 @@ export class DriverBookingsService {
         [booking.driverId, booking.renterId],
         'A Rentingi driver booking request was auto-cancelled due to no response within 1 hour.',
       );
+      this.notificationsService.queueEmailToUsers(
+        [booking.driverId, booking.renterId],
+        'Booking auto-cancelled — renting.rw',
+        'A driver booking request was auto-cancelled due to no response within 1 hour.',
+        bookingAutoCancelledEmailHtml(booking.renter.fullName, `Driver: ${booking.driver.fullName}`),
+      );
     }
   }
 
@@ -473,6 +507,8 @@ export class DriverBookingsService {
         id: true,
         driverId: true,
         renterId: true,
+        driver: { select: { fullName: true } },
+        renter: { select: { fullName: true } },
       },
     });
 
@@ -517,6 +553,12 @@ export class DriverBookingsService {
       this.notificationsService.queueSmsToUsers(
         [booking.driverId, booking.renterId],
         'Your Rentingi driver booking was auto-completed. Please leave a review.',
+      );
+      this.notificationsService.queueEmailToUsers(
+        [booking.driverId, booking.renterId],
+        'Trip completed — renting.rw',
+        'Your driver booking has been completed. Thank you for using renting.rw!',
+        bookingCompletedEmailHtml(booking.renter.fullName, `Driver: ${booking.driver.fullName}`),
       );
     }
   }
