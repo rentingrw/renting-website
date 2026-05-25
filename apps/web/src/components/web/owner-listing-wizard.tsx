@@ -4,7 +4,7 @@ import { Button, Dialog, DialogContent, DialogHeader, DialogTitle } from '@renti
 import { LoadingSpinner } from '@/components/web/loading-states';
 import { AddressInput } from '@/components/web/address-input';
 import { useTranslations } from 'next-intl';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Camera, Check, ChevronLeft, ChevronRight, MapPin, Minus, Plus, Upload } from 'lucide-react';
 
 import { getCarUploadUrl, type CarListingPayload, type OwnerCar, type ServiceType, type VehicleType } from '@/lib/api';
@@ -147,6 +147,7 @@ export function OwnerListingWizard({
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [customFeature, setCustomFeature] = useState('');
   const [state, setState] = useState<ListingFormState>(emptyState());
 
@@ -479,15 +480,22 @@ export function OwnerListingWizard({
           <div className="space-y-4">
             <div>
               <FieldLabel>Upload Photos</FieldLabel>
-              <label className="flex cursor-pointer flex-col items-center gap-3 rounded border-2 border-dashed border-neutral-400 bg-neutral-50 px-6 py-10 transition hover:border-teal-600 hover:bg-teal-50">
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  className="hidden"
-                  disabled={uploading}
-                  onChange={(e) => handlePhotoUpload(e.target.files)}
-                />
+              {/* Hidden file input — triggered via ref to avoid Dialog blocking issues */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                style={{ position: 'absolute', width: 1, height: 1, opacity: 0, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap' }}
+                disabled={uploading}
+                onChange={(e) => { handlePhotoUpload(e.target.files); e.target.value = ''; }}
+              />
+              <button
+                type="button"
+                disabled={uploading}
+                onClick={() => fileInputRef.current?.click()}
+                className="flex w-full cursor-pointer flex-col items-center gap-3 rounded border-2 border-dashed border-neutral-400 bg-neutral-50 px-6 py-10 transition hover:border-teal-600 hover:bg-teal-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
                 {uploading ? (
                   <span className="flex items-center gap-2 text-sm font-semibold text-neutral-600">
                     <LoadingSpinner className="h-5 w-5" />
@@ -502,7 +510,7 @@ export function OwnerListingWizard({
                     </div>
                   </>
                 )}
-              </label>
+              </button>
             </div>
 
             {state.photos.length > 0 && (

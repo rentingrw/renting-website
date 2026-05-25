@@ -4,6 +4,7 @@ import { useAuth } from '@clerk/nextjs';
 import {
   CalendarDays,
   Car,
+  ChevronLeft,
   ChevronRight,
   CreditCard,
   Fuel,
@@ -179,23 +180,32 @@ export default function CarDetailPage({ params }: CarPageProps) {
 
   const photoList = photos(detail);
   const mainPhoto = photoList[selectedPhotoIndex] ?? photoList[0];
-  const thumbnails = photoList.slice(0, 3).filter((_, i) => i !== selectedPhotoIndex).slice(0, 2);
+
+  function prevPhoto() {
+    setSelectedPhotoIndex((i) => (i === 0 ? photoList.length - 1 : i - 1));
+  }
+
+  function nextPhoto() {
+    setSelectedPhotoIndex((i) => (i === photoList.length - 1 ? 0 : i + 1));
+  }
 
   return (
     <main className="min-h-screen bg-[#f5f0e8]">
       <AppHeader locale={locale} variant="default" />
       <div className="mx-auto max-w-7xl px-4 py-6 md:px-6">
         {/* Image gallery */}
-        <section className="mb-8 grid grid-cols-1 gap-2 md:grid-cols-[1fr_120px] md:grid-rows-2">
-          <div className="relative aspect-[16/10] overflow-hidden rounded-md border-2 border-neutral-900 bg-neutral-200 shadow-brutal md:row-span-2">
+        <section className="mb-6">
+          {/* Main image with prev/next */}
+          <div className="relative aspect-[16/9] overflow-hidden rounded-md border-2 border-neutral-900 bg-neutral-200 shadow-brutal">
             <Image
               src={mainPhoto}
               alt={detail.title}
               fill
               priority
-              sizes="(max-width: 768px) 100vw, 80vw"
-              className="object-cover"
+              sizes="(max-width: 768px) 100vw, 1200px"
+              className="object-cover transition-opacity duration-200"
             />
+            {/* Favorite */}
             <button
               type="button"
               onClick={toggleFavorite}
@@ -205,29 +215,52 @@ export default function CarDetailPage({ params }: CarPageProps) {
             >
               <Heart className={`h-4 w-4 ${isFavorited ? 'fill-red-500 text-red-500' : 'text-neutral-600'}`} />
             </button>
+            {/* Photo counter */}
+            {photoList.length > 1 && (
+              <span className="absolute bottom-3 right-3 rounded border-2 border-neutral-900 bg-white px-2 py-0.5 text-xs font-black text-neutral-900">
+                {selectedPhotoIndex + 1} / {photoList.length}
+              </span>
+            )}
+            {/* Prev / Next arrows */}
+            {photoList.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  onClick={prevPhoto}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 rounded border-2 border-neutral-900 bg-white p-1.5 shadow-brutal-xs hover:translate-x-px hover:translate-y-px hover:shadow-none transition-all"
+                  aria-label="Previous photo"
+                >
+                  <ChevronLeft className="h-5 w-5 text-neutral-900" />
+                </button>
+                <button
+                  type="button"
+                  onClick={nextPhoto}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded border-2 border-neutral-900 bg-white p-1.5 shadow-brutal-xs hover:translate-x-px hover:translate-y-px hover:shadow-none transition-all"
+                  aria-label="Next photo"
+                >
+                  <ChevronRight className="h-5 w-5 text-neutral-900" />
+                </button>
+              </>
+            )}
           </div>
-          {thumbnails.map((src, i) => (
-            <button
-              key={`${src}-${i}`}
-              type="button"
-              onClick={() => setSelectedPhotoIndex(photoList.indexOf(src))}
-              className="relative hidden aspect-square overflow-hidden rounded-md border-2 border-neutral-900 bg-neutral-200 md:block"
-            >
-              <Image src={src} alt="" fill sizes="120px" className="object-cover" />
-              {i === 1 && (
-                <span className="absolute inset-0 flex items-center justify-center bg-black/50 text-xs font-black text-white">
-                  {t('detail.viewPhotos', { count: photoList.length })}
-                </span>
-              )}
-            </button>
-          ))}
-          {photoList.length <= 2 && (
-            <button
-              type="button"
-              className="hidden rounded-md border-2 border-neutral-900 bg-white px-3 py-2 text-xs font-black uppercase tracking-wide text-neutral-900 shadow-brutal-xs transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none md:flex md:items-center md:justify-center"
-            >
-              {t('detail.viewPhotos', { count: photoList.length })}
-            </button>
+          {/* Thumbnail strip */}
+          {photoList.length > 1 && (
+            <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+              {photoList.map((src, i) => (
+                <button
+                  key={`${src}-${i}`}
+                  type="button"
+                  onClick={() => setSelectedPhotoIndex(i)}
+                  className={`relative h-16 w-24 shrink-0 overflow-hidden rounded border-2 transition-all ${
+                    i === selectedPhotoIndex
+                      ? 'border-teal-600 shadow-[2px_2px_0_theme(colors.teal.600)]'
+                      : 'border-neutral-900 hover:border-teal-400'
+                  }`}
+                >
+                  <Image src={src} alt="" fill sizes="96px" className="object-cover" />
+                </button>
+              ))}
+            </div>
           )}
         </section>
 

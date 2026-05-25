@@ -181,16 +181,16 @@ export function AddressInput({
       )}
       {open && suggestions.length > 0 ? (
         <ul
-          className={`absolute top-full left-0 right-0 z-50 mt-1 max-h-48 overflow-auto rounded-md border shadow-lg ${
-            dark ? 'border-zinc-700 bg-zinc-800' : 'bg-background'
+          className={`absolute top-full left-0 z-[9999] mt-1 max-h-48 min-w-[220px] w-full overflow-auto rounded-md border-2 border-neutral-900 shadow-brutal ${
+            dark ? 'border-zinc-700 bg-zinc-800' : 'bg-white'
           }`}
         >
           {suggestions.map((r, i) => (
-            <li key={i}>
+            <li key={i} className={i > 0 ? 'border-t border-neutral-100' : ''}>
               <button
                 type="button"
-                className={`block w-full px-3 py-2 text-left text-sm ${
-                  dark ? 'text-white hover:bg-zinc-700' : 'hover:bg-muted'
+                className={`block w-full px-3 py-2 text-left text-sm font-semibold ${
+                  dark ? 'text-white hover:bg-zinc-700' : 'text-neutral-900 hover:bg-neutral-50'
                 }`}
                 onClick={() => handleSelect(r)}
               >

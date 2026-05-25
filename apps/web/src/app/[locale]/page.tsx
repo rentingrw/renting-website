@@ -135,7 +135,7 @@ export default function HomePage({ params }: HomePageProps) {
 
           {/* Search bar */}
           <div className="mt-10 w-full max-w-4xl">
-            <div className="flex flex-col overflow-hidden rounded-md border-2 border-neutral-900 bg-white shadow-brutal sm:flex-row">
+            <div className="relative flex flex-col rounded-md border-2 border-neutral-900 bg-white shadow-brutal sm:flex-row">
               <div className="flex flex-1 flex-col sm:flex-row sm:divide-x-2 sm:divide-neutral-200">
                 <label className="flex flex-1 flex-col px-4 py-3 sm:py-4">
                   <span className="text-[10px] font-black uppercase tracking-widest text-neutral-500">
@@ -190,8 +190,8 @@ export default function HomePage({ params }: HomePageProps) {
         </div>
       </section>
 
-      {/* Category tabs */}
-      <div className="border-b-2 border-neutral-900 bg-white">
+      {/* Category tabs — sticky below the top nav */}
+      <div className="sticky top-[57px] z-40 border-b-2 border-neutral-900 bg-white">
         <div className="mx-auto flex max-w-7xl gap-2 overflow-x-auto px-4 py-3">
           {[
             { href: `/${locale}/search?type=all`, label: t('home.all'), icon: Car, active: false },
