@@ -20,7 +20,12 @@ type DriverProfilePageProps = {
 
 const DRIVER_CATEGORIES: DriverCategory[] = ['city', 'outstation', 'airport', 'chauffeur', 'tour_guide', 'delivery'];
 const VEHICLE_TYPES: VehicleType[] = ['sedan', 'suv', 'hatchback', 'pickup', 'van', 'truck'];
-const LANGUAGES = ['English', 'French', 'Kinyarwanda', 'Swahili', 'Arabic'];
+const LANGUAGE_OPTIONS: { label: string; value: string }[] = [
+  { label: 'English', value: 'en' },
+  { label: 'French', value: 'fr' },
+  { label: 'Kinyarwanda', value: 'rw' },
+  { label: 'Swahili', value: 'sw' },
+];
 const AVAILABILITY_MODES = ['Anytime', 'Daytime (6am–6pm)', 'Nighttime (6pm–6am)', 'Weekends only'];
 const DRIVING_CAPABILITIES = ['Manual', 'Automatic', 'Both'];
 const LICENSE_CATEGORIES = ['A', 'B', 'C', 'D', 'E', 'F'];
@@ -46,7 +51,7 @@ export default function DriverProfilePage({ params }: DriverProfilePageProps) {
   const [hourlyRateRwf, setHourlyRateRwf] = useState('');
   const [weeklyRateRwf, setWeeklyRateRwf] = useState('');
   const [primaryCity, setPrimaryCity] = useState('Kigali');
-  const [languages, setLanguages] = useState<string[]>(['English', 'Kinyarwanda']);
+  const [languages, setLanguages] = useState<string[]>(['en', 'rw']);
   const [categories, setCategories] = useState<DriverCategory[]>(['city']);
   const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>(['sedan']);
   const [certifications, setCertifications] = useState<string[]>([]);
@@ -78,7 +83,7 @@ export default function DriverProfilePage({ params }: DriverProfilePageProps) {
           setHourlyRateRwf(profile.hourlyRateRwf != null ? String(profile.hourlyRateRwf) : '');
           setWeeklyRateRwf(profile.weeklyRateRwf != null ? String(profile.weeklyRateRwf) : '');
           setPrimaryCity(profile.primaryCity);
-          setLanguages(profile.languages.length ? profile.languages : ['English']);
+          setLanguages(profile.languages.length ? profile.languages : ['en', 'rw']);
           setCategories(profile.categories.length ? (profile.categories as DriverCategory[]) : [profile.driverCategory]);
           setVehicleTypes(profile.vehicleTypes.length ? (profile.vehicleTypes as VehicleType[]) : ['sedan']);
           setCertifications(profile.certifications);
@@ -390,25 +395,24 @@ export default function DriverProfilePage({ params }: DriverProfilePageProps) {
             <div>
               <label className={labelClass}>Languages Spoken *</label>
               <div className="flex flex-wrap gap-2">
-                {LANGUAGES.map((lang) => (
+                {LANGUAGE_OPTIONS.map(({ label, value }) => (
                   <button
-                    key={lang}
+                    key={value}
                     type="button"
                     onClick={() => {
-                      const lowerLang = lang.toLowerCase() as typeof languages[number];
-                      if (languages.map((l) => l.toLowerCase()).includes(lang.toLowerCase())) {
-                        if (languages.length > 1) setLanguages(languages.filter((l) => l.toLowerCase() !== lang.toLowerCase()));
+                      if (languages.includes(value)) {
+                        if (languages.length > 1) setLanguages(languages.filter((l) => l !== value));
                       } else {
-                        setLanguages([...languages, lang.toLowerCase()]);
+                        setLanguages([...languages, value]);
                       }
                     }}
                     className={`rounded border-2 px-3 py-1.5 text-sm font-bold transition-all ${
-                      languages.map((l) => l.toLowerCase()).includes(lang.toLowerCase())
+                      languages.includes(value)
                         ? 'border-teal-600 bg-teal-600 text-white'
                         : 'border-neutral-300 bg-white text-neutral-700 hover:border-neutral-900'
                     }`}
                   >
-                    {lang}
+                    {label}
                   </button>
                 ))}
               </div>

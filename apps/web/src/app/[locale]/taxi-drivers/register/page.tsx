@@ -14,7 +14,7 @@ type RegisterTaxiPageProps = {
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
 async function uploadToCloudinary(file: File, folder: string): Promise<string> {
-  const sigRes = await fetch(`${API_BASE}/cars/upload-url?folder=${encodeURIComponent(folder)}`);
+  const sigRes = await fetch(`${API_BASE}/taxi-drivers/upload-url?folder=${encodeURIComponent(folder)}`);
   if (!sigRes.ok) throw new Error('Could not get upload credentials.');
   const { uploadUrl, fields } = await sigRes.json() as {
     uploadUrl: string;

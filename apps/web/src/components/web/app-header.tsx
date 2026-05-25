@@ -9,6 +9,7 @@ import {
   Inbox,
   LayoutDashboard,
   Menu,
+  Search,
   X,
   Zap,
 } from 'lucide-react';
@@ -255,14 +256,15 @@ export function AppHeader({ locale, variant = 'default' }: AppHeaderProps) {
             {isSignedIn ? (
               <div className="flex items-center gap-2">
                 <Link
-                  href={`/${locale}/app`}
-                  className={`rounded border-2 px-3 py-1.5 text-sm font-bold transition-all ${
+                  href={`/${locale}/search`}
+                  aria-label="Search"
+                  className={`rounded border-2 p-1.5 transition-all ${
                     isDark
                       ? 'border-zinc-600 text-white hover:bg-zinc-800'
                       : 'border-neutral-900 bg-white text-neutral-900 shadow-brutal-xs hover:translate-x-px hover:translate-y-px hover:shadow-none'
                   }`}
                 >
-                  {t('nav.dashboard')}
+                  <Search className="h-4 w-4" />
                 </Link>
                 <UserButton afterSignOutUrl={`/${locale}`} />
                 <ExtendedMenu />
@@ -294,16 +296,17 @@ export function AppHeader({ locale, variant = 'default' }: AppHeaderProps) {
             )}
           </nav>
 
-          {/* Mobile: sign-in + hamburger */}
+          {/* Mobile: search + user + hamburger */}
           <div className="flex items-center gap-2 sm:hidden">
-            {isSignedIn ? (
-              <>
-                <UserButton afterSignOutUrl={`/${locale}`} />
-                <ExtendedMenu />
-              </>
-            ) : (
-              <ExtendedMenu />
-            )}
+            <Link
+              href={`/${locale}/search`}
+              aria-label="Search"
+              className={`rounded border-2 p-1.5 ${isDark ? 'border-zinc-600 text-white' : 'border-neutral-900 bg-white text-neutral-900'}`}
+            >
+              <Search className="h-4 w-4" />
+            </Link>
+            {isSignedIn && <UserButton afterSignOutUrl={`/${locale}`} />}
+            <ExtendedMenu />
           </div>
         </div>
       </div>
