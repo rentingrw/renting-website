@@ -38,6 +38,7 @@ import { UploadsModule } from './uploads/uploads.module';
 import { UsersModule } from './users/users.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
 import { FavoritesModule } from './favorites/favorites.module';
+import { DriverFavoritesModule } from './driver-favorites/driver-favorites.module';
 import { TaxiDriversModule } from './taxi-drivers/taxi-drivers.module';
 
 const isProduction = process.env.NODE_ENV === 'production';
@@ -121,6 +122,7 @@ function validateEnv(config: Record<string, unknown>) {
     UploadsModule,
     WebhooksModule,
     FavoritesModule,
+    DriverFavoritesModule,
     TaxiDriversModule,
   ],
   providers: [

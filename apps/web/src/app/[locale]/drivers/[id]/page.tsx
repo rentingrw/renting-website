@@ -22,7 +22,7 @@ import { AppHeader } from '@/components/web/app-header';
 import { SiteFooter } from '@/components/web/site-footer';
 import { BookingRequestDialog } from '@/components/web/booking-request-dialog';
 import { isSupportedLocale, routing, type SupportedLocale } from '@/i18n/routing';
-import { getDriverById, getReviewsForUser, type DriverDetail } from '@/lib/api';
+import { getDriverById, getReviewsForUser, getDriverFavorites, addDriverFavorite, removeDriverFavorite, type DriverDetail } from '@/lib/api';
 import { formatCurrencyRwf, formatRange, trustTierFromScore } from '@/lib/format';
 import { stockImages } from '@/lib/stock-images';
 
@@ -67,7 +67,8 @@ export default function DriverDetailPage({ params }: DriverPageProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [bookingOpen, setBookingOpen] = useState(false);
-  const [savedLocally, setSavedLocally] = useState(false);
+  const [isFavorited, setIsFavorited] = useState(false);
+  const [favoritePending, setFavoritePending] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -91,10 +92,15 @@ export default function DriverDetailPage({ params }: DriverPageProps) {
       try {
         const token = isSignedIn ? await getToken() : null;
         const data = await getDriverById(driverId, token ?? undefined);
-        const reviewsData = await getReviewsForUser(data.userId);
+        const reviewsData = await getReviewsForUser(data.userId).catch(() => null);
         if (!cancelled) {
           setDetail(data);
-          setReviews(reviewsData);
+          if (reviewsData) setReviews(reviewsData);
+          if (token) {
+            getDriverFavorites(token).then((favs) => {
+              if (!cancelled) setIsFavorited(favs.some((f) => f.driverProfile.id === data.id));
+            }).catch(() => null);
+          }
         }
       } catch (loadError) {
         if (!cancelled) setError(loadError instanceof Error ? loadError.message : t('detail.error'));
@@ -105,6 +111,26 @@ export default function DriverDetailPage({ params }: DriverPageProps) {
     loadDetails();
     return () => { cancelled = true; };
   }, [driverId, getToken, isSignedIn, t]);
+
+  async function toggleFavorite() {
+    if (!isSignedIn || !detail) return;
+    setFavoritePending(true);
+    try {
+      const token = await getToken();
+      if (!token) return;
+      if (isFavorited) {
+        await removeDriverFavorite(token, detail.id);
+        setIsFavorited(false);
+      } else {
+        await addDriverFavorite(token, detail.id);
+        setIsFavorited(true);
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setFavoritePending(false);
+    }
+  }
 
   if (loading) return <DetailSkeleton locale={locale} />;
 
@@ -360,15 +386,16 @@ export default function DriverDetailPage({ params }: DriverPageProps) {
                 )}
                 <button
                   type="button"
-                  onClick={() => setSavedLocally((v) => !v)}
-                  className={`flex w-full items-center justify-center gap-2 rounded border-2 py-2 text-sm font-black uppercase tracking-wide shadow-brutal-xs transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none ${
-                    savedLocally
+                  onClick={toggleFavorite}
+                  disabled={favoritePending || !isSignedIn}
+                  className={`flex w-full items-center justify-center gap-2 rounded border-2 py-2 text-sm font-black uppercase tracking-wide shadow-brutal-xs transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none disabled:opacity-50 ${
+                    isFavorited
                       ? 'border-red-400 bg-red-50 text-red-600'
                       : 'border-neutral-900 bg-white text-neutral-900'
                   }`}
                 >
-                  <Heart className={`h-4 w-4 ${savedLocally ? 'fill-red-500 text-red-500' : ''}`} />
-                  {savedLocally ? 'Saved' : 'Save to Favorites'}
+                  <Heart className={`h-4 w-4 ${isFavorited ? 'fill-red-500 text-red-500' : ''}`} />
+                  {isFavorited ? 'Saved' : 'Save to Favorites'}
                 </button>
               </div>
             </div>

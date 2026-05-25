@@ -159,6 +159,7 @@ model User {
   disputesAgainst        Dispute[]         @relation("DisputeAgainst")
   disputesResolved       Dispute[]         @relation("DisputeResolvedBy")
   favorites              Favorite[]
+  driverFavorites        DriverFavorite[]
 
   @@map("users")
 }
@@ -211,6 +212,7 @@ model DriverProfile {
   createdAt            DateTime         @default(now()) @map("created_at")
   updatedAt            DateTime         @updatedAt @map("updated_at")
   user                 User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  driverFavorites      DriverFavorite[]
 
   @@map("driver_profiles")
 }
@@ -415,6 +417,18 @@ model Favorite {
 
   @@unique([userId, carListingId])
   @@map("favorites")
+}
+
+model DriverFavorite {
+  id             String        @id @default(uuid()) @db.Uuid
+  userId         String        @map("user_id") @db.Uuid
+  driverProfileId String       @map("driver_profile_id") @db.Uuid
+  createdAt      DateTime      @default(now()) @map("created_at")
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  driverProfile  DriverProfile @relation(fields: [driverProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, driverProfileId])
+  @@map("driver_favorites")
 }
 
 enum TaxiDriverStatus {

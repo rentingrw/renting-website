@@ -1001,6 +1001,75 @@ export async function getDriverProfileMe(token: string): Promise<DriverProfileMe
   return (await response.json()) as DriverProfileMe;
 }
 
+export type DriverProfilePayload = {
+  driverCategory: DriverCategory;
+  yearsExperience: number;
+  biography?: string;
+  dailyRateRwf: number;
+  hourlyRateRwf?: number;
+  weeklyRateRwf?: number;
+  primaryCity: string;
+  languages: string[];
+  categories: DriverCategory[];
+  vehicleTypes: VehicleType[];
+  certifications: string[];
+  serviceAreas: string[];
+  availabilityCalendar: Array<{ from: string; to: string }>;
+};
+
+export async function createDriverProfile(token: string, payload: DriverProfilePayload): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/drivers/profile`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  await ensureOk(response, 'Failed to create driver profile.');
+}
+
+export async function updateDriverProfile(token: string, payload: Partial<DriverProfilePayload>): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/drivers/profile`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  await ensureOk(response, 'Failed to update driver profile.');
+}
+
+export type DriverProfileFull = {
+  id: string;
+  userId: string;
+  fullName: string;
+  trustScore: number;
+  driverCategory: DriverCategory;
+  yearsExperience: number;
+  biography?: string | null;
+  dailyRateRwf: number;
+  hourlyRateRwf?: number | null;
+  weeklyRateRwf?: number | null;
+  primaryCity: string;
+  languages: string[];
+  categories: string[];
+  vehicleTypes: string[];
+  certifications: string[];
+  serviceAreas: string[];
+  availabilityCalendar: Array<{ from: string; to: string }>;
+  rating: number | null;
+  completedTrips: number;
+  bookingStats: { total: number; pending: number; confirmed: number; active: number; completed: number };
+};
+
+export async function getDriverProfileFull(token: string): Promise<DriverProfileFull | null> {
+  const response = await fetch(`${API_BASE_URL}/drivers/profile/me`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  if (response.status === 404 || response.status === 403) {
+    return null;
+  }
+  await ensureOk(response, 'Failed to load driver profile.');
+  return (await response.json()) as DriverProfileFull;
+}
+
 export type FavoriteItem = {
   id: string;
   createdAt: string;
@@ -1042,4 +1111,47 @@ export async function removeFavorite(token: string, carListingId: string): Promi
   });
   if (response.status === 404) return;
   await ensureOk(response, 'Failed to remove favorite.');
+}
+
+// ─── Driver Favorites ──────────────────────────────────────────────────────
+
+export type DriverFavoriteItem = {
+  id: string;
+  createdAt: string;
+  driverProfile: {
+    id: string;
+    driverCategory: string;
+    primaryCity: string;
+    dailyRateRwf: string;
+    rating: string | null;
+    completedTrips: number;
+    user: { id: string; fullName: string; avatarUrl: string | null };
+  };
+};
+
+export async function getDriverFavorites(token: string): Promise<DriverFavoriteItem[]> {
+  const response = await fetch(`${API_BASE_URL}/driver-favorites`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  await ensureOk(response, 'Failed to load driver favorites.');
+  return (await response.json()) as DriverFavoriteItem[];
+}
+
+export async function addDriverFavorite(token: string, driverProfileId: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/driver-favorites/${driverProfileId}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (response.status === 409) return;
+  await ensureOk(response, 'Failed to save driver favorite.');
+}
+
+export async function removeDriverFavorite(token: string, driverProfileId: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/driver-favorites/${driverProfileId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (response.status === 404) return;
+  await ensureOk(response, 'Failed to remove driver favorite.');
 }
