@@ -6,7 +6,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { jwtVerify } from 'jose';
+import * as jwt from 'jsonwebtoken';
 
 import type { AuthenticatedRequest } from '../types/authenticated-request.interface';
 
@@ -23,12 +23,10 @@ export class AdminJwtGuard implements CanActivate {
     }
 
     const token = authHeader.slice(7);
-    const secret = new TextEncoder().encode(
-      this.configService.getOrThrow<string>('ADMIN_JWT_SECRET'),
-    );
+    const secret = this.configService.getOrThrow<string>('ADMIN_JWT_SECRET');
 
     try {
-      const { payload } = await jwtVerify(token, secret);
+      const payload = jwt.verify(token, secret) as jwt.JwtPayload;
 
       if (payload['role'] !== 'admin') {
         throw new ForbiddenException('Admin role required.');
