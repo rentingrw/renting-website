@@ -922,8 +922,14 @@ export default function AppPage({ params }: AppPageProps) {
 
           {profile?.roles.includes('driver') && driverProfile?.categories?.length ? (
             <Card className="overflow-hidden border-gray-200 bg-white shadow-sm sm:col-span-2 md:col-span-4">
-              <CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle className="text-base">{t('app.driver.categories')}</CardTitle>
+                <a
+                  href={`/${locale}/app/driver-profile`}
+                  className="rounded border-2 border-neutral-900 bg-white px-3 py-1 text-xs font-black text-neutral-900 shadow-brutal-xs transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none"
+                >
+                  Edit Profile
+                </a>
               </CardHeader>
               <CardContent className="flex flex-wrap gap-2">
                 {driverProfile.categories.map((category) => (
@@ -933,6 +939,19 @@ export default function AppPage({ params }: AppPageProps) {
                 ))}
               </CardContent>
             </Card>
+          ) : profile?.roles.includes('driver') && !driverProfile ? (
+            <div className="overflow-hidden rounded-md border-2 border-amber-500 bg-amber-50 p-5 shadow-brutal-xs sm:col-span-2 md:col-span-4">
+              <p className="font-black text-neutral-900">Complete Your Driver Profile</p>
+              <p className="mt-1 text-sm font-medium text-neutral-600">
+                Set up your driver profile to start receiving booking requests from customers.
+              </p>
+              <a
+                href={`/${locale}/app/driver-profile`}
+                className="mt-3 inline-block rounded border-2 border-teal-800 bg-teal-600 px-4 py-2 text-sm font-black text-white shadow-brutal-teal-sm transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none"
+              >
+                Set Up Driver Profile →
+              </a>
+            </div>
           ) : null}
 
           {pendingRequests.map((booking) => (
