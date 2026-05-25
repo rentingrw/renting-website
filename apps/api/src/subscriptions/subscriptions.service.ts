@@ -32,7 +32,7 @@ import {
 } from './dto/initiate-subscription.dto';
 import type { InitiateDriverSubscriptionDto } from './dto/initiate-driver-subscription.dto';
 import type { UpgradeSubscriptionDto } from './dto/upgrade-subscription.dto';
-import { initiateFlutterwaveCharge } from './flutterwave.adapter';
+import { initiateIPayCharge } from './ipay-mopay.adapter';
 import {
   subscriptionActivatedEmailHtml,
   subscriptionPaymentConfirmedEmailHtml,
@@ -66,13 +66,13 @@ export class SubscriptionsService {
       },
     });
 
-    const gatewayResponse = await initiateFlutterwaveCharge({
+    const callbackUrl = this.buildCallbackUrl();
+    const gatewayResponse = await initiateIPayCharge({
       phoneNumber: payload.mobileNumber,
       amount: plan.priceRwf,
-      currency: 'RWF',
-      email: owner.email,
       txRef: reference,
-      fullName: owner.fullName,
+      message: `Renting.rw ${payload.tier} subscription`,
+      callbackUrl,
     });
 
     return {
@@ -82,40 +82,18 @@ export class SubscriptionsService {
       tier: payload.tier,
       amountRwf: plan.priceRwf,
       paymentMethod: payload.paymentMethod,
-      providerResponse: gatewayResponse,
-      redirectUrl: gatewayResponse.meta?.authorization?.redirect,
+      providerTransactionId: gatewayResponse.transactionId,
     };
   }
 
-  async handleFlutterwaveWebhook(body: unknown, verifHash?: string) {
-    this.verifyFlutterwaveWebhook(verifHash);
-    const payload = this.getRecord(body);
-    if (!payload) {
-      throw new BadRequestException('Webhook payload must be a JSON object.');
+  async handleIPayCallback(transactionId: string, status: number) {
+    if (!transactionId) {
+      throw new BadRequestException('transactionId is required.');
     }
-    const event = this.getString(payload.event);
-    if (event !== 'charge.completed') {
-      return { ok: true, processed: false, reason: `Ignoring event: ${event}` };
+    if (status !== 200) {
+      return { ok: true, processed: false, reason: 'Payment not successful.', transactionId, status };
     }
-    const data = this.getRecord(payload.data);
-    if (!data) {
-      throw new BadRequestException('Webhook data is missing.');
-    }
-    const reference = this.getString(data.tx_ref);
-    const status = this.getString(data.status);
-    if (!reference) {
-      throw new BadRequestException('Webhook payload does not include tx_ref.');
-    }
-    if (!this.isSuccessStatus(status ?? '')) {
-      return {
-        ok: true,
-        processed: false,
-        reason: 'Payment not successful.',
-        reference,
-        status: status ?? 'unknown',
-      };
-    }
-    return this.processSuccessfulPayment(reference);
+    return this.processSuccessfulPayment(transactionId);
   }
 
   async getMine(authUser: AuthenticatedUser) {
@@ -255,13 +233,13 @@ export class SubscriptionsService {
       },
     });
 
-    const gatewayResponse = await initiateFlutterwaveCharge({
+    const callbackUrl = this.buildCallbackUrl();
+    const gatewayResponse = await initiateIPayCharge({
       phoneNumber: payload.mobileNumber,
       amount: amountToCharge,
-      currency: 'RWF',
-      email: owner.email,
       txRef: reference,
-      fullName: owner.fullName,
+      message: `Renting.rw ${payload.tier} subscription`,
+      callbackUrl,
     });
 
     return {
@@ -271,8 +249,7 @@ export class SubscriptionsService {
       tier: payload.tier,
       amountRwf: amountToCharge,
       paymentMethod: payload.paymentMethod,
-      providerResponse: gatewayResponse,
-      redirectUrl: gatewayResponse.meta?.authorization?.redirect,
+      providerTransactionId: gatewayResponse.transactionId,
     };
   }
 
@@ -590,13 +567,13 @@ export class SubscriptionsService {
       },
     });
 
-    const gatewayResponse = await initiateFlutterwaveCharge({
+    const callbackUrl = this.buildCallbackUrl();
+    const gatewayResponse = await initiateIPayCharge({
       phoneNumber: payload.mobileNumber,
       amount: DRIVER_PLAN.priceRwf,
-      currency: 'RWF',
-      email: driver.email,
       txRef: reference,
-      fullName: driver.fullName,
+      message: 'Renting.rw driver subscription',
+      callbackUrl,
     });
 
     return {
@@ -605,8 +582,7 @@ export class SubscriptionsService {
       status: 'pending_payment',
       amountRwf: DRIVER_PLAN.priceRwf,
       paymentMethod: payload.paymentMethod,
-      providerResponse: gatewayResponse,
-      redirectUrl: gatewayResponse.meta?.authorization?.redirect,
+      providerTransactionId: gatewayResponse.transactionId,
     };
   }
 
@@ -674,14 +650,9 @@ export class SubscriptionsService {
     };
   }
 
-  private verifyFlutterwaveWebhook(verifHash?: string) {
-    const secret = process.env.FLW_WEBHOOK_SECRET;
-    if (!secret) {
-      throw new BadRequestException('Flutterwave webhook secret is not configured.');
-    }
-    if (!verifHash || verifHash.trim() !== secret.trim()) {
-      throw new BadRequestException('Invalid Flutterwave webhook signature.');
-    }
+  private buildCallbackUrl(): string {
+    const base = (process.env.PUBLIC_API_URL ?? 'http://localhost:3001').replace(/\/$/, '');
+    return `${base}/subscriptions/callback/ipay`;
   }
 
   private async findEffectivePublishSubscription(userId: string, now: Date) {
@@ -731,18 +702,6 @@ export class SubscriptionsService {
         status: ListingStatus.paused,
       },
     });
-  }
-
-  private isSuccessStatus(status: string): boolean {
-    const normalized = status.trim().toLowerCase();
-    return (
-      normalized === 'successful' ||
-      normalized === 'success' ||
-      normalized === 'succeeded' ||
-      normalized === 'completed' ||
-      normalized === 'paid' ||
-      normalized === 'approved'
-    );
   }
 
   private mapDtoMethod(method: SubscriptionPaymentMethodDto): PaymentMethod {

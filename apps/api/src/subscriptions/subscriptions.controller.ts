@@ -1,5 +1,4 @@
-import { Body, Controller, Get, Headers, Post, Req, UseGuards } from '@nestjs/common';
-import type { Request } from 'express';
+import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { SkipThrottle, Throttle } from '@nestjs/throttler';
 
@@ -25,14 +24,17 @@ export class SubscriptionsController {
     return this.subscriptionsService.initiate(user, payload);
   }
 
-  @Post('webhook/flutterwave')
+  @Get('callback/ipay')
   @SkipThrottle()
-  @ApiOperation({ summary: 'Receive and process Flutterwave payment webhook events' })
-  handleFlutterwaveWebhook(
-    @Req() request: Request,
-    @Headers('verif-hash') verifHash?: string,
+  @ApiOperation({ summary: 'Receive iPay/MoPay payment callback' })
+  handleIPayCallback(
+    @Query('transactionId') queryTxId?: string,
+    @Query('status') queryStatus?: string,
+    @Body() body?: { transactionId?: string; amount?: number; status?: number },
   ) {
-    return this.subscriptionsService.handleFlutterwaveWebhook(request.body, verifHash);
+    const transactionId = (body?.transactionId ?? queryTxId) as string;
+    const status = Number(body?.status ?? queryStatus ?? 0);
+    return this.subscriptionsService.handleIPayCallback(transactionId, status);
   }
 
   @Get('me')
