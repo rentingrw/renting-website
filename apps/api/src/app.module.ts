@@ -61,7 +61,7 @@ const envSchema = z.object({
   AT_API_KEY: isProduction ? z.string().min(1) : z.string().min(1).optional(),
   AT_USERNAME: isProduction ? z.string().min(1) : z.string().min(1).optional(),
   RESEND_API_KEY: isProduction ? z.string().min(1) : z.string().min(1).optional(),
-  RESEND_FROM_EMAIL: z.string().email().optional(),
+  RESEND_FROM_EMAIL: z.string().min(1).optional(),
   MTN_MOMO_BASE_URL: z.string().url().optional(),
   MTN_MOMO_SUBSCRIPTION_KEY: z.string().min(1).optional(),
   MTN_MOMO_API_USER: z.string().min(1).optional(),
