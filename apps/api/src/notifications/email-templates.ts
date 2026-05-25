@@ -333,6 +333,42 @@ export function listingRejectedEmailHtml(ownerName: string, title: string, reaso
   return layout('Listing Not Approved — renting.rw', body);
 }
 
+export function taxiDriverRegisteredEmailHtml(fullName: string): string {
+  const body = `
+    ${heading('Registration Received!')}
+    ${paragraph(`Hi ${fullName}, thank you for registering as a taxi driver on renting.rw.`)}
+    ${paragraph('Our team will review your registration and contact you within 24 hours to verify your details and activate your profile.')}
+    ${muted('Make sure your phone is reachable — we will call you to confirm.')}
+  `;
+  return layout('Taxi Driver Registration — renting.rw', body);
+}
+
+export function taxiDriverAdminAlertEmailHtml(
+  fullName: string,
+  phone: string,
+  city: string,
+  seats: number,
+  email?: string,
+  details?: string,
+): string {
+  const body = `
+    ${heading('New Taxi Driver Registration')}
+    ${paragraph('A new taxi driver has submitted a registration on renting.rw.')}
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:20px;">
+      <tbody>
+        ${infoBox('Name', fullName)}
+        ${infoBox('Phone', phone)}
+        ${email ? infoBox('Email', email) : ''}
+        ${infoBox('City', city)}
+        ${infoBox('Seats', String(seats))}
+        ${details ? infoBox('Details', details) : ''}
+      </tbody>
+    </table>
+    ${button('Review in Admin', `${process.env.NEXT_PUBLIC_ADMIN_URL ?? 'http://localhost:3002'}`)}
+  `;
+  return layout('New Taxi Driver Registration — renting.rw', body);
+}
+
 export function disputeDismissedEmailHtml(fullName: string): string {
   const body = `
     ${heading('Dispute Update')}

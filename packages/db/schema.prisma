@@ -439,17 +439,18 @@ enum TaxiDriverStatus {
 }
 
 model TaxiDriver {
-  id             String           @id @default(uuid()) @db.Uuid
-  fullName       String           @map("full_name")
-  phone          String
-  city           String
-  seats          Int
-  details        String?
-  photoUrl       String?          @map("photo_url")
-  profilePhotoUrl String?         @map("profile_photo_url")
-  status         TaxiDriverStatus @default(pending)
-  createdAt      DateTime         @default(now()) @map("created_at")
-  updatedAt      DateTime         @updatedAt @map("updated_at")
+  id              String           @id @default(uuid()) @db.Uuid
+  fullName        String           @map("full_name")
+  phone           String
+  email           String?
+  city            String
+  seats           Int
+  details         String?
+  photoUrl        String?          @map("photo_url")
+  profilePhotoUrl String?          @map("profile_photo_url")
+  status          TaxiDriverStatus @default(pending)
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
 
   @@map("taxi_drivers")
 }

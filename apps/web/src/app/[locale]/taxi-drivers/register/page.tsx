@@ -3,7 +3,7 @@
 import { AppHeader } from '@/components/web/app-header';
 import { SiteFooter } from '@/components/web/site-footer';
 import { isSupportedLocale, routing, type SupportedLocale } from '@/i18n/routing';
-import { Camera, Car, MapPin, Phone, Upload, User } from 'lucide-react';
+import { Camera, Car, Mail, MapPin, Phone, Upload, User } from 'lucide-react';
 import Image from 'next/image';
 import { useEffect, useRef, useState } from 'react';
 
@@ -37,6 +37,7 @@ export default function RegisterTaxiPage({ params }: RegisterTaxiPageProps) {
   const [form, setForm] = useState({
     fullName: '',
     phone: '',
+    email: '',
     location: '',
     seats: '',
     details: '',
@@ -95,6 +96,7 @@ export default function RegisterTaxiPage({ params }: RegisterTaxiPageProps) {
         body: JSON.stringify({
           fullName: form.fullName,
           phone: form.phone,
+          email: form.email || undefined,
           city: form.location,
           seats: Number(form.seats),
           details: form.details || undefined,
@@ -137,6 +139,7 @@ export default function RegisterTaxiPage({ params }: RegisterTaxiPageProps) {
             <h2 className="text-xl font-black text-neutral-900">Registration Submitted!</h2>
             <p className="mt-2 text-sm font-medium text-neutral-600">
               Our team will review your registration and contact you within 24 hours at <strong>{form.phone}</strong>.
+              {form.email && <> A confirmation has been sent to <strong>{form.email}</strong>.</>}
             </p>
           </div>
         ) : (
@@ -211,6 +214,23 @@ export default function RegisterTaxiPage({ params }: RegisterTaxiPageProps) {
               />
               <p className="mt-1 text-xs font-medium text-teal-700">
                 This number will be shown to customers so they can call you directly.
+              </p>
+            </div>
+
+            <div>
+              <label className="mb-1.5 flex items-center gap-2 text-xs font-black uppercase tracking-widest text-neutral-500">
+                <Mail className="h-3.5 w-3.5" /> Email Address (optional)
+              </label>
+              <input
+                name="email"
+                type="email"
+                value={form.email}
+                onChange={handleChange}
+                placeholder="you@example.com"
+                className="w-full rounded border-2 border-neutral-900 px-4 py-3 text-sm font-semibold text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-teal-600"
+              />
+              <p className="mt-1 text-xs font-medium text-neutral-500">
+                We&apos;ll send you a confirmation email when your registration is reviewed.
               </p>
             </div>
 

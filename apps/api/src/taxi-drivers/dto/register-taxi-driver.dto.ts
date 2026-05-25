@@ -1,4 +1,4 @@
-import { IsInt, IsNotEmpty, IsOptional, IsString, IsUrl, Max, Min } from 'class-validator';
+import { IsEmail, IsInt, IsNotEmpty, IsOptional, IsString, IsUrl, Max, Min } from 'class-validator';
 
 export class RegisterTaxiDriverDto {
   @IsString()
@@ -8,6 +8,10 @@ export class RegisterTaxiDriverDto {
   @IsString()
   @IsNotEmpty()
   phone!: string;
+
+  @IsEmail()
+  @IsOptional()
+  email?: string;
 
   @IsString()
   @IsNotEmpty()
