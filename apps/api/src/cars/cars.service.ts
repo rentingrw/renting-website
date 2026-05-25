@@ -343,6 +343,28 @@ export class CarsService {
     }));
   }
 
+  async getByOwner(userId: string, excludeId?: string) {
+    const listings = await prisma.carListing.findMany({
+      where: {
+        ownerId: userId,
+        status: ListingStatus.active,
+        ...(excludeId ? { id: { not: excludeId } } : {}),
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 6,
+      include: {
+        owner: {
+          select: {
+            id: true,
+            fullName: true,
+            phone: true,
+          },
+        },
+      },
+    });
+    return listings.map((l) => this.mapListing(l, false));
+  }
+
   async getAvailability(listingId: string, month: string) {
     const listing = await prisma.carListing.findUnique({
       where: { id: listingId },

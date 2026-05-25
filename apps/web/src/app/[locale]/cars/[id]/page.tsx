@@ -17,6 +17,7 @@ import {
   User,
 } from 'lucide-react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useEffect, useMemo, useState } from 'react';
 
@@ -24,7 +25,7 @@ import { AppHeader } from '@/components/web/app-header';
 import { SiteFooter } from '@/components/web/site-footer';
 import { BookingRequestDialog } from '@/components/web/booking-request-dialog';
 import { isSupportedLocale, routing, type SupportedLocale } from '@/i18n/routing';
-import { addFavorite, getCarAvailability, getCarById, getFavorites, getReviewsForUser, removeFavorite, type CarDetail } from '@/lib/api';
+import { addFavorite, getCarAvailability, getCarById, getCarsByOwner, getFavorites, getReviewsForUser, removeFavorite, type CarDetail, type SearchCar } from '@/lib/api';
 import { formatCurrencyRwf, formatRange } from '@/lib/format';
 import { stockImages } from '@/lib/stock-images';
 
@@ -75,6 +76,7 @@ export default function CarDetailPage({ params }: CarPageProps) {
   const [showAllFeatures, setShowAllFeatures] = useState(false);
   const [isFavorited, setIsFavorited] = useState(false);
   const [favoritePending, setFavoritePending] = useState(false);
+  const [ownerCars, setOwnerCars] = useState<SearchCar[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -98,16 +100,18 @@ export default function CarDetailPage({ params }: CarPageProps) {
       try {
         const token = isSignedIn ? await getToken() : null;
         const car = await getCarById(carId, token ?? undefined);
-        const [availability, reviewsData, favs] = await Promise.all([
+        const [availability, reviewsData, favs, otherCars] = await Promise.all([
           getCarAvailability(carId, new Date().toISOString().slice(0, 7)),
           getReviewsForUser(car.ownerId),
           token ? getFavorites(token).catch(() => []) : Promise.resolve([]),
+          getCarsByOwner(car.ownerId, carId),
         ]);
         if (!cancelled) {
           setDetail(car);
           setBookedRanges(availability.bookedRanges.map((item) => ({ startDate: item.startDate, endDate: item.endDate })));
           setReviews(reviewsData);
           setIsFavorited(favs.some((f) => f.carListing.id === carId));
+          setOwnerCars(otherCars);
         }
       } catch (loadError) {
         if (!cancelled) setError(loadError instanceof Error ? loadError.message : t('detail.error'));
@@ -414,6 +418,47 @@ export default function CarDetailPage({ params }: CarPageProps) {
                 )}
               </div>
             </div>
+            {/* More from this hoster */}
+            {ownerCars.length > 0 && (
+              <div>
+                <h2 className="mb-3 text-lg font-black text-neutral-900">More from {detail.ownerName}</h2>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {ownerCars.map((car) => {
+                    const carPhoto = car.photos?.[0];
+                    const rateDisplay = car.approximateDailyRateRangeRwf
+                      ? formatRange(car.approximateDailyRateRangeRwf.kigali.min, car.approximateDailyRateRangeRwf.kigali.max)
+                      : t('home.priceUnavailable');
+                    return (
+                      <Link
+                        key={car.id}
+                        href={`/${locale}/cars/${car.id}`}
+                        className="group overflow-hidden rounded-md border-2 border-neutral-900 bg-white shadow-brutal-xs transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none"
+                      >
+                        <div className="relative aspect-[16/10] overflow-hidden bg-neutral-100">
+                          {carPhoto ? (
+                            <Image
+                              src={carPhoto}
+                              alt={car.title}
+                              fill
+                              sizes="(max-width: 640px) 100vw, 40vw"
+                              className="object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-full items-center justify-center">
+                              <Car className="h-10 w-10 text-neutral-300" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="p-3">
+                          <p className="font-black text-neutral-900 text-sm leading-tight">{car.title}</p>
+                          <p className="mt-0.5 text-xs font-semibold text-teal-700">{rateDisplay}/day</p>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Right column — sticky booking summary */}

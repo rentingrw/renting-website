@@ -84,6 +84,13 @@ export class CarsController {
     return this.carsService.getSignedUploadUrl(payload.folder);
   }
 
+  @Get('by-owner/:userId')
+  @ApiOperation({ summary: 'Get active listings by owner user ID (public)' })
+  @Header('Cache-Control', 'public, max-age=120, stale-while-revalidate=60')
+  getByOwner(@Param('userId') userId: string, @Query('excludeId') excludeId?: string) {
+    return this.carsService.getByOwner(userId, excludeId);
+  }
+
   @Get(':id/availability')
   @ApiOperation({ summary: 'Get availability calendar for a car in a given month' })
   @Header('Cache-Control', 'public, max-age=300, stale-while-revalidate=60')

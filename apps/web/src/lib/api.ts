@@ -568,6 +568,14 @@ export async function getDriverById(id: string, token?: string): Promise<DriverD
   return (await response.json()) as DriverDetail;
 }
 
+export async function getCarsByOwner(userId: string, excludeId?: string): Promise<SearchCar[]> {
+  const url = new URL(`${API_BASE_URL}/cars/by-owner/${userId}`);
+  if (excludeId) url.searchParams.set('excludeId', excludeId);
+  const response = await fetch(url.toString(), { cache: 'no-store' });
+  if (!response.ok) return [];
+  return (await response.json()) as SearchCar[];
+}
+
 export async function getCarAvailability(id: string, month: string): Promise<CarAvailabilityResponse> {
   const response = await fetch(`${API_BASE_URL}/cars/${id}/availability?month=${encodeURIComponent(month)}`, {
     cache: 'no-store',
