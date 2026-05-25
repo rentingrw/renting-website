@@ -291,6 +291,22 @@ export class SearchService {
       conditions.push(Prisma.sql`${query.driverCategory}::"DriverCategory" = ANY(dp.categories)`);
     }
 
+    if (query.driverHasVehicle === true) {
+      conditions.push(Prisma.sql`array_length(dp.vehicle_types, 1) > 0`);
+    } else if (query.driverHasVehicle === false) {
+      conditions.push(Prisma.sql`(dp.vehicle_types IS NULL OR array_length(dp.vehicle_types, 1) IS NULL OR array_length(dp.vehicle_types, 1) = 0)`);
+    }
+
+    if (query.driverTransmission) {
+      const certValue = `Driving: ${query.driverTransmission}`;
+      conditions.push(Prisma.sql`${certValue} = ANY(dp.certifications)`);
+    }
+
+    if (query.driverLicenseCategory) {
+      const certValue = `License: ${query.driverLicenseCategory}`;
+      conditions.push(Prisma.sql`${certValue} = ANY(dp.certifications)`);
+    }
+
     const whereClause = conditions.length > 0 ? Prisma.join(conditions, ' AND ') : Prisma.sql`TRUE`;
     const rows = await prisma.$queryRaw<SearchDriverRow[]>(Prisma.sql`
       SELECT

@@ -608,3 +608,48 @@ export async function adminGetUploadUrl(token: string, folder = 'rentingi/cars')
     'Failed to get upload URL.',
   );
 }
+
+// ── Site Banners ─────────────────────────────────────────────────────────────
+
+export type SiteBannerItem = {
+  id: string;
+  message: string;
+  ctaText: string | null;
+  ctaUrl: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export async function listAdminBanners(token: string): Promise<SiteBannerItem[]> {
+  return authRequest<SiteBannerItem[]>(token, '/admin/banners', undefined, 'Failed to load banners.');
+}
+
+export async function createAdminBanner(
+  token: string,
+  payload: { message: string; ctaText?: string; ctaUrl?: string; isActive?: boolean },
+): Promise<SiteBannerItem> {
+  return authRequest<SiteBannerItem>(
+    token,
+    '/admin/banners',
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) },
+    'Failed to create banner.',
+  );
+}
+
+export async function updateAdminBanner(
+  token: string,
+  id: string,
+  payload: { message?: string; ctaText?: string | null; ctaUrl?: string | null; isActive?: boolean },
+): Promise<SiteBannerItem> {
+  return authRequest<SiteBannerItem>(
+    token,
+    `/admin/banners/${id}`,
+    { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) },
+    'Failed to update banner.',
+  );
+}
+
+export async function deleteAdminBanner(token: string, id: string): Promise<void> {
+  await authRequest<void>(token, `/admin/banners/${id}`, { method: 'DELETE' }, 'Failed to delete banner.');
+}

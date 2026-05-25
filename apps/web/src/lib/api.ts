@@ -186,6 +186,9 @@ type SearchQuery = {
   serviceType?: ServiceType;
   vehicleType?: VehicleType;
   driverCategory?: DriverCategory;
+  driverHasVehicle?: boolean;
+  driverTransmission?: string;
+  driverLicenseCategory?: string;
   limit?: number;
 };
 

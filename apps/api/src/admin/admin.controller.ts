@@ -236,4 +236,33 @@ export class AdminController {
   ) {
     return this.adminService.cancelBooking(type, bookingId, payload);
   }
+
+  // ── Site Banners ────────────────────────────────────────────────────────────
+
+  @Get('banners')
+  @ApiOperation({ summary: 'List all site banners' })
+  listBanners() {
+    return this.adminService.listBanners();
+  }
+
+  @Post('banners')
+  @ApiOperation({ summary: 'Create a new site banner' })
+  createBanner(@Body() body: { message: string; ctaText?: string; ctaUrl?: string; isActive?: boolean }) {
+    return this.adminService.createBanner(body);
+  }
+
+  @Patch('banners/:id')
+  @ApiOperation({ summary: 'Update a site banner' })
+  updateBanner(
+    @Param('id') id: string,
+    @Body() body: { message?: string; ctaText?: string | null; ctaUrl?: string | null; isActive?: boolean },
+  ) {
+    return this.adminService.updateBanner(id, body);
+  }
+
+  @Delete('banners/:id')
+  @ApiOperation({ summary: 'Delete a site banner' })
+  deleteBanner(@Param('id') id: string) {
+    return this.adminService.deleteBanner(id);
+  }
 }

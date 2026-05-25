@@ -1,24 +1,21 @@
 'use client';
 
-import { Search, UserRound } from 'lucide-react';
+import { ChevronDown, Search, UserRound, X } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { AppHeader } from '@/components/web/app-header';
 import { SiteFooter } from '@/components/web/site-footer';
 import { AddressInput } from '@/components/web/address-input';
 import { isSupportedLocale, routing, type SupportedLocale } from '@/i18n/routing';
-import { searchMarketplace, type DriverCategory, type SearchDriver } from '@/lib/api';
+import { searchMarketplace, type SearchDriver } from '@/lib/api';
 import { formatCurrencyRwf, formatRange, trustTierFromScore } from '@/lib/format';
 import { stockImages } from '@/lib/stock-images';
 
-const DRIVER_CATEGORIES: DriverCategory[] = ['city', 'outstation', 'airport', 'chauffeur', 'tour_guide', 'delivery'];
-const CATEGORY_LABELS: Record<string, string> = {
-  city: 'City', outstation: 'Outstation', airport: 'Airport', chauffeur: 'Chauffeur', tour_guide: 'Tour Guide', delivery: 'Delivery',
-};
+const LICENSE_CATEGORIES = ['A', 'B', 'C', 'D', 'E', 'F'];
 const PAGE_SIZE = 20;
 
 function DriverCardSkeleton() {
@@ -44,7 +41,14 @@ export default function DriversPage({ params }: { params: Promise<{ locale: stri
   const [location, setLocation] = useState(searchParams.get('location') ?? 'Kigali');
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
-  const [driverCategory, setDriverCategory] = useState<DriverCategory | ''>('');
+
+  // New filter state
+  const [driverHasVehicle, setDriverHasVehicle] = useState<boolean | null>(null);
+  const [driverTransmission, setDriverTransmission] = useState<'Manual' | 'Automatic' | null>(null);
+  const [driverLicenseCategory, setDriverLicenseCategory] = useState<string | null>(null);
+  const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
+  const categoryDropdownRef = useRef<HTMLDivElement>(null);
+
   const [drivers, setDrivers] = useState<SearchDriver[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -62,6 +66,17 @@ export default function DriversPage({ params }: { params: Promise<{ locale: stri
     return () => { cancelled = true; };
   }, [params]);
 
+  // Close category dropdown on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(e.target as Node)) {
+        setCategoryDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     async function runSearch() {
@@ -74,7 +89,9 @@ export default function DriversPage({ params }: { params: Promise<{ locale: stri
           location,
           latitude: latitude ?? undefined,
           longitude: longitude ?? undefined,
-          driverCategory: driverCategory || undefined,
+          driverHasVehicle: driverHasVehicle ?? undefined,
+          driverTransmission: driverTransmission ?? undefined,
+          driverLicenseCategory: driverLicenseCategory ?? undefined,
           limit: PAGE_SIZE,
           offset: 0,
         });
@@ -90,7 +107,7 @@ export default function DriversPage({ params }: { params: Promise<{ locale: stri
     }
     runSearch();
     return () => { cancelled = true; };
-  }, [location, latitude, longitude, driverCategory, t]);
+  }, [location, latitude, longitude, driverHasVehicle, driverTransmission, driverLicenseCategory, t]);
 
   async function handleLoadMore() {
     const nextOffset = offset + PAGE_SIZE;
@@ -101,7 +118,9 @@ export default function DriversPage({ params }: { params: Promise<{ locale: stri
         location,
         latitude: latitude ?? undefined,
         longitude: longitude ?? undefined,
-        driverCategory: driverCategory || undefined,
+        driverHasVehicle: driverHasVehicle ?? undefined,
+        driverTransmission: driverTransmission ?? undefined,
+        driverLicenseCategory: driverLicenseCategory ?? undefined,
         limit: PAGE_SIZE,
         offset: nextOffset,
       });
@@ -114,6 +133,21 @@ export default function DriversPage({ params }: { params: Promise<{ locale: stri
       setLoadingMore(false);
     }
   }
+
+  function clearFilters() {
+    setLocation('');
+    setLatitude(null);
+    setLongitude(null);
+    setDriverHasVehicle(null);
+    setDriverTransmission(null);
+    setDriverLicenseCategory(null);
+  }
+
+  const activeFilterCount = [
+    driverHasVehicle !== null,
+    driverTransmission !== null,
+    driverLicenseCategory !== null,
+  ].filter(Boolean).length;
 
   return (
     <main className="min-h-screen bg-[#f5f0e8]">
@@ -133,21 +167,112 @@ export default function DriversPage({ params }: { params: Promise<{ locale: stri
                 className="h-10 w-full rounded border-2 border-neutral-900 bg-white pl-9 pr-4 text-sm font-semibold text-neutral-900 placeholder:font-normal placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
               />
             </div>
-            <div className="flex flex-wrap gap-2">
-              {DRIVER_CATEGORIES.map((cat) => (
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Without Car / With Car */}
+              <button
+                type="button"
+                onClick={() => setDriverHasVehicle((prev) => (prev === false ? null : false))}
+                className={`rounded border-2 border-neutral-900 px-3 py-1.5 text-xs font-black uppercase tracking-wide transition-all ${
+                  driverHasVehicle === false
+                    ? 'bg-neutral-900 text-white'
+                    : 'bg-white text-neutral-700 hover:bg-neutral-100'
+                }`}
+              >
+                Without Car
+              </button>
+              <button
+                type="button"
+                onClick={() => setDriverHasVehicle((prev) => (prev === true ? null : true))}
+                className={`rounded border-2 border-neutral-900 px-3 py-1.5 text-xs font-black uppercase tracking-wide transition-all ${
+                  driverHasVehicle === true
+                    ? 'bg-neutral-900 text-white'
+                    : 'bg-white text-neutral-700 hover:bg-neutral-100'
+                }`}
+              >
+                With Car
+              </button>
+
+              {/* Transmission */}
+              <button
+                type="button"
+                onClick={() => setDriverTransmission((prev) => (prev === 'Manual' ? null : 'Manual'))}
+                className={`rounded border-2 border-neutral-900 px-3 py-1.5 text-xs font-black uppercase tracking-wide transition-all ${
+                  driverTransmission === 'Manual'
+                    ? 'bg-neutral-900 text-white'
+                    : 'bg-white text-neutral-700 hover:bg-neutral-100'
+                }`}
+              >
+                Manual
+              </button>
+              <button
+                type="button"
+                onClick={() => setDriverTransmission((prev) => (prev === 'Automatic' ? null : 'Automatic'))}
+                className={`rounded border-2 border-neutral-900 px-3 py-1.5 text-xs font-black uppercase tracking-wide transition-all ${
+                  driverTransmission === 'Automatic'
+                    ? 'bg-neutral-900 text-white'
+                    : 'bg-white text-neutral-700 hover:bg-neutral-100'
+                }`}
+              >
+                Automatic
+              </button>
+
+              {/* License Category dropdown */}
+              <div className="relative" ref={categoryDropdownRef}>
                 <button
-                  key={cat}
                   type="button"
-                  onClick={() => setDriverCategory((prev) => (prev === cat ? '' : cat))}
-                  className={`rounded border-2 border-neutral-900 px-3 py-1.5 text-xs font-black uppercase tracking-wide transition-all ${
-                    driverCategory === cat
+                  onClick={() => setCategoryDropdownOpen((o) => !o)}
+                  className={`flex items-center gap-1 rounded border-2 border-neutral-900 px-3 py-1.5 text-xs font-black uppercase tracking-wide transition-all ${
+                    driverLicenseCategory
                       ? 'bg-neutral-900 text-white'
                       : 'bg-white text-neutral-700 hover:bg-neutral-100'
                   }`}
                 >
-                  {CATEGORY_LABELS[cat] ?? cat}
+                  {driverLicenseCategory ? `Cat. ${driverLicenseCategory}` : 'Category'}
+                  {driverLicenseCategory ? (
+                    <X
+                      className="h-3 w-3"
+                      onClick={(e) => { e.stopPropagation(); setDriverLicenseCategory(null); setCategoryDropdownOpen(false); }}
+                    />
+                  ) : (
+                    <ChevronDown className="h-3 w-3" />
+                  )}
                 </button>
-              ))}
+                {categoryDropdownOpen && (
+                  <div className="absolute left-0 top-full z-50 mt-1 w-40 rounded border-2 border-neutral-900 bg-white shadow-brutal">
+                    <p className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-neutral-400">
+                      License Category
+                    </p>
+                    {LICENSE_CATEGORIES.map((cat) => (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => {
+                          setDriverLicenseCategory(driverLicenseCategory === cat ? null : cat);
+                          setCategoryDropdownOpen(false);
+                        }}
+                        className={`flex w-full items-center justify-between px-3 py-2 text-sm font-bold transition-colors hover:bg-neutral-100 ${
+                          driverLicenseCategory === cat ? 'text-teal-700' : 'text-neutral-800'
+                        }`}
+                      >
+                        <span>Category {cat}</span>
+                        {driverLicenseCategory === cat && <span className="text-xs">✓</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Clear filters */}
+              {activeFilterCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => { setDriverHasVehicle(null); setDriverTransmission(null); setDriverLicenseCategory(null); }}
+                  className="flex items-center gap-1 rounded border-2 border-red-400 px-2 py-1.5 text-xs font-black uppercase tracking-wide text-red-600 hover:bg-red-50"
+                >
+                  <X className="h-3 w-3" />
+                  Clear
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -240,7 +365,7 @@ export default function DriversPage({ params }: { params: Promise<{ locale: stri
             <p className="mt-2 max-w-xs text-sm font-medium text-neutral-500">{t('search.noResultsHint')}</p>
             <button
               type="button"
-              onClick={() => { setLocation(''); setLatitude(null); setLongitude(null); setDriverCategory(''); }}
+              onClick={clearFilters}
               className="mt-6 rounded border-2 border-teal-800 bg-teal-600 px-5 py-2.5 text-sm font-black uppercase tracking-wide text-white shadow-brutal-teal-sm transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none"
             >
               {t('search.clearFilters')}

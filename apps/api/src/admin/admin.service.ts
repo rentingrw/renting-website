@@ -1287,6 +1287,33 @@ export class AdminService {
     return distribution;
   }
 
+  // ── Site Banners ────────────────────────────────────────────────────────────
+
+  async listBanners() {
+    return prisma.siteBanner.findMany({ orderBy: { createdAt: 'desc' } });
+  }
+
+  async createBanner(data: { message: string; ctaText?: string; ctaUrl?: string; isActive?: boolean }) {
+    return prisma.siteBanner.create({ data });
+  }
+
+  async updateBanner(id: string, data: { message?: string; ctaText?: string | null; ctaUrl?: string | null; isActive?: boolean }) {
+    const banner = await prisma.siteBanner.findUnique({ where: { id } });
+    if (!banner) throw new NotFoundException('Banner not found');
+    return prisma.siteBanner.update({ where: { id }, data });
+  }
+
+  async deleteBanner(id: string) {
+    const banner = await prisma.siteBanner.findUnique({ where: { id } });
+    if (!banner) throw new NotFoundException('Banner not found');
+    await prisma.siteBanner.delete({ where: { id } });
+    return { success: true };
+  }
+
+  async getActiveBanner() {
+    return prisma.siteBanner.findFirst({ where: { isActive: true }, orderBy: { createdAt: 'desc' } });
+  }
+
   private disputePriority(status: DisputeStatus, createdAt: Date): 'low' | 'medium' | 'high' {
     if (status === DisputeStatus.escalated) {
       return 'high';

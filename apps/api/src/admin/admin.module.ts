@@ -7,10 +7,12 @@ import { TrustScoreModule } from '../trust-score/trust-score.module';
 import { UsersModule } from '../users/users.module';
 import { AdminController } from './admin.controller';
 import { AdminService } from './admin.service';
+import { BannersPublicController } from './banners-public.controller';
 
 @Module({
   imports: [CarsModule, TrustScoreModule, DisputesModule, NotificationsModule, UsersModule],
-  controllers: [AdminController],
+  controllers: [AdminController, BannersPublicController],
   providers: [AdminService],
+  exports: [AdminService],
 })
 export class AdminModule {}

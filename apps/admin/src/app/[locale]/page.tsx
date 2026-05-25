@@ -21,7 +21,10 @@ import {
   BarChart3,
   CheckCircle2,
   LayoutDashboard,
+  Megaphone,
+  Plus,
   RefreshCw,
+  Trash2,
   TrendingUp,
   XCircle,
 } from 'lucide-react';
@@ -31,8 +34,13 @@ import {
   getAdminAnalytics,
   getAdminOverview,
   resolveDispute,
+  listAdminBanners,
+  createAdminBanner,
+  updateAdminBanner,
+  deleteAdminBanner,
   type AdminAnalytics,
   type AdminOverview,
+  type SiteBannerItem,
 } from '@/lib/api';
 import { useAuthToken } from '@/lib/use-auth-token';
 import { Skeleton, TableRowSkeleton } from '@/components/ui/skeleton';
@@ -57,7 +65,9 @@ const TRUST_TIER_COLORS: Record<string, string> = {
   suspended: '#7f1d1d',
 };
 
-type Tab = 'overview' | 'analytics';
+type Tab = 'overview' | 'analytics' | 'banners';
+
+const EMPTY_BANNER_FORM = { message: '', ctaText: '', ctaUrl: '', isActive: true };
 
 export default function AdminHomePage() {
   const { fetchToken, isLoaded, isSignedIn } = useAuthToken();
@@ -67,6 +77,14 @@ export default function AdminHomePage() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [actingId, setActingId] = useState<string | null>(null);
+
+  // Banner state
+  const [banners, setBanners] = useState<SiteBannerItem[]>([]);
+  const [bannerLoading, setBannerLoading] = useState(false);
+  const [bannerError, setBannerError] = useState<string | null>(null);
+  const [bannerForm, setBannerForm] = useState(EMPTY_BANNER_FORM);
+  const [editingBannerId, setEditingBannerId] = useState<string | null>(null);
+  const [bannerSaving, setBannerSaving] = useState(false);
 
   const loadData = useCallback(async () => {
     if (!isLoaded || !isSignedIn) return;
@@ -86,6 +104,84 @@ export default function AdminHomePage() {
   }, [fetchToken, isLoaded, isSignedIn]);
 
   useEffect(() => { void loadData(); }, [loadData]);
+
+  const loadBanners = useCallback(async () => {
+    if (!isLoaded || !isSignedIn) return;
+    setBannerLoading(true);
+    setBannerError(null);
+    try {
+      const token = await fetchToken();
+      if (!token) throw new Error(AUTH_ERROR_MSG);
+      const data = await listAdminBanners(token);
+      setBanners(data);
+    } catch (err) {
+      setBannerError(err instanceof Error ? err.message : 'Failed to load banners.');
+    } finally {
+      setBannerLoading(false);
+    }
+  }, [fetchToken, isLoaded, isSignedIn]);
+
+  useEffect(() => { if (tab === 'banners') void loadBanners(); }, [tab, loadBanners]);
+
+  async function handleSaveBanner() {
+    setBannerSaving(true);
+    setBannerError(null);
+    try {
+      const token = await fetchToken();
+      if (!token) throw new Error(AUTH_ERROR_MSG);
+      const payload = {
+        message: bannerForm.message.trim(),
+        ctaText: bannerForm.ctaText.trim() || undefined,
+        ctaUrl: bannerForm.ctaUrl.trim() || undefined,
+        isActive: bannerForm.isActive,
+      };
+      if (editingBannerId) {
+        await updateAdminBanner(token, editingBannerId, payload);
+      } else {
+        await createAdminBanner(token, payload);
+      }
+      setBannerForm(EMPTY_BANNER_FORM);
+      setEditingBannerId(null);
+      await loadBanners();
+    } catch (err) {
+      setBannerError(err instanceof Error ? err.message : 'Failed to save banner.');
+    } finally {
+      setBannerSaving(false);
+    }
+  }
+
+  async function handleDeleteBanner(id: string) {
+    if (!confirm('Delete this banner?')) return;
+    try {
+      const token = await fetchToken();
+      if (!token) throw new Error(AUTH_ERROR_MSG);
+      await deleteAdminBanner(token, id);
+      await loadBanners();
+    } catch (err) {
+      setBannerError(err instanceof Error ? err.message : 'Failed to delete banner.');
+    }
+  }
+
+  async function handleToggleBannerActive(banner: SiteBannerItem) {
+    try {
+      const token = await fetchToken();
+      if (!token) throw new Error(AUTH_ERROR_MSG);
+      await updateAdminBanner(token, banner.id, { isActive: !banner.isActive });
+      await loadBanners();
+    } catch (err) {
+      setBannerError(err instanceof Error ? err.message : 'Failed to update banner.');
+    }
+  }
+
+  function startEditBanner(banner: SiteBannerItem) {
+    setEditingBannerId(banner.id);
+    setBannerForm({
+      message: banner.message,
+      ctaText: banner.ctaText ?? '',
+      ctaUrl: banner.ctaUrl ?? '',
+      isActive: banner.isActive,
+    });
+  }
 
   const handleResolve = async (disputeId: string) => {
     setActingId(disputeId);
@@ -150,19 +246,23 @@ export default function AdminHomePage() {
 
       {/* Tabs */}
       <div className="flex gap-1 border-2 border-neutral-900 bg-white p-1 w-fit rounded shadow-brutal-sm">
-        {(['overview', 'analytics'] as const).map((t) => (
+        {([
+          { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+          { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+          { id: 'banners', label: 'Banners', icon: Megaphone },
+        ] as const).map(({ id, label, icon: Icon }) => (
           <button
-            key={t}
+            key={id}
             type="button"
-            onClick={() => setTab(t)}
+            onClick={() => setTab(id)}
             className={`flex items-center gap-2 rounded px-4 py-1.5 text-sm font-bold transition-colors ${
-              tab === t
+              tab === id
                 ? 'bg-neutral-900 text-white'
                 : 'text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100'
             }`}
           >
-            {t === 'overview' ? <LayoutDashboard className="h-3.5 w-3.5" /> : <BarChart3 className="h-3.5 w-3.5" />}
-            {t.charAt(0).toUpperCase() + t.slice(1)}
+            <Icon className="h-3.5 w-3.5" />
+            {label}
           </button>
         ))}
       </div>
@@ -282,6 +382,164 @@ export default function AdminHomePage() {
 
       {tab === 'analytics' && (
         <AnalyticsTab analytics={analytics} loading={isLoading} />
+      )}
+
+      {tab === 'banners' && (
+        <div className="space-y-6">
+          {bannerError && (
+            <div className="flex items-center gap-3 rounded border-2 border-red-700 bg-red-50 p-3 text-sm font-semibold text-red-700">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              {bannerError}
+            </div>
+          )}
+
+          {/* Create / Edit form */}
+          <div className="rounded-md border-2 border-neutral-900 bg-white shadow-brutal">
+            <div className="border-b-2 border-neutral-900 px-5 py-3.5">
+              <h2 className="font-black text-neutral-900">{editingBannerId ? 'Edit Banner' : 'Create Banner'}</h2>
+              <p className="text-xs text-neutral-500 font-medium mt-0.5">This banner appears at the top of the website for all visitors</p>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="block text-xs font-black uppercase tracking-widest text-neutral-500 mb-1">Message *</label>
+                <textarea
+                  rows={2}
+                  value={bannerForm.message}
+                  onChange={(e) => setBannerForm((f) => ({ ...f, message: e.target.value }))}
+                  placeholder="e.g. Start earning today — list your car on Renting.rw!"
+                  className="w-full rounded border-2 border-neutral-900 px-3 py-2 text-sm font-semibold text-neutral-900 placeholder:font-normal placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-teal-500/20 resize-none"
+                />
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="block text-xs font-black uppercase tracking-widest text-neutral-500 mb-1">CTA Text</label>
+                  <input
+                    type="text"
+                    value={bannerForm.ctaText}
+                    onChange={(e) => setBannerForm((f) => ({ ...f, ctaText: e.target.value }))}
+                    placeholder="e.g. List your car"
+                    className="w-full rounded border-2 border-neutral-900 px-3 py-2 text-sm font-semibold text-neutral-900 placeholder:font-normal placeholder:text-neutral-400 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-black uppercase tracking-widest text-neutral-500 mb-1">CTA URL</label>
+                  <input
+                    type="text"
+                    value={bannerForm.ctaUrl}
+                    onChange={(e) => setBannerForm((f) => ({ ...f, ctaUrl: e.target.value }))}
+                    placeholder="e.g. /en/list-your-car"
+                    className="w-full rounded border-2 border-neutral-900 px-3 py-2 text-sm font-semibold text-neutral-900 placeholder:font-normal placeholder:text-neutral-400 focus:outline-none"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <label className="relative inline-flex cursor-pointer items-center">
+                  <input
+                    type="checkbox"
+                    checked={bannerForm.isActive}
+                    onChange={(e) => setBannerForm((f) => ({ ...f, isActive: e.target.checked }))}
+                    className="sr-only peer"
+                  />
+                  <div className="h-5 w-9 rounded-full border-2 border-neutral-900 bg-neutral-200 peer-checked:bg-teal-500 transition-colors" />
+                  <div className="absolute left-0.5 top-0.5 h-4 w-4 rounded-full border-2 border-neutral-900 bg-white transition-transform peer-checked:translate-x-4" />
+                </label>
+                <span className="text-sm font-bold text-neutral-700">Active (visible on site)</span>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => void handleSaveBanner()}
+                  disabled={bannerSaving || !bannerForm.message.trim()}
+                  className="flex items-center gap-2 rounded border-2 border-neutral-900 bg-neutral-900 px-4 py-2 text-sm font-black text-white shadow-brutal-sm hover:bg-neutral-800 disabled:opacity-40 transition-all"
+                >
+                  <Plus className="h-4 w-4" />
+                  {bannerSaving ? 'Saving…' : editingBannerId ? 'Update Banner' : 'Create Banner'}
+                </button>
+                {editingBannerId && (
+                  <button
+                    type="button"
+                    onClick={() => { setEditingBannerId(null); setBannerForm(EMPTY_BANNER_FORM); }}
+                    className="rounded border-2 border-neutral-900 bg-white px-4 py-2 text-sm font-bold shadow-brutal-sm hover:bg-neutral-100 transition-all"
+                  >
+                    Cancel
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Banners list */}
+          <div className="rounded-md border-2 border-neutral-900 bg-white shadow-brutal overflow-hidden">
+            <div className="border-b-2 border-neutral-900 px-5 py-3.5 flex items-center justify-between">
+              <h2 className="font-black text-neutral-900">All Banners</h2>
+              <button
+                type="button"
+                onClick={() => void loadBanners()}
+                disabled={bannerLoading}
+                className="flex items-center gap-1.5 rounded border-2 border-neutral-900 bg-white px-2.5 py-1.5 text-xs font-bold shadow-brutal-xs hover:translate-x-px hover:translate-y-px hover:shadow-none transition-all"
+              >
+                <RefreshCw className={`h-3 w-3 ${bannerLoading ? 'animate-spin' : ''}`} />
+                Refresh
+              </button>
+            </div>
+            {bannerLoading ? (
+              <div className="px-5 py-10 text-center text-sm font-semibold text-neutral-500">Loading…</div>
+            ) : banners.length === 0 ? (
+              <div className="px-5 py-10 text-center">
+                <Megaphone className="mx-auto mb-2 h-8 w-8 text-neutral-300" />
+                <p className="text-sm font-semibold text-neutral-500">No banners yet. Create one above.</p>
+              </div>
+            ) : (
+              <div className="divide-y-2 divide-neutral-900">
+                {banners.map((banner) => (
+                  <div key={banner.id} className="flex items-start justify-between gap-4 px-5 py-4">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`inline-flex items-center rounded border-2 px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider ${
+                          banner.isActive
+                            ? 'border-teal-700 bg-teal-50 text-teal-700'
+                            : 'border-neutral-400 bg-neutral-100 text-neutral-500'
+                        }`}>
+                          {banner.isActive ? 'Active' : 'Inactive'}
+                        </span>
+                        <p className="font-bold text-neutral-900 truncate">{banner.message}</p>
+                      </div>
+                      {(banner.ctaText || banner.ctaUrl) && (
+                        <p className="mt-1 text-xs text-neutral-500 font-medium">
+                          CTA: {banner.ctaText && <span className="font-bold">{banner.ctaText}</span>}
+                          {banner.ctaUrl && <span className="ml-1 text-teal-600">{banner.ctaUrl}</span>}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => void handleToggleBannerActive(banner)}
+                        className="rounded border-2 border-neutral-900 bg-white px-2.5 py-1 text-xs font-bold shadow-brutal-xs hover:translate-x-px hover:translate-y-px hover:shadow-none transition-all"
+                      >
+                        {banner.isActive ? 'Deactivate' : 'Activate'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => startEditBanner(banner)}
+                        className="rounded border-2 border-neutral-900 bg-white px-2.5 py-1 text-xs font-bold shadow-brutal-xs hover:translate-x-px hover:translate-y-px hover:shadow-none transition-all"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleDeleteBanner(banner.id)}
+                        className="flex items-center gap-1 rounded border-2 border-red-400 px-2.5 py-1 text-xs font-bold text-red-600 hover:bg-red-50 transition-all"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </main>
   );

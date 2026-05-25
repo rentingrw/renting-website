@@ -110,6 +110,24 @@ export class SearchQueryDto {
   driverCategory?: DriverCategory;
 
   @IsOptional()
+  @Transform(({ value }) => {
+    if (value === 'true' || value === true) return true;
+    if (value === 'false' || value === false) return false;
+    return undefined;
+  })
+  driverHasVehicle?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  driverTransmission?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(8)
+  driverLicenseCategory?: string;
+
+  @IsOptional()
   @Transform(({ value }) => toNumber(value))
   @IsInt()
   @Min(1)

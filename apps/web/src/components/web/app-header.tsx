@@ -31,25 +31,43 @@ type AppHeaderProps = {
   variant?: 'default' | 'dark';
 };
 
-const BANNER_DISMISSED_KEY = 'rentingi_banner_dismissed_until';
 const BANNER_DISMISS_DAYS = 7;
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+
+type SiteBanner = { id: string; message: string; ctaText?: string | null; ctaUrl?: string | null };
 
 export function AppHeader({ locale, variant = 'default' }: AppHeaderProps) {
   const t = useTranslations('web');
   const { isSignedIn } = useAuth();
   const isDark = variant === 'dark';
+  const [banner, setBanner] = useState<SiteBanner | null>(null);
   const [bannerVisible, setBannerVisible] = useState(false);
 
   useEffect(() => {
-    const raw = localStorage.getItem(BANNER_DISMISSED_KEY);
-    if (!raw || Date.now() > Number(raw)) {
-      setBannerVisible(true);
+    async function loadBanner() {
+      try {
+        const res = await fetch(`${API_BASE_URL}/banners/active`, { cache: 'no-store' });
+        if (!res.ok) return;
+        const data = (await res.json()) as SiteBanner | null;
+        if (!data) return;
+        const dismissKey = `rentingi_banner_dismissed_${data.id}`;
+        const raw = localStorage.getItem(dismissKey);
+        if (!raw || Date.now() > Number(raw)) {
+          setBanner(data);
+          setBannerVisible(true);
+        }
+      } catch {
+        // ignore — no banner is fine
+      }
     }
+    loadBanner();
   }, []);
 
   function dismissBanner() {
+    if (!banner) return;
+    const dismissKey = `rentingi_banner_dismissed_${banner.id}`;
     const until = Date.now() + BANNER_DISMISS_DAYS * 24 * 60 * 60 * 1000;
-    localStorage.setItem(BANNER_DISMISSED_KEY, String(until));
+    localStorage.setItem(dismissKey, String(until));
     setBannerVisible(false);
   }
 
@@ -173,14 +191,16 @@ export function AppHeader({ locale, variant = 'default' }: AppHeaderProps) {
 
   return (
     <header className={`sticky top-0 z-50 ${isDark ? 'border-zinc-800 bg-zinc-950' : 'border-neutral-900 bg-white'}`}>
-      {/* Earning Banner */}
-      {bannerVisible && (
+      {/* Site Banner (managed from admin) */}
+      {bannerVisible && banner && (
         <div className="relative border-b-2 border-amber-500 bg-amber-400 px-4 py-2 text-center">
           <p className="text-xs font-black text-neutral-900 sm:text-sm">
-            {t('header.earningBanner')}{' '}
-            <Link href={`/${locale}/list-your-car`} className="underline decoration-2 hover:text-neutral-700">
-              {t('header.earningBannerCta')}
-            </Link>
+            {banner.message}{' '}
+            {banner.ctaText && banner.ctaUrl && (
+              <Link href={banner.ctaUrl} className="underline decoration-2 hover:text-neutral-700">
+                {banner.ctaText}
+              </Link>
+            )}
           </p>
           <button
             type="button"
