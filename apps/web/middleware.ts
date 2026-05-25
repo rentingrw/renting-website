@@ -2,8 +2,8 @@ import { clerkMiddleware } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 
 const SUPPORTED_LOCALES = ['en', 'rw', 'fr'] as const;
-const CAR_DETAIL_ROUTE = /^\/cars\/[^/]+$/;
-const DRIVER_DETAIL_ROUTE = /^\/drivers\/[^/]+$/;
+const PUBLIC_EXACT = new Set(['/', '/search', '/cars', '/drivers', '/taxi-drivers', '/stays', '/about', '/how-it-works', '/list-your-car', '/drive-with-us', '/careers', '/faq', '/privacy', '/terms', '/safety', '/corporate']);
+const PUBLIC_PREFIX = ['/cars/', '/drivers/', '/taxi-drivers/'];
 
 function stripLocalePrefix(pathname: string): string {
   for (const locale of SUPPORTED_LOCALES) {
@@ -20,11 +20,8 @@ function stripLocalePrefix(pathname: string): string {
 }
 
 function isPublicRoute(pathname: string): boolean {
-  if (pathname === '/' || pathname === '/search') {
-    return true;
-  }
-
-  return CAR_DETAIL_ROUTE.test(pathname) || DRIVER_DETAIL_ROUTE.test(pathname);
+  if (PUBLIC_EXACT.has(pathname)) return true;
+  return PUBLIC_PREFIX.some((p) => pathname.startsWith(p));
 }
 
 const DEFAULT_LOCALE = 'en';

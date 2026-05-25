@@ -143,6 +143,7 @@
       "photoPlaceholder": "Photo",
       "kigaliRate": "Tarif Kigali",
       "countrysideRate": "Tarif hors Kigali",
+      "about": "A propos de cette voiture",
       "noDescription": "Aucune description pour le moment.",
       "availability": "Disponibilite",
       "noBlockedDates": "Aucune date bloquee ce mois-ci.",
