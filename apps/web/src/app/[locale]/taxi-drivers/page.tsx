@@ -3,7 +3,7 @@
 import { AppHeader } from '@/components/web/app-header';
 import { SiteFooter } from '@/components/web/site-footer';
 import { isSupportedLocale, routing, type SupportedLocale } from '@/i18n/routing';
-import { Car, MapPin, Phone, Star } from 'lucide-react';
+import { Car, MapPin, Phone } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
@@ -11,16 +11,20 @@ type TaxiDriversPageProps = {
   params: Promise<{ locale: string }>;
 };
 
-const DUMMY_TAXIS = [
-  { id: '1', name: 'Jean-Claude Mugisha', city: 'Kigali', seats: 4, phone: '+250 788 100 001', rating: 4.8, trips: 320, photoInitial: 'J' },
-  { id: '2', name: 'Alexis Habimana', city: 'Musanze', seats: 7, phone: '+250 788 100 002', rating: 4.9, trips: 210, photoInitial: 'A' },
-  { id: '3', name: 'Marie Uwimana', city: 'Rubavu', seats: 4, phone: '+250 788 100 003', rating: 4.7, trips: 180, photoInitial: 'M' },
-  { id: '4', name: 'Patrick Niyonzima', city: 'Huye', seats: 8, phone: '+250 788 100 004', rating: 4.6, trips: 95, photoInitial: 'P' },
-];
+type TaxiDriver = {
+  id: string;
+  fullName: string;
+  phone: string;
+  city: string;
+  seats: number;
+  details?: string | null;
+};
 
 export default function TaxiDriversPage({ params }: TaxiDriversPageProps) {
   const [locale, setLocale] = useState<SupportedLocale>(routing.defaultLocale);
   const [location, setLocation] = useState('');
+  const [drivers, setDrivers] = useState<TaxiDriver[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -32,9 +36,29 @@ export default function TaxiDriversPage({ params }: TaxiDriversPageProps) {
     return () => { cancelled = true; };
   }, [params]);
 
-  const filtered = location.trim()
-    ? DUMMY_TAXIS.filter((t) => t.city.toLowerCase().includes(location.trim().toLowerCase()))
-    : DUMMY_TAXIS;
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchDrivers() {
+      setLoading(true);
+      try {
+        const url = new URL(`${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'}/taxi-drivers`);
+        if (location.trim()) url.searchParams.set('city', location.trim());
+        const res = await fetch(url.toString());
+        if (res.ok && !cancelled) {
+          const data = await res.json() as TaxiDriver[];
+          setDrivers(data);
+        }
+      } catch {
+        // silently fail, show empty state
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    const timeout = setTimeout(() => { void fetchDrivers(); }, location.trim() ? 400 : 0);
+    return () => { cancelled = true; clearTimeout(timeout); };
+  }, [location]);
+
+  const filtered = drivers;
 
   return (
     <main className="min-h-screen bg-[#f5f0e8]">
@@ -74,12 +98,16 @@ export default function TaxiDriversPage({ params }: TaxiDriversPageProps) {
       <div className="mx-auto max-w-7xl px-4 py-10">
         <div className="mb-6 flex items-center justify-between">
           <p className="text-sm font-black uppercase tracking-widest text-neutral-500">
-            {filtered.length} taxi driver{filtered.length !== 1 ? 's' : ''} found
+            {loading ? 'Loading...' : `${filtered.length} taxi driver${filtered.length !== 1 ? 's' : ''} found`}
           </p>
         </div>
 
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {filtered.map((taxi) => (
+          {loading ? (
+            Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="h-52 animate-pulse rounded-md border-2 border-neutral-200 bg-neutral-100" />
+            ))
+          ) : filtered.map((taxi) => (
             <article
               key={taxi.id}
               className="overflow-hidden rounded-md border-2 border-neutral-900 bg-white shadow-brutal"
@@ -87,9 +115,9 @@ export default function TaxiDriversPage({ params }: TaxiDriversPageProps) {
               {/* Header */}
               <div className="flex flex-col items-center border-b-2 border-neutral-900 bg-teal-50 px-6 py-6">
                 <div className="flex h-20 w-20 items-center justify-center rounded-full border-2 border-neutral-900 bg-teal-600 text-2xl font-black text-white">
-                  {taxi.photoInitial}
+                  {taxi.fullName.charAt(0).toUpperCase()}
                 </div>
-                <h3 className="mt-3 text-center font-black text-neutral-900">{taxi.name}</h3>
+                <h3 className="mt-3 text-center font-black text-neutral-900">{taxi.fullName}</h3>
                 <div className="mt-1 flex items-center gap-1 text-sm text-neutral-500">
                   <MapPin className="h-3.5 w-3.5 text-teal-600" />
                   {taxi.city}
@@ -98,14 +126,10 @@ export default function TaxiDriversPage({ params }: TaxiDriversPageProps) {
 
               {/* Details */}
               <div className="p-4 space-y-3">
-                <div className="flex items-center justify-between text-sm">
+                <div className="flex items-center text-sm">
                   <div className="flex items-center gap-1 font-semibold text-neutral-700">
                     <Car className="h-4 w-4 text-teal-600" />
                     {taxi.seats} seats
-                  </div>
-                  <div className="flex items-center gap-1 font-semibold text-amber-500">
-                    <Star className="h-4 w-4 fill-current" />
-                    {taxi.rating} ({taxi.trips} trips)
                   </div>
                 </div>
 
@@ -122,7 +146,7 @@ export default function TaxiDriversPage({ params }: TaxiDriversPageProps) {
           ))}
         </div>
 
-        {filtered.length === 0 && (
+        {!loading && filtered.length === 0 && (
           <div className="flex flex-col items-center py-20 text-center">
             <Car className="h-16 w-16 text-neutral-300" />
             <p className="mt-4 text-lg font-black text-neutral-500">No taxi drivers found in &quot;{location}&quot;</p>

@@ -198,6 +198,116 @@ export function disputeResolvedEmailHtml(fullName: string): string {
   return layout('Dispute Resolved — renting.rw', body);
 }
 
+export function bookingRequestEmailHtml(
+  ownerName: string,
+  renterName: string,
+  carTitle: string,
+  startDate: Date,
+  endDate: Date,
+): string {
+  const fmt = (d: Date) => d.toLocaleDateString('en-RW', { dateStyle: 'long' });
+  const body = `
+    ${heading(`New Booking Request`)}
+    ${paragraph(`Hi ${ownerName}, <strong>${renterName}</strong> has sent a booking request for your listing.`)}
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:20px;">
+      <tbody>
+        ${infoBox('Car', carTitle)}
+        ${infoBox('From', fmt(startDate))}
+        ${infoBox('To', fmt(endDate))}
+      </tbody>
+    </table>
+    ${paragraph('Please confirm or decline the request within 1 hour to avoid auto-cancellation.')}
+    ${button('Review Request', `${BASE_URL}/app`)}
+    <br/><br/>
+    ${muted('Responding quickly improves your trust score and listing visibility.')}
+  `;
+  return layout('New Booking Request — renting.rw', body);
+}
+
+export function bookingConfirmedEmailHtml(
+  renterName: string,
+  carTitle: string,
+  startDate: Date,
+  endDate: Date,
+): string {
+  const fmt = (d: Date) => d.toLocaleDateString('en-RW', { dateStyle: 'long' });
+  const body = `
+    ${heading('Booking Confirmed!')}
+    ${paragraph(`Hi ${renterName}, your booking has been confirmed by the car owner.`)}
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:20px;">
+      <tbody>
+        ${infoBox('Car', carTitle)}
+        ${infoBox('From', fmt(startDate))}
+        ${infoBox('To', fmt(endDate))}
+      </tbody>
+    </table>
+    ${paragraph('Coordinate pickup details with the owner through the in-app chat.')}
+    ${button('View Booking', `${BASE_URL}/app`)}
+  `;
+  return layout('Booking Confirmed — renting.rw', body);
+}
+
+export function bookingDeclinedEmailHtml(renterName: string, carTitle: string): string {
+  const body = `
+    ${heading('Booking Request Declined')}
+    ${paragraph(`Hi ${renterName}, your booking request for <strong>${carTitle}</strong> was declined by the owner.`)}
+    ${paragraph('Don\'t worry — there are many other great options available.')}
+    ${button('Browse More Cars', `${BASE_URL}/cars`)}
+    <br/><br/>
+    ${muted('If you have any concerns, please contact our support team.')}
+  `;
+  return layout('Booking Declined — renting.rw', body);
+}
+
+export function bookingAutoCancelledEmailHtml(name: string, carTitle: string): string {
+  const body = `
+    ${heading('Booking Auto-Cancelled')}
+    ${paragraph(`Hi ${name}, your booking request for <strong>${carTitle}</strong> was automatically cancelled because the owner did not respond within 1 hour.`)}
+    ${paragraph('You can browse other available listings and submit a new request.')}
+    ${button('Browse Cars', `${BASE_URL}/cars`)}
+  `;
+  return layout('Booking Auto-Cancelled — renting.rw', body);
+}
+
+export function bookingCompletedEmailHtml(name: string, carTitle: string): string {
+  const body = `
+    ${heading('Booking Completed — Leave a Review')}
+    ${paragraph(`Hi ${name}, your booking for <strong>${carTitle}</strong> has been completed.`)}
+    ${paragraph('Your review helps build trust for the entire renting.rw community. It takes less than a minute.')}
+    ${button('Leave a Review', `${BASE_URL}/app`)}
+    <br/><br/>
+    ${muted('Reviews contribute to your trust score and help others make informed decisions.')}
+  `;
+  return layout('Booking Complete — renting.rw', body);
+}
+
+export function listingApprovedEmailHtml(ownerName: string, title: string): string {
+  const body = `
+    ${heading('Your Listing is Live!')}
+    ${paragraph(`Hi ${ownerName}, your listing <strong>${title}</strong> has been approved and is now live on renting.rw.`)}
+    ${paragraph('Customers can now find and book your car. Make sure your availability calendar is up to date.')}
+    ${button('View My Listing', `${BASE_URL}/app`)}
+  `;
+  return layout('Listing Approved — renting.rw', body);
+}
+
+export function listingRejectedEmailHtml(ownerName: string, title: string, reason: string): string {
+  const body = `
+    ${heading('Listing Not Approved')}
+    ${paragraph(`Hi ${ownerName}, your listing <strong>${title}</strong> was not approved by our review team.`)}
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:20px;">
+      <tbody>
+        ${infoBox('Reason', reason)}
+      </tbody>
+    </table>
+    ${paragraph('Please update your listing to address the feedback and resubmit for approval.')}
+    ${button('Edit My Listing', `${BASE_URL}/app`)}
+    <br/><br/>
+    ${muted('Contact support if you need help or believe this decision was made in error.')}
+  `;
+  return layout('Listing Not Approved — renting.rw', body);
+}
+
 export function disputeDismissedEmailHtml(fullName: string): string {
   const body = `
     ${heading('Dispute Update')}

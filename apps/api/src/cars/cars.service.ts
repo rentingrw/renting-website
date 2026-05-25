@@ -23,6 +23,7 @@ type CarListingWithOwner = Prisma.CarListingGetPayload<{
       select: {
         id: true;
         fullName: true;
+        phone: true;
       };
     };
   };
@@ -68,6 +69,7 @@ export class CarsService {
             select: {
               id: true,
               fullName: true,
+              phone: true,
             },
           },
         },
@@ -118,6 +120,7 @@ export class CarsService {
           select: {
             id: true,
             fullName: true,
+            phone: true,
           },
         },
       },
@@ -208,6 +211,7 @@ export class CarsService {
           select: {
             id: true,
             fullName: true,
+            phone: true,
           },
         },
       },
@@ -232,6 +236,7 @@ export class CarsService {
           select: {
             id: true,
             fullName: true,
+            phone: true,
           },
         },
       },
@@ -248,6 +253,7 @@ export class CarsService {
           select: {
             id: true,
             fullName: true,
+            phone: true,
           },
         },
       },
@@ -271,6 +277,7 @@ export class CarsService {
           select: {
             id: true,
             fullName: true,
+            phone: true,
           },
         },
       },
@@ -412,6 +419,7 @@ export class CarsService {
       id: listing.id,
       ownerId: listing.ownerId,
       ownerName: listing.owner.fullName,
+      ownerPhone: listing.owner.phone ?? null,
       title: listing.title,
       description: listing.description,
       vehicleType: listing.vehicleType,

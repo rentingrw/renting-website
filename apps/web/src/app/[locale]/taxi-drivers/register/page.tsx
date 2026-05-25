@@ -13,6 +13,8 @@ type RegisterTaxiPageProps = {
 export default function RegisterTaxiPage({ params }: RegisterTaxiPageProps) {
   const [locale, setLocale] = useState<SupportedLocale>(routing.defaultLocale);
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
   const [form, setForm] = useState({
     fullName: '',
     phone: '',
@@ -35,9 +37,32 @@ export default function RegisterTaxiPage({ params }: RegisterTaxiPageProps) {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setSubmitted(true);
+    setError('');
+    setSubmitting(true);
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'}/taxi-drivers/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fullName: form.fullName,
+          phone: form.phone,
+          city: form.location,
+          seats: Number(form.seats),
+          details: form.details || undefined,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({})) as { message?: string };
+        throw new Error(data.message ?? 'Registration failed. Please try again.');
+      }
+      setSubmitted(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong.');
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -155,11 +180,18 @@ export default function RegisterTaxiPage({ params }: RegisterTaxiPageProps) {
               </p>
             </div>
 
+            {error && (
+              <div className="rounded border-2 border-red-400 bg-red-50 px-4 py-3">
+                <p className="text-xs font-bold text-red-700">{error}</p>
+              </div>
+            )}
+
             <button
               type="submit"
-              className="w-full rounded border-2 border-teal-800 bg-teal-600 py-3.5 text-sm font-black uppercase tracking-wide text-white shadow-brutal-teal-sm transition-all hover:translate-x-px hover:translate-y-px hover:bg-teal-700 hover:shadow-none"
+              disabled={submitting}
+              className="w-full rounded border-2 border-teal-800 bg-teal-600 py-3.5 text-sm font-black uppercase tracking-wide text-white shadow-brutal-teal-sm transition-all hover:translate-x-px hover:translate-y-px hover:bg-teal-700 hover:shadow-none disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              Submit Registration
+              {submitting ? 'Submitting...' : 'Submit Registration'}
             </button>
           </form>
         )}

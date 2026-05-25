@@ -19,6 +19,7 @@ type DriverProfileWithUser = Prisma.DriverProfileGetPayload<{
         fullName: true;
         avatarUrl: true;
         trustScore: true;
+        phone: true;
       };
     };
   };
@@ -80,6 +81,7 @@ export class DriversService {
               fullName: true,
               avatarUrl: true,
               trustScore: true,
+              phone: true,
             },
           },
         },
@@ -104,6 +106,7 @@ export class DriversService {
             fullName: true,
             avatarUrl: true,
             trustScore: true,
+            phone: true,
           },
         },
       },
@@ -158,6 +161,7 @@ export class DriversService {
               fullName: true,
               avatarUrl: true,
               trustScore: true,
+              phone: true,
             },
           },
         },
@@ -182,6 +186,7 @@ export class DriversService {
             fullName: true,
             avatarUrl: true,
             trustScore: true,
+            phone: true,
           },
         },
       },
@@ -232,6 +237,7 @@ export class DriversService {
             fullName: true,
             avatarUrl: true,
             trustScore: true,
+            phone: true,
           },
         },
       },
@@ -277,6 +283,7 @@ export class DriversService {
       id: profile.id,
       userId: profile.userId,
       fullName: profile.user.fullName,
+      phone: profile.user.phone ?? null,
       profilePhotoUrl: profile.user.avatarUrl,
       trustScore: Number(profile.user.trustScore),
       driverCategory: profile.driverCategory,

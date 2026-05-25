@@ -37,6 +37,8 @@ import { TrustScoreModule } from './trust-score/trust-score.module';
 import { UploadsModule } from './uploads/uploads.module';
 import { UsersModule } from './users/users.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
+import { FavoritesModule } from './favorites/favorites.module';
+import { TaxiDriversModule } from './taxi-drivers/taxi-drivers.module';
 
 const isProduction = process.env.NODE_ENV === 'production';
 
@@ -118,6 +120,8 @@ function validateEnv(config: Record<string, unknown>) {
     SubscriptionsModule,
     UploadsModule,
     WebhooksModule,
+    FavoritesModule,
+    TaxiDriversModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

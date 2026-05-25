@@ -28,6 +28,10 @@ import type { ListSubscriptionsQueryDto } from './dto/list-subscriptions.query.d
 import { TrustTierFilter, type ListUsersQueryDto } from './dto/list-users.query.dto';
 import type { ListListingsQueryDto } from './dto/list-listings.query.dto';
 import type { RejectListingDto } from './dto/reject-listing.dto';
+import {
+  listingApprovedEmailHtml,
+  listingRejectedEmailHtml,
+} from '../notifications/email-templates';
 import type { ListDriversQueryDto } from './dto/list-drivers.query.dto';
 import type { AdminCreateCarDto } from './dto/admin-create-car.dto';
 import type { AdminCreateDriverDto } from './dto/admin-create-driver.dto';
@@ -1008,7 +1012,10 @@ export class AdminService {
   }
 
   async approveListing(listingId: string) {
-    const listing = await prisma.carListing.findUnique({ where: { id: listingId } });
+    const listing = await prisma.carListing.findUnique({
+      where: { id: listingId },
+      include: { owner: { select: { fullName: true } } },
+    });
     if (!listing) throw new NotFoundException('Listing not found.');
     if (listing.status !== ListingStatus.pending_approval) {
       throw new BadRequestException('Only listings pending approval can be approved.');
@@ -1024,12 +1031,21 @@ export class AdminService {
       realtimeEvents.listingApproved,
       { listingId: listing.id, title: listing.title },
     );
+    this.notificationsService.queueEmailToUsers(
+      [listing.ownerId],
+      'Your listing is live — renting.rw',
+      `Your listing "${listing.title}" has been approved and is now live.`,
+      listingApprovedEmailHtml(listing.owner.fullName, listing.title),
+    );
 
     return updated;
   }
 
   async rejectListing(listingId: string, payload: RejectListingDto) {
-    const listing = await prisma.carListing.findUnique({ where: { id: listingId } });
+    const listing = await prisma.carListing.findUnique({
+      where: { id: listingId },
+      include: { owner: { select: { fullName: true } } },
+    });
     if (!listing) throw new NotFoundException('Listing not found.');
     if (listing.status !== ListingStatus.pending_approval) {
       throw new BadRequestException('Only listings pending approval can be rejected.');
@@ -1044,6 +1060,12 @@ export class AdminService {
       [listing.ownerId],
       realtimeEvents.listingRejected,
       { listingId: listing.id, title: listing.title, reason: payload.reason },
+    );
+    this.notificationsService.queueEmailToUsers(
+      [listing.ownerId],
+      'Listing not approved — renting.rw',
+      `Your listing "${listing.title}" was not approved. Reason: ${payload.reason}`,
+      listingRejectedEmailHtml(listing.owner.fullName, listing.title, payload.reason),
     );
 
     return { ...updated, rejectionReason: payload.reason };

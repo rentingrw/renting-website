@@ -36,6 +36,8 @@ import { initiateFlutterwaveCharge } from './flutterwave.adapter';
 import {
   subscriptionActivatedEmailHtml,
   subscriptionPaymentConfirmedEmailHtml,
+  subscriptionRenewalReminderEmailHtml,
+  subscriptionExpiredEmailHtml,
 } from '../notifications/email-templates';
 
 type JsonRecord = Record<string, unknown>;
@@ -316,20 +318,24 @@ export class SubscriptionsService {
   }
 
   async enforceCancelledRenewals(now: Date = new Date()) {
-    const dueOwnerIds = await prisma.subscription.findMany({
+    const dueSubscriptions = await prisma.subscription.findMany({
       where: {
         status: SubscriptionStatus.cancelled,
         renewsAt: { lte: now },
       },
       distinct: ['userId'],
-      select: { userId: true },
+      select: {
+        userId: true,
+        tier: true,
+        user: { select: { fullName: true } },
+      },
     });
 
-    for (const { userId } of dueOwnerIds) {
+    for (const sub of dueSubscriptions) {
       await prisma.$transaction(async (tx) => {
         await tx.subscription.updateMany({
           where: {
-            userId,
+            userId: sub.userId,
             status: SubscriptionStatus.cancelled,
             renewsAt: { lte: now },
           },
@@ -341,7 +347,7 @@ export class SubscriptionsService {
 
         await tx.carListing.updateMany({
           where: {
-            ownerId: userId,
+            ownerId: sub.userId,
             status: ListingStatus.active,
           },
           data: {
@@ -349,11 +355,18 @@ export class SubscriptionsService {
           },
         });
       });
-    }
 
-    if (dueOwnerIds.length > 0) {
+      const tierLabel = storedTierToProductTier(sub.tier);
+      this.notificationsService.queueEmailToUsers(
+        [sub.userId],
+        'Subscription expired — renting.rw',
+        `Your ${tierLabel} subscription has expired and your listings have been paused.`,
+        subscriptionExpiredEmailHtml(sub.user.fullName, tierLabel),
+      );
+    }
+    if (dueSubscriptions.length > 0) {
       this.logger.log(
-        `Expired cancelled subscriptions and paused listings for ${dueOwnerIds.length} owner(s).`,
+        `Expired cancelled subscriptions and paused listings for ${dueSubscriptions.length} owner(s).`,
       );
     }
   }
@@ -368,15 +381,24 @@ export class SubscriptionsService {
       select: {
         id: true,
         userId: true,
+        tier: true,
         renewsAt: true,
+        user: { select: { fullName: true } },
       },
     });
 
     for (const subscription of dueSoon) {
       const renewDate = subscription.renewsAt?.toISOString().slice(0, 10) ?? 'soon';
+      const tierLabel = storedTierToProductTier(subscription.tier);
       this.notificationsService.queueSmsToUsers(
         [subscription.userId],
         `Your Rentingi subscription renews on ${renewDate}. Ensure your mobile money wallet is funded.`,
+      );
+      this.notificationsService.queueEmailToUsers(
+        [subscription.userId],
+        'Subscription renewal reminder — renting.rw',
+        `Your ${tierLabel} subscription renews on ${renewDate}.`,
+        subscriptionRenewalReminderEmailHtml(subscription.user.fullName, tierLabel, renewDate),
       );
     }
   }

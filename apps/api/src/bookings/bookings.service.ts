@@ -15,6 +15,13 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { realtimeEvents } from '../realtime/realtime.events';
 import { TrustScoreService } from '../trust-score/trust-score.service';
 import type { CreateBookingDto } from './dto/create-booking.dto';
+import {
+  bookingRequestEmailHtml,
+  bookingConfirmedEmailHtml,
+  bookingDeclinedEmailHtml,
+  bookingAutoCancelledEmailHtml,
+  bookingCompletedEmailHtml,
+} from '../notifications/email-templates';
 
 const BLOCKING_BOOKING_STATUSES = new Set<BookingStatus>([
   BookingStatus.confirmed,
@@ -91,6 +98,12 @@ export class BookingsService {
       [booking.ownerId],
       'You have a new Rentingi booking request waiting for confirmation.',
     );
+    this.notificationsService.queueEmailToUsers(
+      [booking.ownerId],
+      'New booking request — renting.rw',
+      `${booking.renter.fullName} has sent a booking request for ${booking.listing.title}.`,
+      bookingRequestEmailHtml(booking.owner.fullName, booking.renter.fullName, booking.listing.title, booking.startDate, booking.endDate),
+    );
 
     return booking;
   }
@@ -148,6 +161,12 @@ export class BookingsService {
       [updated.confirmed.renterId],
       'Your Rentingi booking request was confirmed.',
     );
+    this.notificationsService.queueEmailToUsers(
+      [updated.confirmed.renterId],
+      'Booking confirmed — renting.rw',
+      `Your booking for ${updated.confirmed.listing.title} has been confirmed.`,
+      bookingConfirmedEmailHtml(updated.confirmed.renter.fullName, updated.confirmed.listing.title, updated.confirmed.startDate, updated.confirmed.endDate),
+    );
 
     if (updated.overlappingBookings.length > 0) {
       this.notificationsService.emitInAppToUsers(
@@ -194,6 +213,12 @@ export class BookingsService {
     this.notificationsService.queueSmsToUsers(
       [declined.renterId],
       'Your Rentingi booking request was declined.',
+    );
+    this.notificationsService.queueEmailToUsers(
+      [declined.renterId],
+      'Booking request declined — renting.rw',
+      `Your booking request for ${declined.listing.title} was declined.`,
+      bookingDeclinedEmailHtml(declined.renter.fullName, declined.listing.title),
     );
 
     return declined;
@@ -286,6 +311,18 @@ export class BookingsService {
       this.notificationsService.queueSmsToUsers(
         [completed.ownerId, completed.renterId],
         'Your booking is complete. Leave a review on Rentingi to keep your trust score growing.',
+      );
+      this.notificationsService.queueEmailToUsers(
+        [completed.ownerId],
+        'Booking completed — renting.rw',
+        `Your booking for ${completed.listing.title} has been completed. Leave a review!`,
+        bookingCompletedEmailHtml(completed.owner.fullName, completed.listing.title),
+      );
+      this.notificationsService.queueEmailToUsers(
+        [completed.renterId],
+        'Booking completed — renting.rw',
+        `Your booking for ${completed.listing.title} has been completed. Leave a review!`,
+        bookingCompletedEmailHtml(completed.renter.fullName, completed.listing.title),
       );
 
       return completed;
@@ -412,6 +449,9 @@ export class BookingsService {
         id: true,
         ownerId: true,
         renterId: true,
+        owner: { select: { fullName: true } },
+        renter: { select: { fullName: true } },
+        listing: { select: { title: true } },
       },
     });
 
@@ -448,6 +488,18 @@ export class BookingsService {
         [booking.ownerId, booking.renterId],
         'A Rentingi booking request was auto-cancelled due to no response within 1 hour.',
       );
+      this.notificationsService.queueEmailToUsers(
+        [booking.ownerId],
+        'Booking auto-cancelled — renting.rw',
+        `A booking request for ${booking.listing.title} was auto-cancelled because you did not respond within 1 hour.`,
+        bookingAutoCancelledEmailHtml(booking.owner.fullName, booking.listing.title),
+      );
+      this.notificationsService.queueEmailToUsers(
+        [booking.renterId],
+        'Booking auto-cancelled — renting.rw',
+        `Your booking request for ${booking.listing.title} was auto-cancelled due to no response.`,
+        bookingAutoCancelledEmailHtml(booking.renter.fullName, booking.listing.title),
+      );
     }
   }
 
@@ -467,6 +519,9 @@ export class BookingsService {
         id: true,
         ownerId: true,
         renterId: true,
+        owner: { select: { fullName: true } },
+        renter: { select: { fullName: true } },
+        listing: { select: { title: true } },
       },
     });
 
@@ -511,6 +566,18 @@ export class BookingsService {
       this.notificationsService.queueSmsToUsers(
         [booking.ownerId, booking.renterId],
         'Your Rentingi booking was auto-completed. Please leave a review.',
+      );
+      this.notificationsService.queueEmailToUsers(
+        [booking.ownerId],
+        'Booking completed — renting.rw',
+        `Your booking for ${booking.listing.title} has been completed. Leave a review!`,
+        bookingCompletedEmailHtml(booking.owner.fullName, booking.listing.title),
+      );
+      this.notificationsService.queueEmailToUsers(
+        [booking.renterId],
+        'Booking completed — renting.rw',
+        `Your booking for ${booking.listing.title} has been completed. Leave a review!`,
+        bookingCompletedEmailHtml(booking.renter.fullName, booking.listing.title),
       );
     }
   }
@@ -611,6 +678,14 @@ export class BookingsService {
           reason: true,
         },
       },
+    } satisfies Prisma.CarBookingInclude;
+  }
+
+  private bookingIncludeFull() {
+    return {
+      ...this.bookingInclude(),
+      owner: { select: { id: true, fullName: true, avatarUrl: true } },
+      renter: { select: { id: true, fullName: true, avatarUrl: true } },
     } satisfies Prisma.CarBookingInclude;
   }
 
