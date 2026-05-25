@@ -609,6 +609,43 @@ export async function adminGetUploadUrl(token: string, folder = 'rentingi/cars')
   );
 }
 
+// ── Driver Overview ───────────────────────────────────────────────────────────
+
+export type DriverOverviewItem = {
+  id: string;
+  fullName: string;
+  email: string;
+  phone: string | null;
+  createdAt: string;
+  hasProfile: boolean;
+  profileId: string | null;
+  primaryCity: string | null;
+  driverCategory: string | null;
+  subscriptionStatus: string | null;
+  subscriptionRenewsAt: string | null;
+  isVisibleInSearch: boolean;
+};
+
+export async function listDriverOverview(token: string, page = 1, pageSize = 30, search?: string) {
+  const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+  if (search?.trim()) params.set('search', search.trim());
+  return authRequest<Paginated<DriverOverviewItem>>(
+    token,
+    `/admin/drivers/overview?${params.toString()}`,
+    undefined,
+    'Failed to load driver overview.',
+  );
+}
+
+export async function activateDriverSubscription(token: string, userId: string) {
+  return authRequest<{ subscriptionId: string; renewsAt: string; userId: string }>(
+    token,
+    `/admin/drivers/${userId}/activate-subscription`,
+    { method: 'POST' },
+    'Failed to activate driver subscription.',
+  );
+}
+
 // ── Site Banners ─────────────────────────────────────────────────────────────
 
 export type SiteBannerItem = {

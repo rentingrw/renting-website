@@ -149,6 +149,22 @@ export class AdminController {
     return this.adminService.listDrivers(query);
   }
 
+  @Get('drivers/overview')
+  @ApiOperation({ summary: 'List all users with driver role, with profile and subscription status' })
+  listDriverOverview(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.adminService.listDriverOverview(Number(page ?? 1), Number(pageSize ?? 30), search);
+  }
+
+  @Post('drivers/:userId/activate-subscription')
+  @ApiOperation({ summary: 'Manually activate a 30-day driver subscription (no payment required)' })
+  activateDriverSubscription(@Param('userId') userId: string) {
+    return this.adminService.activateDriverSubscription(userId);
+  }
+
   @Delete('drivers/:id')
   @ApiOperation({ summary: 'Delete a driver profile' })
   deleteDriver(@Param('id') driverProfileId: string) {

@@ -26,7 +26,9 @@ import {
   RefreshCw,
   Trash2,
   TrendingUp,
+  Users,
   XCircle,
+  Zap,
 } from 'lucide-react';
 
 import {
@@ -38,9 +40,13 @@ import {
   createAdminBanner,
   updateAdminBanner,
   deleteAdminBanner,
+  listDriverOverview,
+  activateDriverSubscription,
   type AdminAnalytics,
   type AdminOverview,
   type SiteBannerItem,
+  type DriverOverviewItem,
+  type Paginated,
 } from '@/lib/api';
 import { useAuthToken } from '@/lib/use-auth-token';
 import { Skeleton, TableRowSkeleton } from '@/components/ui/skeleton';
@@ -65,7 +71,7 @@ const TRUST_TIER_COLORS: Record<string, string> = {
   suspended: '#7f1d1d',
 };
 
-type Tab = 'overview' | 'analytics' | 'banners';
+type Tab = 'overview' | 'analytics' | 'banners' | 'drivers';
 
 const EMPTY_BANNER_FORM = { message: '', ctaText: '', ctaUrl: '', isActive: true };
 
@@ -85,6 +91,13 @@ export default function AdminHomePage() {
   const [bannerForm, setBannerForm] = useState(EMPTY_BANNER_FORM);
   const [editingBannerId, setEditingBannerId] = useState<string | null>(null);
   const [bannerSaving, setBannerSaving] = useState(false);
+
+  // Drivers state
+  const [driversData, setDriversData] = useState<Paginated<DriverOverviewItem> | null>(null);
+  const [driversLoading, setDriversLoading] = useState(false);
+  const [driversError, setDriversError] = useState<string | null>(null);
+  const [driversSearch, setDriversSearch] = useState('');
+  const [activatingDriverId, setActivatingDriverId] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     if (!isLoaded || !isSignedIn) return;
@@ -122,6 +135,38 @@ export default function AdminHomePage() {
   }, [fetchToken, isLoaded, isSignedIn]);
 
   useEffect(() => { if (tab === 'banners') void loadBanners(); }, [tab, loadBanners]);
+
+  const loadDrivers = useCallback(async (search?: string) => {
+    if (!isLoaded || !isSignedIn) return;
+    setDriversLoading(true);
+    setDriversError(null);
+    try {
+      const token = await fetchToken();
+      if (!token) throw new Error(AUTH_ERROR_MSG);
+      const data = await listDriverOverview(token, 1, 30, search);
+      setDriversData(data);
+    } catch (err) {
+      setDriversError(err instanceof Error ? err.message : 'Failed to load drivers.');
+    } finally {
+      setDriversLoading(false);
+    }
+  }, [fetchToken, isLoaded, isSignedIn]);
+
+  useEffect(() => { if (tab === 'drivers') void loadDrivers(driversSearch); }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleActivateDriver(userId: string) {
+    setActivatingDriverId(userId);
+    try {
+      const token = await fetchToken();
+      if (!token) throw new Error(AUTH_ERROR_MSG);
+      await activateDriverSubscription(token, userId);
+      await loadDrivers(driversSearch);
+    } catch (err) {
+      setDriversError(err instanceof Error ? err.message : 'Failed to activate subscription.');
+    } finally {
+      setActivatingDriverId(null);
+    }
+  }
 
   async function handleSaveBanner() {
     setBannerSaving(true);
@@ -250,6 +295,7 @@ export default function AdminHomePage() {
           { id: 'overview', label: 'Overview', icon: LayoutDashboard },
           { id: 'analytics', label: 'Analytics', icon: BarChart3 },
           { id: 'banners', label: 'Banners', icon: Megaphone },
+          { id: 'drivers', label: 'Drivers', icon: Users },
         ] as const).map(({ id, label, icon: Icon }) => (
           <button
             key={id}
@@ -536,6 +582,119 @@ export default function AdminHomePage() {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {tab === 'drivers' && (
+        <div className="space-y-5">
+          {driversError && (
+            <div className="flex items-center gap-3 rounded border-2 border-red-700 bg-red-50 p-3 text-sm font-semibold text-red-700">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              {driversError}
+            </div>
+          )}
+
+          <div className="flex items-center gap-3">
+            <input
+              type="text"
+              placeholder="Search by name or email…"
+              value={driversSearch}
+              onChange={(e) => setDriversSearch(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') void loadDrivers(driversSearch); }}
+              className="flex-1 rounded border-2 border-neutral-900 px-3 py-2 text-sm font-semibold focus:outline-none focus:border-teal-600"
+            />
+            <button
+              type="button"
+              onClick={() => void loadDrivers(driversSearch)}
+              disabled={driversLoading}
+              className="flex items-center gap-1.5 rounded border-2 border-neutral-900 bg-white px-3 py-2 text-sm font-bold shadow-brutal-xs hover:translate-x-px hover:translate-y-px hover:shadow-none transition-all"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${driversLoading ? 'animate-spin' : ''}`} />
+              {driversLoading ? 'Loading…' : 'Search'}
+            </button>
+          </div>
+
+          <div className="rounded-md border-2 border-neutral-900 bg-white shadow-brutal overflow-hidden">
+            <div className="border-b-2 border-neutral-900 px-5 py-3.5">
+              <h2 className="font-black text-neutral-900">All Driver-Role Users</h2>
+              <p className="text-xs font-medium text-neutral-500 mt-0.5">
+                {driversData ? `${driversData.total} total — ${driversData.items.filter((d) => d.isVisibleInSearch).length} visible in search` : 'Loading…'}
+              </p>
+            </div>
+
+            {driversLoading ? (
+              <div className="px-5 py-10 text-center text-sm font-semibold text-neutral-500">Loading…</div>
+            ) : !driversData || driversData.items.length === 0 ? (
+              <div className="px-5 py-10 text-center">
+                <Users className="mx-auto mb-2 h-8 w-8 text-neutral-300" />
+                <p className="text-sm font-semibold text-neutral-500">No driver-role users found.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-left text-sm">
+                  <thead className="border-b-2 border-neutral-900 bg-neutral-50">
+                    <tr>
+                      {['Name / Email', 'City', 'Profile', 'Subscription', 'Renews', 'Search?', 'Action'].map((h) => (
+                        <th key={h} className="px-4 py-3 text-xs font-black uppercase tracking-wider text-neutral-500">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-neutral-100">
+                    {driversData.items.map((driver) => (
+                      <tr key={driver.id} className="hover:bg-neutral-50">
+                        <td className="px-4 py-3">
+                          <p className="font-bold text-neutral-900">{driver.fullName}</p>
+                          <p className="text-xs text-neutral-500">{driver.email}</p>
+                        </td>
+                        <td className="px-4 py-3 text-xs font-semibold text-neutral-600">{driver.primaryCity ?? '—'}</td>
+                        <td className="px-4 py-3">
+                          {driver.hasProfile ? (
+                            <span className="rounded border border-teal-600 bg-teal-50 px-2 py-0.5 text-[10px] font-black text-teal-700">Set up</span>
+                          ) : (
+                            <span className="rounded border border-amber-500 bg-amber-50 px-2 py-0.5 text-[10px] font-black text-amber-700">Missing</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          {driver.subscriptionStatus ? (
+                            <span className={`rounded border px-2 py-0.5 text-[10px] font-black capitalize ${
+                              driver.subscriptionStatus === 'active'
+                                ? 'border-teal-600 bg-teal-50 text-teal-700'
+                                : 'border-neutral-400 bg-neutral-100 text-neutral-500'
+                            }`}>{driver.subscriptionStatus}</span>
+                          ) : (
+                            <span className="rounded border border-red-400 bg-red-50 px-2 py-0.5 text-[10px] font-black text-red-600">None</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-xs font-semibold text-neutral-600">
+                          {driver.subscriptionRenewsAt
+                            ? new Date(driver.subscriptionRenewsAt).toLocaleDateString()
+                            : '—'}
+                        </td>
+                        <td className="px-4 py-3">
+                          {driver.isVisibleInSearch ? (
+                            <CheckCircle2 className="h-4 w-4 text-teal-600" />
+                          ) : (
+                            <XCircle className="h-4 w-4 text-red-500" />
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <button
+                            type="button"
+                            disabled={activatingDriverId === driver.id || driver.isVisibleInSearch}
+                            onClick={() => void handleActivateDriver(driver.id)}
+                            className="flex items-center gap-1.5 rounded border-2 border-teal-800 bg-teal-600 px-2.5 py-1 text-xs font-bold text-white shadow-brutal-teal-xs transition-all hover:translate-x-px hover:translate-y-px hover:bg-teal-700 hover:shadow-none disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            <Zap className="h-3 w-3" />
+                            {activatingDriverId === driver.id ? 'Activating…' : driver.isVisibleInSearch ? 'Active' : 'Activate'}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>

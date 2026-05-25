@@ -5,6 +5,7 @@ import {
   DriverCategory,
   Language,
   ListingStatus,
+  PaymentMethod,
   Prisma,
   RoleType,
   SubscriptionStatus,
@@ -12,6 +13,7 @@ import {
   VehicleType,
 } from '@prisma/client';
 import { createClerkClient } from '@clerk/backend';
+import { randomUUID } from 'node:crypto';
 
 import { prisma } from '../database/prisma';
 import { DisputesService } from '../disputes/disputes.service';
@@ -31,7 +33,9 @@ import type { RejectListingDto } from './dto/reject-listing.dto';
 import {
   listingApprovedEmailHtml,
   listingRejectedEmailHtml,
+  subscriptionExpiredEmailHtml,
 } from '../notifications/email-templates';
+import { DRIVER_PLAN } from '../subscriptions/subscription-tier.util';
 import type { ListDriversQueryDto } from './dto/list-drivers.query.dto';
 import type { AdminCreateCarDto } from './dto/admin-create-car.dto';
 import type { AdminCreateDriverDto } from './dto/admin-create-driver.dto';
@@ -1188,7 +1192,137 @@ export class AdminService {
       },
     });
 
+    // Auto-activate a free subscription so the driver appears in search immediately
+    await this.activateDriverSubscription(profile.userId);
+
     return profile;
+  }
+
+  async activateDriverSubscription(userId: string) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { roles: { select: { role: true } } },
+    });
+    if (!user) throw new NotFoundException('User not found.');
+
+    const hasDriverRole = user.primaryRole === RoleType.driver || user.roles.some((r) => r.role === RoleType.driver);
+    if (!hasDriverRole) throw new BadRequestException('User does not have the driver role.');
+
+    const now = new Date();
+    const renewsAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+    await prisma.subscription.updateMany({
+      where: { userId, tier: 'free', status: SubscriptionStatus.active },
+      data: { status: SubscriptionStatus.expired, endsAt: now },
+    });
+
+    const sub = await prisma.subscription.create({
+      data: {
+        userId,
+        tier: 'free',
+        status: SubscriptionStatus.active,
+        amountRwf: 0,
+        paymentMethod: PaymentMethod.momo,
+        externalRef: `admin-activated-${randomUUID()}`,
+        startsAt: now,
+        renewsAt,
+      },
+    });
+
+    return { subscriptionId: sub.id, renewsAt: sub.renewsAt, userId };
+  }
+
+  async listDriverOverview(page = 1, pageSize = 30, search?: string) {
+    const where: Prisma.UserWhereInput = {
+      OR: [{ primaryRole: RoleType.driver }, { roles: { some: { role: RoleType.driver } } }],
+      ...(search?.trim() ? {
+        AND: [{
+          OR: [
+            { fullName: { contains: search.trim(), mode: 'insensitive' } },
+            { email: { contains: search.trim(), mode: 'insensitive' } },
+          ],
+        }],
+      } : {}),
+    };
+
+    const [total, users] = await Promise.all([
+      prisma.user.count({ where }),
+      prisma.user.findMany({
+        where,
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+          phone: true,
+          createdAt: true,
+          driverProfile: { select: { id: true, primaryCity: true, driverCategory: true } },
+          subscriptions: {
+            where: { tier: 'free' },
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+            select: { id: true, status: true, renewsAt: true, startsAt: true },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+    ]);
+
+    const now = new Date();
+    return {
+      page,
+      pageSize,
+      total,
+      items: users.map((u) => {
+        const sub = u.subscriptions[0] ?? null;
+        const isSubActive = sub?.status === SubscriptionStatus.active && (sub.renewsAt === null || sub.renewsAt > now);
+        return {
+          id: u.id,
+          fullName: u.fullName,
+          email: u.email,
+          phone: u.phone,
+          createdAt: u.createdAt,
+          hasProfile: u.driverProfile !== null,
+          profileId: u.driverProfile?.id ?? null,
+          primaryCity: u.driverProfile?.primaryCity ?? null,
+          driverCategory: u.driverProfile?.driverCategory ?? null,
+          subscriptionStatus: sub ? sub.status : null,
+          subscriptionRenewsAt: sub?.renewsAt ?? null,
+          isVisibleInSearch: isSubActive && u.driverProfile !== null,
+        };
+      }),
+    };
+  }
+
+  async expireStaleDriverSubscriptions() {
+    const now = new Date();
+    const stale = await prisma.subscription.findMany({
+      where: {
+        tier: 'free',
+        status: SubscriptionStatus.active,
+        renewsAt: { not: null, lt: now },
+      },
+      select: { id: true, userId: true, user: { select: { fullName: true } } },
+    });
+
+    if (stale.length === 0) return { expired: 0 };
+
+    await prisma.subscription.updateMany({
+      where: { id: { in: stale.map((s) => s.id) } },
+      data: { status: SubscriptionStatus.expired, endsAt: now },
+    });
+
+    for (const sub of stale) {
+      this.notificationsService.queueEmailToUsers(
+        [sub.userId],
+        'Your driver listing has expired — renting.rw',
+        'Your monthly driver subscription has expired. Renew to stay visible to customers.',
+        subscriptionExpiredEmailHtml(sub.user.fullName, 'driver'),
+      );
+    }
+
+    return { expired: stale.length };
   }
 
   async grantAdminRole(userId: string) {

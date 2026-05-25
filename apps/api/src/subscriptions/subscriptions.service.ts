@@ -312,6 +312,37 @@ export class SubscriptionsService {
     await this.enforceCancelledRenewals();
   }
 
+  @Cron(CronExpression.EVERY_HOUR)
+  async expireStaleDriverSubscriptionsCron() {
+    const now = new Date();
+    const stale = await prisma.subscription.findMany({
+      where: {
+        tier: 'free',
+        status: SubscriptionStatus.active,
+        renewsAt: { not: null, lt: now },
+      },
+      select: { id: true, userId: true, user: { select: { fullName: true } } },
+    });
+
+    if (stale.length === 0) return;
+
+    await prisma.subscription.updateMany({
+      where: { id: { in: stale.map((s) => s.id) } },
+      data: { status: SubscriptionStatus.expired, endsAt: now },
+    });
+
+    for (const sub of stale) {
+      this.notificationsService.queueEmailToUsers(
+        [sub.userId],
+        'Your driver listing has expired — renting.rw',
+        'Your monthly driver subscription has expired. Renew to stay visible to customers.',
+        subscriptionExpiredEmailHtml(sub.user.fullName, 'driver'),
+      );
+    }
+
+    this.logger.log(`Expired ${stale.length} stale driver subscription(s).`);
+  }
+
   @Cron(CronExpression.EVERY_DAY_AT_8AM)
   async sendRenewalRemindersCron() {
     await this.sendRenewalReminders();
