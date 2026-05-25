@@ -259,6 +259,31 @@ export function bookingDeclinedEmailHtml(renterName: string, carTitle: string): 
   return layout('Booking Declined — renting.rw', body);
 }
 
+export function bookingSubmittedEmailHtml(
+  renterName: string,
+  title: string,
+  startDate: Date,
+  endDate: Date,
+): string {
+  const fmt = (d: Date) => d.toLocaleDateString('en-RW', { dateStyle: 'long' });
+  const body = `
+    ${heading('Booking Request Submitted!')}
+    ${paragraph(`Hi ${renterName}, your booking request has been sent and is waiting for the owner to confirm.`)}
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:20px;">
+      <tbody>
+        ${infoBox('Listing', title)}
+        ${infoBox('From', fmt(startDate))}
+        ${infoBox('To', fmt(endDate))}
+      </tbody>
+    </table>
+    ${paragraph("You'll receive another email once the owner confirms or declines. Owners typically respond within 1 hour.")}
+    ${button('View My Bookings', `${BASE_URL}/app`)}
+    <br/><br/>
+    ${muted('If the owner does not respond within 1 hour, your request will be automatically cancelled and you can try another listing.')}
+  `;
+  return layout('Booking Submitted — renting.rw', body);
+}
+
 export function bookingAutoCancelledEmailHtml(name: string, carTitle: string): string {
   const body = `
     ${heading('Booking Auto-Cancelled')}

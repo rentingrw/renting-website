@@ -14,6 +14,7 @@ import { prisma } from '../database/prisma';
 import { NotificationsService } from '../notifications/notifications.service';
 import {
   bookingRequestEmailHtml,
+  bookingSubmittedEmailHtml,
   bookingConfirmedEmailHtml,
   bookingDeclinedEmailHtml,
   bookingAutoCancelledEmailHtml,
@@ -110,6 +111,12 @@ export class DriverBookingsService {
       'New booking request — renting.rw',
       `${booking.renter.fullName} has sent you a driver booking request.`,
       bookingRequestEmailHtml(booking.driver.fullName, booking.renter.fullName, `Driver service (${booking.serviceType})`, booking.startAt, booking.endAt),
+    );
+    this.notificationsService.queueEmailToUsers(
+      [booking.renterId],
+      'Booking request submitted — renting.rw',
+      `Your driver booking request has been submitted and is waiting for confirmation.`,
+      bookingSubmittedEmailHtml(booking.renter.fullName, `Driver service (${booking.serviceType})`, booking.startAt, booking.endAt),
     );
 
     return booking;

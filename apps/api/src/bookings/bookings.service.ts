@@ -17,6 +17,7 @@ import { TrustScoreService } from '../trust-score/trust-score.service';
 import type { CreateBookingDto } from './dto/create-booking.dto';
 import {
   bookingRequestEmailHtml,
+  bookingSubmittedEmailHtml,
   bookingConfirmedEmailHtml,
   bookingDeclinedEmailHtml,
   bookingAutoCancelledEmailHtml,
@@ -103,6 +104,12 @@ export class BookingsService {
       'New booking request — renting.rw',
       `${booking.renter.fullName} has sent a booking request for ${booking.listing.title}.`,
       bookingRequestEmailHtml(booking.owner.fullName, booking.renter.fullName, booking.listing.title, booking.startDate, booking.endDate),
+    );
+    this.notificationsService.queueEmailToUsers(
+      [booking.renterId],
+      'Booking request submitted — renting.rw',
+      `Your booking request for ${booking.listing.title} has been submitted and is waiting for confirmation.`,
+      bookingSubmittedEmailHtml(booking.renter.fullName, booking.listing.title, booking.startDate, booking.endDate),
     );
 
     return booking;
