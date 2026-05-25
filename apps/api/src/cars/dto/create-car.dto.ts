@@ -4,6 +4,7 @@ import {
   ArrayMaxSize,
   ArrayNotEmpty,
   IsArray,
+  IsBoolean,
   IsEnum,
   IsInt,
   IsNumber,
@@ -70,6 +71,22 @@ export class CreateCarDto {
   @IsInt()
   @Min(1000)
   dailyRateCountrysideRwf!: number;
+
+  @IsOptional()
+  @Transform(({ value }) => (value === undefined ? undefined : Number(value)))
+  @IsInt()
+  @Min(1000)
+  weeklyRateRwf?: number;
+
+  @IsOptional()
+  @Transform(({ value }) => (value === undefined ? undefined : Number(value)))
+  @IsInt()
+  @Min(1000)
+  monthlyRateRwf?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  priceNegotiable?: boolean;
 
   @IsString()
   @MaxLength(255)

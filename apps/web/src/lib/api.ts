@@ -108,6 +108,7 @@ export type CarDetail = {
   id: string;
   ownerId: string;
   ownerName: string;
+  ownerPhone?: string | null;
   title: string;
   description: string | null;
   vehicleType: VehicleType;
@@ -121,8 +122,11 @@ export type CarDetail = {
   locationText: string;
   photos: string[];
   features: string[];
+  priceNegotiable?: boolean;
   dailyRateKigaliRwf?: number;
   dailyRateCountrysideRwf?: number;
+  weeklyRateRwf?: number | null;
+  monthlyRateRwf?: number | null;
   approximateDailyRateRangeRwf?: {
     kigali: PriceRange;
     countryside: PriceRange;
@@ -133,6 +137,7 @@ export type DriverDetail = {
   id: string;
   userId: string;
   fullName: string;
+  phone?: string | null;
   profilePhotoUrl: string | null;
   trustScore: number;
   driverCategory: DriverCategory;
@@ -333,6 +338,9 @@ export type CarListingPayload = {
   fuelType?: string;
   dailyRateKigaliRwf: number;
   dailyRateCountrysideRwf: number;
+  weeklyRateRwf?: number;
+  monthlyRateRwf?: number;
+  priceNegotiable?: boolean;
   locationText: string;
   latitude?: number;
   longitude?: number;
@@ -983,4 +991,47 @@ export async function getDriverProfileMe(token: string): Promise<DriverProfileMe
   }
   await ensureOk(response, 'Failed to load driver profile.');
   return (await response.json()) as DriverProfileMe;
+}
+
+export type FavoriteItem = {
+  id: string;
+  createdAt: string;
+  carListing: {
+    id: string;
+    title: string;
+    brand: string;
+    model: string;
+    year: number;
+    photos: string[];
+    locationText: string;
+    status: string;
+    owner: { id: string; fullName: string };
+  };
+};
+
+export async function getFavorites(token: string): Promise<FavoriteItem[]> {
+  const response = await fetch(`${API_BASE_URL}/favorites`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  await ensureOk(response, 'Failed to load favorites.');
+  return (await response.json()) as FavoriteItem[];
+}
+
+export async function addFavorite(token: string, carListingId: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/favorites/${carListingId}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (response.status === 409) return;
+  await ensureOk(response, 'Failed to save favorite.');
+}
+
+export async function removeFavorite(token: string, carListingId: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/favorites/${carListingId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (response.status === 404) return;
+  await ensureOk(response, 'Failed to remove favorite.');
 }

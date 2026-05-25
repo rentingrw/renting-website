@@ -67,6 +67,7 @@ export default function DriverDetailPage({ params }: DriverPageProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [bookingOpen, setBookingOpen] = useState(false);
+  const [savedLocally, setSavedLocally] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -339,19 +340,35 @@ export default function DriverDetailPage({ params }: DriverPageProps) {
                 </div>
 
                 {/* Direct call — key feature */}
-                <a
-                  href="tel:+250788781648"
-                  className="flex w-full items-center justify-center gap-2 rounded border-2 border-teal-800 bg-teal-600 py-2.5 text-sm font-black uppercase tracking-wide text-white shadow-brutal-teal-sm transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none"
-                >
-                  <Phone className="h-4 w-4" />
-                  Call Driver Directly
-                </a>
+                {detail.phone ? (
+                  <a
+                    href={`tel:${detail.phone.replace(/\s/g, '')}`}
+                    className="flex w-full items-center justify-center gap-2 rounded border-2 border-teal-800 bg-teal-600 py-2.5 text-sm font-black uppercase tracking-wide text-white shadow-brutal-teal-sm transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none"
+                  >
+                    <Phone className="h-4 w-4" />
+                    {detail.phone}
+                  </a>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setBookingOpen(true)}
+                    className="flex w-full items-center justify-center gap-2 rounded border-2 border-teal-800 bg-teal-600 py-2.5 text-sm font-black uppercase tracking-wide text-white shadow-brutal-teal-sm transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none"
+                  >
+                    <Phone className="h-4 w-4" />
+                    Book This Driver
+                  </button>
+                )}
                 <button
                   type="button"
-                  className="flex w-full items-center justify-center gap-2 rounded border-2 border-neutral-900 bg-white py-2 text-sm font-black uppercase tracking-wide text-neutral-900 shadow-brutal-xs transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none"
+                  onClick={() => setSavedLocally((v) => !v)}
+                  className={`flex w-full items-center justify-center gap-2 rounded border-2 py-2 text-sm font-black uppercase tracking-wide shadow-brutal-xs transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none ${
+                    savedLocally
+                      ? 'border-red-400 bg-red-50 text-red-600'
+                      : 'border-neutral-900 bg-white text-neutral-900'
+                  }`}
                 >
-                  <Heart className="h-4 w-4" />
-                  Save to Favorites
+                  <Heart className={`h-4 w-4 ${savedLocally ? 'fill-red-500 text-red-500' : ''}`} />
+                  {savedLocally ? 'Saved' : 'Save to Favorites'}
                 </button>
               </div>
             </div>

@@ -4,6 +4,7 @@ import { AppHeader } from '@/components/web/app-header';
 import { SiteFooter } from '@/components/web/site-footer';
 import { isSupportedLocale, routing, type SupportedLocale } from '@/i18n/routing';
 import { Car, MapPin, Phone } from 'lucide-react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
@@ -18,6 +19,8 @@ type TaxiDriver = {
   city: string;
   seats: number;
   details?: string | null;
+  photoUrl?: string | null;
+  profilePhotoUrl?: string | null;
 };
 
 export default function TaxiDriversPage({ params }: TaxiDriversPageProps) {
@@ -114,8 +117,12 @@ export default function TaxiDriversPage({ params }: TaxiDriversPageProps) {
             >
               {/* Header */}
               <div className="flex flex-col items-center border-b-2 border-neutral-900 bg-teal-50 px-6 py-6">
-                <div className="flex h-20 w-20 items-center justify-center rounded-full border-2 border-neutral-900 bg-teal-600 text-2xl font-black text-white">
-                  {taxi.fullName.charAt(0).toUpperCase()}
+                <div className="relative flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border-2 border-neutral-900 bg-teal-600 text-2xl font-black text-white">
+                  {taxi.profilePhotoUrl ? (
+                    <Image src={taxi.profilePhotoUrl} alt={taxi.fullName} fill sizes="80px" className="object-cover" />
+                  ) : (
+                    taxi.fullName.charAt(0).toUpperCase()
+                  )}
                 </div>
                 <h3 className="mt-3 text-center font-black text-neutral-900">{taxi.fullName}</h3>
                 <div className="mt-1 flex items-center gap-1 text-sm text-neutral-500">

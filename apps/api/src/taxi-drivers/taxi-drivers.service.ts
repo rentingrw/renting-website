@@ -13,6 +13,8 @@ export class TaxiDriversService {
         city: payload.city,
         seats: payload.seats,
         details: payload.details,
+        photoUrl: payload.photoUrl,
+        profilePhotoUrl: payload.profilePhotoUrl,
       },
       select: { id: true, fullName: true, phone: true, city: true, seats: true, status: true, createdAt: true },
     });
@@ -33,6 +35,8 @@ export class TaxiDriversService {
         city: true,
         seats: true,
         details: true,
+        photoUrl: true,
+        profilePhotoUrl: true,
         createdAt: true,
       },
     });

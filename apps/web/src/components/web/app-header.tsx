@@ -9,12 +9,12 @@ import {
   Inbox,
   LayoutDashboard,
   Menu,
-  UserPlus,
+  X,
   Zap,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import {
   DropdownMenu,
@@ -31,10 +31,27 @@ type AppHeaderProps = {
   variant?: 'default' | 'dark';
 };
 
+const BANNER_DISMISSED_KEY = 'rentingi_banner_dismissed_until';
+const BANNER_DISMISS_DAYS = 7;
+
 export function AppHeader({ locale, variant = 'default' }: AppHeaderProps) {
   const t = useTranslations('web');
   const { isSignedIn } = useAuth();
   const isDark = variant === 'dark';
+  const [bannerVisible, setBannerVisible] = useState(false);
+
+  useEffect(() => {
+    const raw = localStorage.getItem(BANNER_DISMISSED_KEY);
+    if (!raw || Date.now() > Number(raw)) {
+      setBannerVisible(true);
+    }
+  }, []);
+
+  function dismissBanner() {
+    const until = Date.now() + BANNER_DISMISS_DAYS * 24 * 60 * 60 * 1000;
+    localStorage.setItem(BANNER_DISMISSED_KEY, String(until));
+    setBannerVisible(false);
+  }
 
   const menuItems = [
     { href: `/${locale}/list-your-car`, label: t('nav.becomeHoster'), icon: Home },
@@ -157,14 +174,24 @@ export function AppHeader({ locale, variant = 'default' }: AppHeaderProps) {
   return (
     <header className={`sticky top-0 z-50 ${isDark ? 'border-zinc-800 bg-zinc-950' : 'border-neutral-900 bg-white'}`}>
       {/* Earning Banner */}
-      <div className="border-b-2 border-amber-500 bg-amber-400 px-4 py-2 text-center">
-        <p className="text-xs font-black text-neutral-900 sm:text-sm">
-          {t('header.earningBanner')}{' '}
-          <Link href={`/${locale}/list-your-car`} className="underline decoration-2 hover:text-neutral-700">
-            {t('header.earningBannerCta')}
-          </Link>
-        </p>
-      </div>
+      {bannerVisible && (
+        <div className="relative border-b-2 border-amber-500 bg-amber-400 px-4 py-2 text-center">
+          <p className="text-xs font-black text-neutral-900 sm:text-sm">
+            {t('header.earningBanner')}{' '}
+            <Link href={`/${locale}/list-your-car`} className="underline decoration-2 hover:text-neutral-700">
+              {t('header.earningBannerCta')}
+            </Link>
+          </p>
+          <button
+            type="button"
+            onClick={dismissBanner}
+            className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-neutral-700 hover:bg-amber-500 hover:text-neutral-900"
+            aria-label="Dismiss banner"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Main nav */}
       <div className={`border-b-2 ${isDark ? 'border-zinc-800' : 'border-neutral-900'}`}>

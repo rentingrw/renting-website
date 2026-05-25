@@ -3,12 +3,31 @@
 import { AppHeader } from '@/components/web/app-header';
 import { SiteFooter } from '@/components/web/site-footer';
 import { isSupportedLocale, routing, type SupportedLocale } from '@/i18n/routing';
-import { Camera, Car, MapPin, Phone, User } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { Camera, Car, MapPin, Phone, Upload, User } from 'lucide-react';
+import Image from 'next/image';
+import { useEffect, useRef, useState } from 'react';
 
 type RegisterTaxiPageProps = {
   params: Promise<{ locale: string }>;
 };
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+
+async function uploadToCloudinary(file: File, folder: string): Promise<string> {
+  const sigRes = await fetch(`${API_BASE}/cars/upload-url?folder=${encodeURIComponent(folder)}`);
+  if (!sigRes.ok) throw new Error('Could not get upload credentials.');
+  const { uploadUrl, fields } = await sigRes.json() as {
+    uploadUrl: string;
+    fields: Record<string, string | number>;
+  };
+  const fd = new FormData();
+  for (const [k, v] of Object.entries(fields)) fd.append(k, String(v));
+  fd.append('file', file);
+  const up = await fetch(uploadUrl, { method: 'POST', body: fd });
+  if (!up.ok) throw new Error('Photo upload failed.');
+  const data = await up.json() as { secure_url: string };
+  return data.secure_url;
+}
 
 export default function RegisterTaxiPage({ params }: RegisterTaxiPageProps) {
   const [locale, setLocale] = useState<SupportedLocale>(routing.defaultLocale);
@@ -22,6 +41,12 @@ export default function RegisterTaxiPage({ params }: RegisterTaxiPageProps) {
     seats: '',
     details: '',
   });
+  const [profilePhoto, setProfilePhoto] = useState<File | null>(null);
+  const [profilePhotoPreview, setProfilePhotoPreview] = useState<string | null>(null);
+  const [taxiPhoto, setTaxiPhoto] = useState<File | null>(null);
+  const [taxiPhotoPreview, setTaxiPhotoPreview] = useState<string | null>(null);
+  const profileInputRef = useRef<HTMLInputElement>(null);
+  const taxiInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -37,12 +62,34 @@ export default function RegisterTaxiPage({ params }: RegisterTaxiPageProps) {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   }
 
+  function handlePhotoChange(
+    e: React.ChangeEvent<HTMLInputElement>,
+    setFile: React.Dispatch<React.SetStateAction<File | null>>,
+    setPreview: React.Dispatch<React.SetStateAction<string | null>>,
+  ) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setFile(file);
+    const url = URL.createObjectURL(file);
+    setPreview(url);
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
     setSubmitting(true);
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'}/taxi-drivers/register`, {
+      let profilePhotoUrl: string | undefined;
+      let photoUrl: string | undefined;
+
+      if (profilePhoto) {
+        profilePhotoUrl = await uploadToCloudinary(profilePhoto, 'rentingi/taxi-drivers/profiles');
+      }
+      if (taxiPhoto) {
+        photoUrl = await uploadToCloudinary(taxiPhoto, 'rentingi/taxi-drivers/cars');
+      }
+
+      const res = await fetch(`${API_BASE}/taxi-drivers/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -51,6 +98,8 @@ export default function RegisterTaxiPage({ params }: RegisterTaxiPageProps) {
           city: form.location,
           seats: Number(form.seats),
           details: form.details || undefined,
+          profilePhotoUrl,
+          photoUrl,
         }),
       });
       if (!res.ok) {
@@ -95,6 +144,44 @@ export default function RegisterTaxiPage({ params }: RegisterTaxiPageProps) {
             onSubmit={handleSubmit}
             className="space-y-5 rounded-md border-2 border-neutral-900 bg-white p-6 shadow-brutal"
           >
+            {/* Profile Photo */}
+            <div>
+              <label className="mb-1.5 flex items-center gap-2 text-xs font-black uppercase tracking-widest text-neutral-500">
+                <Camera className="h-3.5 w-3.5" /> Your Profile Photo (optional)
+              </label>
+              <div className="flex items-center gap-4">
+                <button
+                  type="button"
+                  onClick={() => profileInputRef.current?.click()}
+                  className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-dashed border-neutral-300 bg-neutral-50 hover:border-teal-600"
+                >
+                  {profilePhotoPreview ? (
+                    <Image src={profilePhotoPreview} alt="Profile" width={80} height={80} className="h-full w-full object-cover rounded-full" />
+                  ) : (
+                    <User className="h-8 w-8 text-neutral-300" />
+                  )}
+                </button>
+                <div className="flex-1">
+                  <button
+                    type="button"
+                    onClick={() => profileInputRef.current?.click()}
+                    className="flex items-center gap-2 rounded border-2 border-neutral-900 px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-neutral-100"
+                  >
+                    <Upload className="h-3.5 w-3.5" />
+                    {profilePhoto ? 'Change photo' : 'Upload photo'}
+                  </button>
+                  <p className="mt-1 text-xs text-neutral-500">JPG, PNG, WEBP · Max 5MB</p>
+                </div>
+                <input
+                  ref={profileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  onChange={(e) => handlePhotoChange(e, setProfilePhoto, setProfilePhotoPreview)}
+                />
+              </div>
+            </div>
+
             <div>
               <label className="mb-1.5 flex items-center gap-2 text-xs font-black uppercase tracking-widest text-neutral-500">
                 <User className="h-3.5 w-3.5" /> Full Name *
@@ -159,6 +246,40 @@ export default function RegisterTaxiPage({ params }: RegisterTaxiPageProps) {
               </select>
             </div>
 
+            {/* Taxi Photo */}
+            <div>
+              <label className="mb-1.5 flex items-center gap-2 text-xs font-black uppercase tracking-widest text-neutral-500">
+                <Camera className="h-3.5 w-3.5" /> Taxi Photo (optional)
+              </label>
+              <div
+                className="relative cursor-pointer overflow-hidden rounded border-2 border-dashed border-neutral-300 bg-neutral-50 hover:border-teal-600"
+                onClick={() => taxiInputRef.current?.click()}
+              >
+                {taxiPhotoPreview ? (
+                  <Image
+                    src={taxiPhotoPreview}
+                    alt="Taxi"
+                    width={600}
+                    height={200}
+                    className="h-40 w-full object-cover"
+                  />
+                ) : (
+                  <div className="flex flex-col items-center py-8 text-neutral-400">
+                    <Upload className="h-8 w-8 mb-2" />
+                    <span className="text-sm font-semibold">Click to upload a photo of your taxi</span>
+                    <span className="text-xs">JPG, PNG, WEBP</span>
+                  </div>
+                )}
+              </div>
+              <input
+                ref={taxiInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={(e) => handlePhotoChange(e, setTaxiPhoto, setTaxiPhotoPreview)}
+              />
+            </div>
+
             <div>
               <label className="mb-1.5 flex items-center gap-2 text-xs font-black uppercase tracking-widest text-neutral-500">
                 <Camera className="h-3.5 w-3.5" /> Additional Details (optional)
@@ -191,7 +312,7 @@ export default function RegisterTaxiPage({ params }: RegisterTaxiPageProps) {
               disabled={submitting}
               className="w-full rounded border-2 border-teal-800 bg-teal-600 py-3.5 text-sm font-black uppercase tracking-wide text-white shadow-brutal-teal-sm transition-all hover:translate-x-px hover:translate-y-px hover:bg-teal-700 hover:shadow-none disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {submitting ? 'Submitting...' : 'Submit Registration'}
+              {submitting ? 'Uploading & Submitting...' : 'Submit Registration'}
             </button>
           </form>
         )}

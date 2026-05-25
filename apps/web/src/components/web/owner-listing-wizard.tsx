@@ -31,6 +31,9 @@ type ListingFormState = {
   fuelType: string;
   dailyRateKigaliRwf: number;
   dailyRateCountrysideRwf: number;
+  weeklyRateRwf: string;
+  monthlyRateRwf: string;
+  priceNegotiable: boolean;
   locationText: string;
   latitude: string;
   longitude: string;
@@ -84,6 +87,9 @@ function emptyState(): ListingFormState {
     fuelType: 'Petrol',
     dailyRateKigaliRwf: 25000,
     dailyRateCountrysideRwf: 30000,
+    weeklyRateRwf: '',
+    monthlyRateRwf: '',
+    priceNegotiable: false,
     locationText: 'Kigali',
     latitude: '',
     longitude: '',
@@ -106,6 +112,9 @@ function fromCar(car: OwnerCar): ListingFormState {
     fuelType: car.fuelType ?? 'Petrol',
     dailyRateKigaliRwf: car.dailyRateKigaliRwf,
     dailyRateCountrysideRwf: car.dailyRateCountrysideRwf,
+    weeklyRateRwf: '',
+    monthlyRateRwf: '',
+    priceNegotiable: false,
     locationText: car.locationText,
     latitude: '',
     longitude: '',
@@ -219,6 +228,9 @@ export function OwnerListingWizard({
       fuelType: state.fuelType || undefined,
       dailyRateKigaliRwf: state.dailyRateKigaliRwf,
       dailyRateCountrysideRwf: state.dailyRateCountrysideRwf,
+      weeklyRateRwf: state.weeklyRateRwf ? Number(state.weeklyRateRwf) : undefined,
+      monthlyRateRwf: state.monthlyRateRwf ? Number(state.monthlyRateRwf) : undefined,
+      priceNegotiable: state.priceNegotiable,
       locationText: state.locationText.trim(),
       latitude: state.latitude.trim() ? Number(state.latitude) : undefined,
       longitude: state.longitude.trim() ? Number(state.longitude) : undefined,
@@ -587,6 +599,61 @@ export function OwnerListingWizard({
                 <span className="text-xs font-medium text-neutral-500">Displayed to renters:</span>
                 <span className="text-sm font-black text-teal-700">{formatRwf(state.dailyRateCountrysideRwf)}/day</span>
               </div>
+            </div>
+
+            {/* Weekly rate */}
+            <div>
+              <FieldLabel>Weekly Rate (RWF) — optional</FieldLabel>
+              <input
+                type="number"
+                min={0}
+                step={500}
+                className={inputClass}
+                value={state.weeklyRateRwf}
+                onChange={(e) => update('weeklyRateRwf', e.target.value)}
+                placeholder="e.g. 150000"
+              />
+              <p className="mt-1 text-xs font-medium text-neutral-500">
+                Discount for 7+ day bookings. Leave blank to not offer.
+              </p>
+            </div>
+
+            {/* Monthly rate */}
+            <div>
+              <FieldLabel>Monthly Rate (RWF) — optional</FieldLabel>
+              <input
+                type="number"
+                min={0}
+                step={500}
+                className={inputClass}
+                value={state.monthlyRateRwf}
+                onChange={(e) => update('monthlyRateRwf', e.target.value)}
+                placeholder="e.g. 500000"
+              />
+              <p className="mt-1 text-xs font-medium text-neutral-500">
+                Discount for 30+ day bookings. Leave blank to not offer.
+              </p>
+            </div>
+
+            {/* Negotiable toggle */}
+            <div className="flex items-center justify-between rounded border-2 border-neutral-900 bg-neutral-50 p-4">
+              <div>
+                <p className="text-sm font-black text-neutral-900">Price is negotiable</p>
+                <p className="text-xs font-medium text-neutral-500">Show a "Negotiable" badge on your listing</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => update('priceNegotiable', !state.priceNegotiable)}
+                className={`relative h-6 w-11 rounded-full border-2 border-neutral-900 transition-colors ${
+                  state.priceNegotiable ? 'bg-teal-600' : 'bg-neutral-200'
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 h-4 w-4 rounded-full border-2 border-neutral-900 bg-white transition-transform ${
+                    state.priceNegotiable ? 'translate-x-5' : 'translate-x-0.5'
+                  }`}
+                />
+              </button>
             </div>
 
             {/* Earnings estimate */}

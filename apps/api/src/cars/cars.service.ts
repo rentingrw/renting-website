@@ -51,6 +51,9 @@ export class CarsService {
           fuelType: payload.fuelType,
           dailyRateKigaliRwf: payload.dailyRateKigaliRwf,
           dailyRateCountrysideRwf: payload.dailyRateCountrysideRwf,
+          weeklyRateRwf: payload.weeklyRateRwf,
+          monthlyRateRwf: payload.monthlyRateRwf,
+          priceNegotiable: payload.priceNegotiable ?? false,
           locationText: payload.locationText,
           photos: payload.photos,
           features: payload.features,
@@ -103,6 +106,9 @@ export class CarsService {
         fuelType: payload.fuelType,
         dailyRateKigaliRwf: payload.dailyRateKigaliRwf,
         dailyRateCountrysideRwf: payload.dailyRateCountrysideRwf,
+        weeklyRateRwf: payload.weeklyRateRwf,
+        monthlyRateRwf: payload.monthlyRateRwf,
+        priceNegotiable: payload.priceNegotiable,
         locationText: payload.locationText,
         photos: payload.photos,
         features: payload.features,
@@ -434,12 +440,15 @@ export class CarsService {
       photos: listing.photos,
       features: listing.features,
       status: listing.status,
+      priceNegotiable: listing.priceNegotiable,
       createdAt: listing.createdAt,
       updatedAt: listing.updatedAt,
       ...(includeExactRates
         ? {
             dailyRateKigaliRwf: listing.dailyRateKigaliRwf,
             dailyRateCountrysideRwf: listing.dailyRateCountrysideRwf,
+            weeklyRateRwf: listing.weeklyRateRwf ?? null,
+            monthlyRateRwf: listing.monthlyRateRwf ?? null,
           }
         : {
             approximateDailyRateRangeRwf: {

@@ -4,7 +4,7 @@ import { SignInButton, useAuth } from '@clerk/nextjs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@rentingi/ui';
 import { CalendarDays, Car, CheckCircle2, ChevronRight, Clock, MapPin, ShipWheel, User } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { AddressInput } from '@/components/web/address-input';
 import { PickupMapPicker } from '@/components/web/pickup-map-picker';
@@ -70,6 +70,8 @@ function parseDuration(startStr: string, endStr: string): { days: number; hours:
   return { days, hours, valid: true };
 }
 
+const LAST_PICKUP_KEY = 'rentingi_last_pickup_address';
+
 export function BookingRequestDialog({ open, onOpenChange, target }: BookingRequestDialogProps) {
   const t = useTranslations('web');
   const { isSignedIn, getToken } = useAuth();
@@ -78,6 +80,13 @@ export function BookingRequestDialog({ open, onOpenChange, target }: BookingRequ
   const [startDate, setStartDate] = useState(defaultStart);
   const [endDate, setEndDate] = useState(getDefaultEnd(defaultStart));
   const [pickupAddress, setPickupAddress] = useState('');
+
+  useEffect(() => {
+    if (open) {
+      const saved = localStorage.getItem(LAST_PICKUP_KEY);
+      if (saved) setPickupAddress(saved);
+    }
+  }, [open]);
   const [notes, setNotes] = useState('');
   const [dropoffAddress, setDropoffAddress] = useState('');
   const [serviceType, setServiceType] = useState<ServiceType>(
@@ -140,6 +149,9 @@ export function BookingRequestDialog({ open, onOpenChange, target }: BookingRequ
           totalAmountRwf: target.exactDailyRate ?? 0,
           notes: notes.trim() || undefined,
         });
+      }
+      if (pickupAddress.trim()) {
+        localStorage.setItem(LAST_PICKUP_KEY, pickupAddress.trim());
       }
       setSent(true);
     } catch (submitError) {

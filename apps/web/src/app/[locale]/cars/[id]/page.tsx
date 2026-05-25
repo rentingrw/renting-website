@@ -24,7 +24,7 @@ import { AppHeader } from '@/components/web/app-header';
 import { SiteFooter } from '@/components/web/site-footer';
 import { BookingRequestDialog } from '@/components/web/booking-request-dialog';
 import { isSupportedLocale, routing, type SupportedLocale } from '@/i18n/routing';
-import { getCarAvailability, getCarById, getReviewsForUser, type CarDetail } from '@/lib/api';
+import { addFavorite, getCarAvailability, getCarById, getFavorites, getReviewsForUser, removeFavorite, type CarDetail } from '@/lib/api';
 import { formatCurrencyRwf, formatRange } from '@/lib/format';
 import { stockImages } from '@/lib/stock-images';
 
@@ -73,6 +73,8 @@ export default function CarDetailPage({ params }: CarPageProps) {
   const [bookingOpen, setBookingOpen] = useState(false);
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0);
   const [showAllFeatures, setShowAllFeatures] = useState(false);
+  const [isFavorited, setIsFavorited] = useState(false);
+  const [favoritePending, setFavoritePending] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -96,14 +98,16 @@ export default function CarDetailPage({ params }: CarPageProps) {
       try {
         const token = isSignedIn ? await getToken() : null;
         const car = await getCarById(carId, token ?? undefined);
-        const [availability, reviewsData] = await Promise.all([
+        const [availability, reviewsData, favs] = await Promise.all([
           getCarAvailability(carId, new Date().toISOString().slice(0, 7)),
           getReviewsForUser(car.ownerId),
+          token ? getFavorites(token).catch(() => []) : Promise.resolve([]),
         ]);
         if (!cancelled) {
           setDetail(car);
           setBookedRanges(availability.bookedRanges.map((item) => ({ startDate: item.startDate, endDate: item.endDate })));
           setReviews(reviewsData);
+          setIsFavorited(favs.some((f) => f.carListing.id === carId));
         }
       } catch (loadError) {
         if (!cancelled) setError(loadError instanceof Error ? loadError.message : t('detail.error'));
@@ -128,6 +132,26 @@ export default function CarDetailPage({ params }: CarPageProps) {
     }
     return null;
   }, [detail]);
+
+  async function toggleFavorite() {
+    if (!isSignedIn || !detail) return;
+    const token = await getToken();
+    if (!token) return;
+    setFavoritePending(true);
+    try {
+      if (isFavorited) {
+        await removeFavorite(token, detail.id);
+        setIsFavorited(false);
+      } else {
+        await addFavorite(token, detail.id);
+        setIsFavorited(true);
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setFavoritePending(false);
+    }
+  }
 
   const displayedFeatures = useMemo(() => {
     if (!detail?.features?.length) return [];
@@ -170,10 +194,12 @@ export default function CarDetailPage({ params }: CarPageProps) {
             />
             <button
               type="button"
-              className="absolute right-3 top-3 rounded border-2 border-neutral-900 bg-white p-2 shadow-brutal-xs hover:translate-x-px hover:translate-y-px hover:shadow-none transition-all"
-              aria-label="Add to favorites"
+              onClick={toggleFavorite}
+              disabled={favoritePending}
+              className="absolute right-3 top-3 rounded border-2 border-neutral-900 bg-white p-2 shadow-brutal-xs hover:translate-x-px hover:translate-y-px hover:shadow-none transition-all disabled:opacity-60"
+              aria-label={isFavorited ? 'Remove from favorites' : 'Add to favorites'}
             >
-              <Heart className="h-4 w-4 text-neutral-600" />
+              <Heart className={`h-4 w-4 ${isFavorited ? 'fill-red-500 text-red-500' : 'text-neutral-600'}`} />
             </button>
           </div>
           {thumbnails.map((src, i) => (
@@ -270,13 +296,24 @@ export default function CarDetailPage({ params }: CarPageProps) {
               </div>
               {/* Contact actions */}
               <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-                <a
-                  href="tel:+250788781648"
-                  className="flex flex-1 items-center justify-center gap-2 rounded border-2 border-teal-800 bg-teal-600 px-4 py-2.5 text-sm font-black text-white shadow-brutal-teal-sm transition-all hover:translate-x-px hover:translate-y-px hover:bg-teal-700 hover:shadow-none"
-                >
-                  <Phone className="h-4 w-4" />
-                  Call Hoster
-                </a>
+                {detail.ownerPhone ? (
+                  <a
+                    href={`tel:${detail.ownerPhone.replace(/\s/g, '')}`}
+                    className="flex flex-1 items-center justify-center gap-2 rounded border-2 border-teal-800 bg-teal-600 px-4 py-2.5 text-sm font-black text-white shadow-brutal-teal-sm transition-all hover:translate-x-px hover:translate-y-px hover:bg-teal-700 hover:shadow-none"
+                  >
+                    <Phone className="h-4 w-4" />
+                    {detail.ownerPhone}
+                  </a>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setBookingOpen(true)}
+                    className="flex flex-1 items-center justify-center gap-2 rounded border-2 border-teal-800 bg-teal-600 px-4 py-2.5 text-sm font-black text-white shadow-brutal-teal-sm transition-all hover:translate-x-px hover:translate-y-px hover:bg-teal-700 hover:shadow-none"
+                  >
+                    <Phone className="h-4 w-4" />
+                    Request Booking
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => setBookingOpen(true)}
@@ -384,10 +421,29 @@ export default function CarDetailPage({ params }: CarPageProps) {
             <div className="rounded-md border-2 border-neutral-900 bg-white shadow-brutal">
               <div className="space-y-4 p-5">
                 <div>
-                  <p className="text-2xl font-black text-neutral-900">
-                    {priceBlock?.display ?? t('home.priceUnavailable')}
-                  </p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-2xl font-black text-neutral-900">
+                      {priceBlock?.display ?? t('home.priceUnavailable')}
+                    </p>
+                    {detail.priceNegotiable && (
+                      <span className="rounded border-2 border-amber-400 bg-amber-50 px-2 py-0.5 text-xs font-black text-amber-800">
+                        Negotiable
+                      </span>
+                    )}
+                  </div>
                   <p className="text-sm font-medium text-neutral-500">/ {t('home.day')} · {t('detail.beforeTaxes')}</p>
+                  {detail.weeklyRateRwf != null && (
+                    <div className="mt-1 flex items-center justify-between text-sm">
+                      <span className="font-semibold text-neutral-600">Weekly rate</span>
+                      <span className="font-black text-teal-700">{formatCurrencyRwf(detail.weeklyRateRwf)}/week</span>
+                    </div>
+                  )}
+                  {detail.monthlyRateRwf != null && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-semibold text-neutral-600">Monthly rate</span>
+                      <span className="font-black text-teal-700">{formatCurrencyRwf(detail.monthlyRateRwf)}/month</span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="rounded border-2 border-neutral-200 bg-neutral-50 p-3">
@@ -447,19 +503,27 @@ export default function CarDetailPage({ params }: CarPageProps) {
                 </div>
 
                 {/* Quick call — most important action */}
-                <a
-                  href="tel:+250788781648"
-                  className="flex w-full items-center justify-center gap-2 rounded border-2 border-teal-800 bg-teal-600 py-2.5 text-sm font-black uppercase tracking-wide text-white shadow-brutal-teal-sm transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none"
-                >
-                  <Phone className="h-4 w-4" />
-                  Call Hoster Directly
-                </a>
+                {detail.ownerPhone && (
+                  <a
+                    href={`tel:${detail.ownerPhone.replace(/\s/g, '')}`}
+                    className="flex w-full items-center justify-center gap-2 rounded border-2 border-teal-800 bg-teal-600 py-2.5 text-sm font-black uppercase tracking-wide text-white shadow-brutal-teal-sm transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none"
+                  >
+                    <Phone className="h-4 w-4" />
+                    {detail.ownerPhone}
+                  </a>
+                )}
                 <button
                   type="button"
-                  className="flex w-full items-center justify-center gap-2 rounded border-2 border-neutral-900 bg-white py-2 text-sm font-black uppercase tracking-wide text-neutral-900 shadow-brutal-xs transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none"
+                  onClick={toggleFavorite}
+                  disabled={favoritePending}
+                  className={`flex w-full items-center justify-center gap-2 rounded border-2 py-2 text-sm font-black uppercase tracking-wide shadow-brutal-xs transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none disabled:opacity-60 ${
+                    isFavorited
+                      ? 'border-red-400 bg-red-50 text-red-600'
+                      : 'border-neutral-900 bg-white text-neutral-900'
+                  }`}
                 >
-                  <Heart className="h-4 w-4" />
-                  Save to Favorites
+                  <Heart className={`h-4 w-4 ${isFavorited ? 'fill-red-500 text-red-500' : ''}`} />
+                  {isFavorited ? 'Saved' : 'Save to Favorites'}
                 </button>
               </div>
             </div>
