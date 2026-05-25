@@ -194,8 +194,9 @@ export function OwnerListingWizard({
         const file = files[i];
         if (!file.type.startsWith('image/')) continue;
         const formData = new FormData();
-        formData.append('file', file);
+        // Cloudinary requires all fields before the file
         Object.entries(fields).forEach(([k, v]) => formData.append(k, String(v)));
+        formData.append('file', file);
         const res = await fetch(uploadUrl, { method: 'POST', body: formData });
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
@@ -524,16 +525,6 @@ export function OwnerListingWizard({
                 </div>
               </div>
             )}
-
-            <div>
-              <FieldLabel>Or paste photo URLs (one per line)</FieldLabel>
-              <textarea
-                className={`${inputClass} min-h-[100px] resize-none font-mono text-xs`}
-                placeholder="https://example.com/photo1.jpg&#10;https://example.com/photo2.jpg"
-                value={state.photos.join('\n')}
-                onChange={(e) => update('photos', e.target.value.split('\n').map((l) => l.trim()).filter(Boolean))}
-              />
-            </div>
 
             {state.photos.length === 0 && (
               <div className="flex items-start gap-2 rounded border-2 border-amber-400 bg-amber-50 px-4 py-3">

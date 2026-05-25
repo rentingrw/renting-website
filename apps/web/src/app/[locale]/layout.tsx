@@ -15,6 +15,11 @@ export const metadata: Metadata = {
   title: { default: 'renting.rw — Rwanda\'s Car & Driver Marketplace', template: '%s | renting.rw' },
   description: 'Book verified cars and professional drivers in Rwanda. Self-drive, airport transfers, city trips and more.',
   metadataBase: new URL('https://renting.rw'),
+  icons: {
+    icon: '/favicon.png',
+    shortcut: '/favicon.png',
+    apple: '/favicon.png',
+  },
   openGraph: {
     siteName: 'renting.rw',
     locale: 'en_RW',

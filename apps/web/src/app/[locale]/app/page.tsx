@@ -1344,184 +1344,156 @@ export default function AppPage({ params }: AppPageProps) {
       ) : null}
 
       {activeSection === 'bookings' ? (
-        <section className="grid gap-6 md:grid-cols-[1fr_1.2fr]">
-          <Card className="overflow-hidden border-gray-200 bg-white shadow-sm">
-            <CardHeader className="border-b border-gray-200">
-              <CardTitle className="text-lg text-gray-900">{t('app.bookings.title')}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 p-4">
+        <section className="space-y-3">
+          <h2 className="text-lg font-black text-neutral-900">{t('app.bookings.title')}</h2>
+          {bookings.length === 0 ? (
+            <div className="rounded-md border-2 border-neutral-200 bg-white py-16 text-center">
+              <p className="text-sm font-medium text-neutral-500">{t('app.bookings.empty')}</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
               {bookings.map((booking) => {
                 const imgSrc = booking.photoUrl ?? (booking.bookingType === 'driver' ? stockImages.carInterior : stockImages.carPlaceholder);
-                const statusClass =
+                const isExpanded = selectedBookingKey === booking.key;
+                const statusColors =
                   booking.status === 'cancelled' || booking.status === 'auto_cancelled'
-                    ? 'bg-red-500/90 text-white'
+                    ? 'border-red-200 bg-red-50 text-red-700'
                     : booking.status === 'active'
-                      ? 'bg-teal-600 text-white'
-                      : 'bg-gray-500 text-white';
+                      ? 'border-teal-200 bg-teal-50 text-teal-700'
+                      : booking.status === 'confirmed'
+                        ? 'border-blue-200 bg-blue-50 text-blue-700'
+                        : booking.status === 'pending'
+                          ? 'border-amber-200 bg-amber-50 text-amber-700'
+                          : 'border-neutral-200 bg-neutral-50 text-neutral-600';
                 const counterpartyLabel = booking.youAre === 'renter'
                   ? (booking.bookingType === 'driver' ? t('app.bookings.driver') : t('app.bookings.owner'))
                   : t('app.bookings.renter');
+                const statusLabel = booking.status === 'auto_cancelled' || booking.status === 'cancelled_by_renter' || booking.status === 'cancelled_by_owner' || booking.status === 'cancelled_admin' ? 'Cancelled' : booking.status.replaceAll('_', ' ');
                 return (
-                  <button
-                    type="button"
+                  <div
                     key={booking.key}
-                    onClick={() => setSelectedBookingKey(booking.key)}
-                    className={`flex w-full flex-col overflow-hidden rounded-lg border text-left transition ${
-                      selectedBookingKey === booking.key
-                        ? 'border-teal-500 bg-teal-50 ring-1 ring-teal-500/30'
-                        : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'
+                    className={`overflow-hidden rounded-md border-2 bg-white transition-all ${
+                      isExpanded ? 'border-teal-600 shadow-brutal-xs' : 'border-neutral-200 hover:border-neutral-400'
                     }`}
                   >
-                    <div className="relative aspect-[16/10] w-full shrink-0 overflow-hidden bg-gray-100">
-                      <Image
-                        src={imgSrc}
-                        alt=""
-                        fill
-                        sizes="(max-width: 640px) 100vw, 50vw"
-                        className="object-cover"
-                      />
-                      <span
-                        className={`absolute right-2 top-2 rounded px-2 py-0.5 text-xs font-medium capitalize ${statusClass}`}
-                      >
-                        {booking.status === 'auto_cancelled' ? 'Cancelled' : booking.status.replaceAll('_', ' ')}
-                      </span>
-                    </div>
-                    <div className="flex flex-col gap-2 p-3">
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <span className="text-gray-500">{counterpartyLabel}</span>
-                        <span className="h-2 w-2 shrink-0 rounded-full bg-teal-500" aria-hidden />
-                        <span className="truncate">{booking.counterpartyName}</span>
+                    {/* Compact row */}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedBookingKey(isExpanded ? null : booking.key)}
+                      className="flex w-full items-center gap-4 p-4 text-left"
+                    >
+                      <div className="relative h-16 w-24 shrink-0 overflow-hidden rounded border-2 border-neutral-200 bg-neutral-100">
+                        <Image src={imgSrc} alt="" fill sizes="96px" className="object-cover" />
                       </div>
-                      <Button
-                        size="sm"
-                        className="w-full bg-teal-600 hover:bg-teal-700"
-                        onClick={(e: React.MouseEvent) => {
-                          e.stopPropagation();
-                          setSelectedBookingKey(booking.key);
-                        }}
-                      >
-                        {t('app.bookings.viewDetails')}
-                      </Button>
-                    </div>
-                  </button>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="truncate font-black text-neutral-900">{booking.title}</p>
+                          <span className={`shrink-0 rounded border px-2 py-0.5 text-xs font-bold capitalize ${statusColors}`}>
+                            {statusLabel}
+                          </span>
+                        </div>
+                        <p className="mt-0.5 text-xs font-medium text-neutral-500">
+                          {new Date(booking.startAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })} → {new Date(booking.endAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </p>
+                        <p className="mt-0.5 text-xs font-semibold text-neutral-600">
+                          {counterpartyLabel}: <span className="text-neutral-800">{booking.counterpartyName}</span>
+                          <span className="mx-2 text-neutral-300">·</span>
+                          <span className="font-black text-teal-700">{formatCurrencyRwf(booking.amountRwf)}</span>
+                        </p>
+                      </div>
+                      <div className={`shrink-0 transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
+                        <svg className="h-5 w-5 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
+                    </button>
+
+                    {/* Expanded detail panel */}
+                    {isExpanded && (
+                      <div className="border-t-2 border-neutral-100 bg-neutral-50 px-4 py-4">
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <div className="space-y-2">
+                            <p className="text-xs font-black uppercase tracking-widest text-neutral-400">Booking Details</p>
+                            <div className="space-y-1 text-sm">
+                              <p className="font-medium text-neutral-700">
+                                <span className="font-black text-neutral-900">Start:</span>{' '}
+                                {new Date(booking.startAt).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                              </p>
+                              <p className="font-medium text-neutral-700">
+                                <span className="font-black text-neutral-900">End:</span>{' '}
+                                {new Date(booking.endAt).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                              </p>
+                              <p className="font-medium text-neutral-700">
+                                <span className="font-black text-neutral-900">Amount:</span>{' '}
+                                <span className="text-teal-700">{formatCurrencyRwf(booking.amountRwf)}</span>
+                              </p>
+                              {booking.status === 'pending' && (
+                                <p className="font-medium text-amber-700">
+                                  <span className="font-black">Expires in:</span>{' '}
+                                  {remainingMinutes(booking.createdAt)} {t('app.booking.minutes')}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <p className="text-xs font-black uppercase tracking-widest text-neutral-400">Actions</p>
+                            <div className="flex flex-wrap gap-2">
+                              {isLiveChatStatus(booking.status) && (
+                                <button
+                                  type="button"
+                                  onClick={() => { setSelectedChatKey(booking.key); setActiveSection('messages'); }}
+                                  className="rounded border-2 border-teal-800 bg-teal-600 px-3 py-1.5 text-xs font-black text-white hover:bg-teal-700"
+                                >
+                                  {t('app.bookings.manageBooking')}
+                                </button>
+                              )}
+                              {booking.needsYourResponse && (
+                                <>
+                                  <button type="button" onClick={() => runBookingAction('confirm')} className="rounded border-2 border-teal-800 bg-teal-600 px-3 py-1.5 text-xs font-black text-white hover:bg-teal-700">
+                                    {t('app.actions.confirm')}
+                                  </button>
+                                  <button type="button" onClick={() => runBookingAction('decline')} className="rounded border-2 border-neutral-900 bg-white px-3 py-1.5 text-xs font-black text-neutral-900 hover:bg-neutral-100">
+                                    {t('app.actions.decline')}
+                                  </button>
+                                </>
+                              )}
+                              {booking.canCancel && (
+                                <button type="button" onClick={() => runBookingAction('cancel')} className="rounded border-2 border-neutral-900 bg-white px-3 py-1.5 text-xs font-black text-neutral-900 hover:bg-neutral-100">
+                                  {t('app.actions.cancel')}
+                                </button>
+                              )}
+                              {booking.canMarkComplete && (
+                                <button type="button" onClick={() => runBookingAction('complete')} className="rounded border-2 border-neutral-900 bg-white px-3 py-1.5 text-xs font-black text-neutral-900 hover:bg-neutral-100">
+                                  {t('app.actions.markComplete')}
+                                </button>
+                              )}
+                              {booking.canFlagIssue && (
+                                <button type="button" onClick={() => runBookingAction('flag')} className="rounded border-2 border-neutral-900 bg-white px-3 py-1.5 text-xs font-black text-neutral-900 hover:bg-neutral-100">
+                                  {t('app.actions.flagIssue')}
+                                </button>
+                              )}
+                              {(booking.status === 'completed' || booking.status === 'auto_completed') && (
+                                <button
+                                  type="button"
+                                  onClick={() => setReviewTarget({ open: true, bookingType: booking.bookingType, bookingId: booking.id, toUserId: booking.counterpartyId, toName: booking.counterpartyName })}
+                                  className="rounded border-2 border-neutral-900 bg-white px-3 py-1.5 text-xs font-black text-neutral-900 hover:bg-neutral-100"
+                                >
+                                  {t('app.actions.leaveReview')}
+                                </button>
+                              )}
+                            </div>
+                            {booking.canCancel && new Date(booking.startAt).getTime() - Date.now() < 24 * 60 * 60 * 1000 && (
+                              <p className="text-xs font-medium text-amber-600">{t('app.booking.cancelWarning')}</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 );
               })}
-              {bookings.length === 0 ? <p className="py-8 text-center text-sm text-gray-500">{t('app.bookings.empty')}</p> : null}
-            </CardContent>
-          </Card>
-          <Card className="overflow-hidden border-gray-200 bg-white shadow-sm">
-            <CardHeader className="border-b border-gray-200">
-              <CardTitle className="text-lg text-gray-900">{t('app.bookings.detailTitle')}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4 p-0">
-              {selectedBooking ? (
-                <>
-                  <div className="relative aspect-[16/10] w-full overflow-hidden bg-gray-100">
-                    <Image
-                      src={
-                        selectedBooking.photoUrl ??
-                        (selectedBooking.bookingType === 'driver'
-                          ? stockImages.carInterior
-                          : stockImages.carPlaceholder)
-                      }
-                      alt=""
-                      fill
-                      sizes="(max-width: 640px) 100vw, 50vw"
-                      className="object-cover"
-                    />
-                    <span
-                      className={`absolute right-3 top-3 rounded px-2.5 py-1 text-xs font-medium ${
-                        selectedBooking.status === 'cancelled' || selectedBooking.status === 'auto_cancelled'
-                          ? 'bg-red-500/90 text-white'
-                          : selectedBooking.status === 'active'
-                            ? 'bg-teal-600 text-white'
-                            : 'bg-gray-500 text-white'
-                      }`}
-                    >
-                      {selectedBooking.status === 'auto_cancelled' ? 'Cancelled' : selectedBooking.status.replaceAll('_', ' ')}
-                    </span>
-                  </div>
-                  <div className="space-y-4 p-6 pt-4">
-                    <p className="text-lg font-semibold text-gray-900">{selectedBooking.title}</p>
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <svg className="h-4 w-4 shrink-0 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <span>
-                        {new Date(selectedBooking.startAt).toLocaleString(undefined, { month: 'numeric', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })} – {new Date(selectedBooking.endAt).toLocaleString(undefined, { month: 'numeric', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <svg className="h-4 w-4 shrink-0 text-amber-400" fill="currentColor" viewBox="0 0 20 20" aria-hidden>
-                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                      </svg>
-                      <span>{t('app.booking.counterparty')}: {selectedBooking.counterpartyName}</span>
-                    </div>
-                    <p className="text-sm text-gray-500">{t('app.booking.amount')}: {formatCurrencyRwf(selectedBooking.amountRwf)}</p>
-                    {selectedBooking.status === 'pending' ? (
-                      <p className="text-sm">
-                        {t('app.booking.countdown')}: <span className="font-semibold">{remainingMinutes(selectedBooking.createdAt)} {t('app.booking.minutes')}</span>
-                      </p>
-                    ) : null}
-                    <div className="flex flex-wrap gap-2">
-                      {isLiveChatStatus(selectedBooking.status) ? (
-                        <Button
-                          onClick={() => {
-                            setSelectedChatKey(selectedBooking.key);
-                            setActiveSection('messages');
-                          }}
-                        >
-                          {t('app.bookings.manageBooking')}
-                        </Button>
-                      ) : null}
-                      {selectedBooking.needsYourResponse ? (
-                        <>
-                          <Button onClick={() => runBookingAction('confirm')}>{t('app.actions.confirm')}</Button>
-                          <Button variant="outline" onClick={() => runBookingAction('decline')}>
-                            {t('app.actions.decline')}
-                          </Button>
-                        </>
-                      ) : null}
-                      {selectedBooking.canCancel ? (
-                        <Button variant="outline" onClick={() => runBookingAction('cancel')}>{t('app.actions.cancel')}</Button>
-                      ) : null}
-                      {selectedBooking.canMarkComplete ? (
-                        <Button variant="outline" onClick={() => runBookingAction('complete')}>
-                          {t('app.actions.markComplete')}
-                        </Button>
-                      ) : null}
-                      {selectedBooking.canFlagIssue ? (
-                        <Button variant="outline" onClick={() => runBookingAction('flag')}>
-                          {t('app.actions.flagIssue')}
-                        </Button>
-                      ) : null}
-                      {selectedBooking.status === 'completed' || selectedBooking.status === 'auto_completed' ? (
-                        <Button
-                          variant="outline"
-                          onClick={() =>
-                            setReviewTarget({
-                              open: true,
-                              bookingType: selectedBooking.bookingType,
-                              bookingId: selectedBooking.id,
-                              toUserId: selectedBooking.counterpartyId,
-                              toName: selectedBooking.counterpartyName,
-                            })
-                          }
-                        >
-                          {t('app.actions.leaveReview')}
-                        </Button>
-                      ) : null}
-                    </div>
-                    {selectedBooking.canCancel && new Date(selectedBooking.startAt).getTime() - Date.now() < 24 * 60 * 60 * 1000 ? (
-                      <p className="text-xs text-amber-600">{t('app.booking.cancelWarning')}</p>
-                    ) : null}
-                  </div>
-                </>
-              ) : (
-                <p className="py-12 text-center text-sm text-gray-500">{t('app.bookings.selectBooking')}</p>
-              )}
-            </CardContent>
-          </Card>
+            </div>
+          )}
         </section>
       ) : null}
 

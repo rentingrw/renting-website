@@ -286,7 +286,16 @@ export default function CarDetailPage({ params }: CarPageProps) {
                   <User className="h-6 w-6 text-teal-600" />
                 </div>
                 <div className="flex-1">
-                  <p className="font-black text-neutral-900">{detail.ownerName}</p>
+                  {detail.ownerDriverProfileId ? (
+                    <Link
+                      href={`/${locale}/drivers/${detail.ownerDriverProfileId}`}
+                      className="font-black text-neutral-900 underline-offset-2 hover:text-teal-700 hover:underline"
+                    >
+                      {detail.ownerName}
+                    </Link>
+                  ) : (
+                    <p className="font-black text-neutral-900">{detail.ownerName}</p>
+                  )}
                   {reviews && reviews.totalReviews > 0 && (
                     <p className="text-sm font-medium text-neutral-600">
                       {reviews.averageRating?.toFixed(1)} ★ · {reviews.totalReviews} {t('detail.trips')}

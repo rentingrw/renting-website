@@ -109,6 +109,7 @@ export type CarDetail = {
   ownerId: string;
   ownerName: string;
   ownerPhone?: string | null;
+  ownerDriverProfileId?: string | null;
   title: string;
   description: string | null;
   vehicleType: VehicleType;
