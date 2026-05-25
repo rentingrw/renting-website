@@ -46,7 +46,7 @@ export default async function LocaleLayout({
   return (
     <html lang={locale}>
       <body className={inter.className}>
-        <ClerkProvider>
+        <ClerkProvider clerkJSUrl="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@5/dist/clerk.browser.js">
           <NextIntlClientProvider messages={messages}>
             <AppQueryClientProvider>{children}</AppQueryClientProvider>
           </NextIntlClientProvider>
