@@ -176,7 +176,7 @@ export default function RegisterTaxiPage({ params }: RegisterTaxiPageProps) {
                   ref={profileInputRef}
                   type="file"
                   accept="image/jpeg,image/png,image/webp"
-                  className="hidden"
+                  className="absolute opacity-0 w-px h-px pointer-events-none"
                   onChange={(e) => handlePhotoChange(e, setProfilePhoto, setProfilePhotoPreview)}
                 />
               </div>

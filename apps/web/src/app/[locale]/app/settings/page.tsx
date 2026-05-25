@@ -234,7 +234,7 @@ export default function SettingsPage() {
                       ref={photoInputRef}
                       type="file"
                       accept="image/*"
-                      className="hidden"
+                      className="absolute opacity-0 w-px h-px pointer-events-none"
                       onChange={(e) => void handlePhotoUpload(e)}
                     />
                   </div>

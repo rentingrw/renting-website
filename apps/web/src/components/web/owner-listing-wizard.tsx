@@ -486,7 +486,7 @@ export function OwnerListingWizard({
                 type="file"
                 accept="image/*"
                 multiple
-                style={{ position: 'absolute', width: 1, height: 1, opacity: 0, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap' }}
+                className="absolute opacity-0 w-px h-px pointer-events-none"
                 disabled={uploading}
                 onChange={(e) => { handlePhotoUpload(e.target.files); e.target.value = ''; }}
               />
