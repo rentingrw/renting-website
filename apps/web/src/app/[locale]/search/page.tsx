@@ -200,6 +200,11 @@ export default function SearchPage({ params }: SearchPageProps) {
     { value: 'drivers', label: t('tabs.drivers') },
   ];
 
+  const extraTabs = [
+    { href: `/${locale}/stays`, label: t('tabs.stays') },
+    { href: `/${locale}/taxi-drivers`, label: t('tabs.taxi') },
+  ];
+
   const hasMore = type === 'all' ? hasMoreCars || hasMoreDrivers : type === 'cars' ? hasMoreCars : hasMoreDrivers;
 
   return (
@@ -215,6 +220,7 @@ export default function SearchPage({ params }: SearchPageProps) {
             onPlaceSelected={(p) => { setLocation(p.address); setLatitude(p.latitude); setLongitude(p.longitude); }}
             className="h-10 min-w-0 flex-1 rounded border-2 border-neutral-900 bg-white px-4 text-sm font-semibold text-neutral-900 placeholder:font-normal placeholder:text-neutral-400 focus:outline-none"
             placeholder={t('search.locationPlaceholder')}
+            showLocateMe
           />
           <div className="flex gap-2">
             <input
@@ -237,13 +243,13 @@ export default function SearchPage({ params }: SearchPageProps) {
         {/* Results panel */}
         <section className="overflow-y-auto border-r-2 border-neutral-900 bg-white p-4">
           {/* Type tabs */}
-          <div className="flex rounded border-2 border-neutral-900 overflow-hidden">
+          <div className="flex flex-wrap gap-1.5">
             {tabs.map((tab) => (
               <button
                 key={tab.value}
                 type="button"
                 onClick={() => setType(tab.value)}
-                className={`flex-1 py-2 text-xs font-black uppercase tracking-wide transition-colors ${
+                className={`rounded border-2 border-neutral-900 px-3 py-1.5 text-xs font-black uppercase tracking-wide transition-colors ${
                   type === tab.value
                     ? 'bg-neutral-900 text-white'
                     : 'bg-white text-neutral-700 hover:bg-neutral-100'
@@ -251,6 +257,15 @@ export default function SearchPage({ params }: SearchPageProps) {
               >
                 {tab.label}
               </button>
+            ))}
+            {extraTabs.map((tab) => (
+              <Link
+                key={tab.href}
+                href={tab.href}
+                className="rounded border-2 border-neutral-300 bg-white px-3 py-1.5 text-xs font-black uppercase tracking-wide text-neutral-500 transition-colors hover:border-neutral-900 hover:text-neutral-900"
+              >
+                {tab.label}
+              </Link>
             ))}
           </div>
 
@@ -317,14 +332,20 @@ export default function SearchPage({ params }: SearchPageProps) {
                           : 'border-neutral-900 shadow-brutal-xs hover:shadow-none'
                       }`}
                     >
-                      <div className="relative h-16 w-24 shrink-0 overflow-hidden rounded bg-neutral-100 border border-neutral-300">
-                        <Image
-                          src={car.photos?.[0] ?? '/placeholder-car.jpg'}
-                          alt={car.title}
-                          fill
-                          sizes="96px"
-                          className="object-cover"
-                        />
+                      <div className="relative h-16 w-24 shrink-0 overflow-hidden rounded border border-neutral-300 bg-neutral-100">
+                        {car.photos?.[0] ? (
+                          <Image
+                            src={car.photos[0]}
+                            alt={car.title}
+                            fill
+                            sizes="96px"
+                            className="object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center bg-neutral-200">
+                            <span className="text-2xl">🚗</span>
+                          </div>
+                        )}
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-black text-neutral-900">{car.title}</p>

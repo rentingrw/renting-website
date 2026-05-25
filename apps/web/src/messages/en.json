@@ -5,7 +5,19 @@
       "search": "Search",
       "cars": "Cars",
       "drivers": "Drivers",
-      "dashboard": "Dashboard"
+      "stays": "Stays",
+      "taxi": "Taxi",
+      "dashboard": "Dashboard",
+      "favorites": "Favorites",
+      "inbox": "Inbox",
+      "whyRenting": "Why Choose Renting.rw",
+      "becomeHoster": "Become a Hoster",
+      "becomeDriver": "Become a Driver",
+      "becomeTaxi": "Become a Taxi Driver"
+    },
+    "header": {
+      "earningBanner": "Earn up to 900,000 RWF per month sharing your car on Renting.rw —",
+      "earningBannerCta": "Start now"
     },
     "auth": {
       "signIn": "Sign in",
@@ -90,8 +102,8 @@
       "featureTopRated": "Top Rated",
       "featureTopRatedDesc": "Average rating of 4.8+ stars with thousands of satisfied customer reviews.",
       "ctaTitle": "Ready to Experience Premium Mobility in",
-      "ctaHighlight": "Kigali",
-      "ctaSubtitle": "Join thousands of satisfied customers who trust renting.rw for their transportation needs.",
+      "ctaHighlight": "Rwanda",
+      "ctaSubtitle": "Join thousands of satisfied customers who trust Renting.rw for their transportation needs.",
       "bookRideNow": "Book Your Ride Now",
       "contactSupport": "Explore",
       "all": "All",
@@ -114,7 +126,9 @@
     "tabs": {
       "all": "All",
       "cars": "Cars",
-      "drivers": "Drivers"
+      "stays": "Stays",
+      "drivers": "Drivers",
+      "taxi": "Taxi"
     },
     "filters": {
       "selfDrive": "Self-drive",

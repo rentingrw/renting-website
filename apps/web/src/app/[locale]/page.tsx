@@ -10,12 +10,13 @@ import { searchMarketplace, type SearchCar, type SearchDriver } from '@/lib/api'
 import { stockImages } from '@/lib/stock-images';
 import { formatCurrencyRwf, formatRange, trustTierFromScore } from '@/lib/format';
 import {
+  BedDouble,
   CalendarDays,
   Car,
   MapPin,
-  Search,
   ShieldCheck,
   Star,
+  Truck,
   UserRound,
   Users,
 } from 'lucide-react';
@@ -32,13 +33,14 @@ export default function HomePage({ params }: HomePageProps) {
   const t = useTranslations('web');
   const { getToken, isSignedIn } = useAuth();
   const [locale, setLocale] = useState<SupportedLocale>(routing.defaultLocale);
-  const [location, setLocation] = useState('Kigali');
+  const [location, setLocation] = useState('Rwanda');
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [featuredCars, setFeaturedCars] = useState<SearchCar[]>([]);
   const [featuredDrivers, setFeaturedDrivers] = useState<SearchDriver[]>([]);
+  const [nearbyLoading, setNearbyLoading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -95,6 +97,23 @@ export default function HomePage({ params }: HomePageProps) {
     return `/${locale}/search?${paramsObj.toString()}`;
   }, [from, latitude, locale, location, longitude, to]);
 
+  function handleNearbyClick() {
+    setNearbyLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setNearbyLoading(false);
+        setLatitude(pos.coords.latitude);
+        setLongitude(pos.coords.longitude);
+        setLocation('My Location');
+        window.location.href = `/${locale}/search?latitude=${pos.coords.latitude}&longitude=${pos.coords.longitude}&type=all`;
+      },
+      () => {
+        setNearbyLoading(false);
+        alert('Unable to get your location. Please check your browser permissions.');
+      },
+    );
+  }
+
   return (
     <main className="min-h-screen bg-background">
       <AppHeader locale={locale} variant="default" />
@@ -108,7 +127,7 @@ export default function HomePage({ params }: HomePageProps) {
         <div className="relative mx-auto flex max-w-7xl flex-col items-center px-4 pt-20 pb-14">
           <h1 className="text-center text-4xl font-black tracking-tight text-white md:text-5xl">
             {t('home.premiumTitle')}{' '}
-            <span className="text-teal-400">{t('home.premiumHighlight')}</span> Kigali
+            <span className="text-teal-400">{t('home.premiumHighlight')}</span> Rwanda
           </h1>
           <p className="mt-3 max-w-xl text-center text-lg font-medium text-white/90">
             {t('home.heroSubtitle')}
@@ -128,6 +147,7 @@ export default function HomePage({ params }: HomePageProps) {
                     onPlaceSelected={(p) => { setLocation(p.address); setLatitude(p.latitude); setLongitude(p.longitude); }}
                     placeholder={t('search.locationPlaceholder')}
                     className="mt-1.5 border-0 bg-transparent p-0 text-base font-semibold text-neutral-900 placeholder:text-neutral-400 focus:ring-0"
+                    showLocateMe
                   />
                 </label>
                 <label className="flex flex-1 flex-col px-4 py-3 sm:py-4">
@@ -163,7 +183,6 @@ export default function HomePage({ params }: HomePageProps) {
                 href={searchHref}
                 className="flex items-center justify-center gap-2 border-t-2 border-neutral-900 bg-teal-600 px-8 py-4 font-black text-white transition-colors hover:bg-teal-700 sm:border-t-0 sm:border-l-2"
               >
-                <Search className="h-5 w-5" />
                 {t('home.search')}
               </Link>
             </div>
@@ -171,28 +190,34 @@ export default function HomePage({ params }: HomePageProps) {
         </div>
       </section>
 
-      {/* Filter tabs */}
+      {/* Category tabs */}
       <div className="border-b-2 border-neutral-900 bg-white">
-        <div className="mx-auto flex max-w-7xl gap-2 px-4 py-3">
+        <div className="mx-auto flex max-w-7xl gap-2 overflow-x-auto px-4 py-3">
           {[
-            { href: `/${locale}/search?type=all&location=Kigali`, label: t('home.all'), icon: Car, active: true },
-            { href: `/${locale}/cars?location=Kigali`, label: t('nav.cars'), icon: Car, active: false },
-            { href: `/${locale}/drivers?location=Kigali`, label: t('nav.drivers'), icon: UserRound, active: false },
-            { href: `/${locale}/search?location=Kigali`, label: t('home.nearby'), icon: MapPin, active: false },
-          ].map(({ href, label, icon: Icon, active }) => (
+            { href: `/${locale}/search?type=all`, label: t('home.all'), icon: Car, active: false },
+            { href: `/${locale}/cars`, label: t('nav.cars'), icon: Car, active: false },
+            { href: `/${locale}/stays`, label: t('nav.stays'), icon: BedDouble, active: false },
+            { href: `/${locale}/drivers`, label: t('nav.drivers'), icon: UserRound, active: false },
+            { href: `/${locale}/taxi-drivers`, label: t('nav.taxi'), icon: Truck, active: false },
+          ].map(({ href, label, icon: Icon }) => (
             <Link
               key={href}
               href={href}
-              className={`flex items-center gap-2 rounded border-2 border-neutral-900 px-4 py-2 text-sm font-bold transition-all ${
-                active
-                  ? 'bg-neutral-900 text-white shadow-brutal-xs'
-                  : 'bg-white text-neutral-700 hover:bg-neutral-100'
-              }`}
+              className="flex shrink-0 items-center gap-2 rounded border-2 border-neutral-900 bg-white px-4 py-2 text-sm font-bold text-neutral-700 transition-all hover:bg-neutral-900 hover:text-white"
             >
               <Icon className="h-4 w-4" />
               {label}
             </Link>
           ))}
+          <button
+            type="button"
+            onClick={handleNearbyClick}
+            disabled={nearbyLoading}
+            className="flex shrink-0 items-center gap-2 rounded border-2 border-neutral-900 bg-white px-4 py-2 text-sm font-bold text-neutral-700 transition-all hover:bg-neutral-900 hover:text-white disabled:opacity-60"
+          >
+            <MapPin className="h-4 w-4" />
+            {nearbyLoading ? 'Locating...' : t('home.nearby')}
+          </button>
         </div>
       </div>
 
@@ -203,7 +228,7 @@ export default function HomePage({ params }: HomePageProps) {
             {t('home.featuredTitle')} {t('home.featuredVehicles')}
           </h2>
           <Link
-            href={`/${locale}/cars?location=Kigali`}
+            href={`/${locale}/cars`}
             className="rounded border-2 border-neutral-900 px-3 py-1.5 text-sm font-bold text-neutral-900 shadow-brutal-xs transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none"
           >
             {t('home.viewAllVehicles')} →
@@ -264,7 +289,7 @@ export default function HomePage({ params }: HomePageProps) {
               {t('home.featuredTitle')} {t('home.featuredDrivers')}
             </h2>
             <Link
-              href={`/${locale}/drivers?location=Kigali`}
+              href={`/${locale}/drivers`}
               className="rounded border-2 border-neutral-900 px-3 py-1.5 text-sm font-bold text-neutral-900 shadow-brutal-xs transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none"
             >
               {t('home.viewAllDrivers')} →
@@ -379,7 +404,7 @@ export default function HomePage({ params }: HomePageProps) {
               <div className="flex-1 px-8 py-12 text-center md:text-left">
                 <h2 className="text-2xl font-black text-white md:text-3xl">
                   {t('home.ctaTitle')}{' '}
-                  <span className="text-teal-400">{t('home.ctaHighlight')}</span>?
+                  <span className="text-teal-400">Rwanda</span>?
                 </h2>
                 <p className="mt-3 font-medium text-neutral-300">{t('home.ctaSubtitle')}</p>
                 <div className="mt-6 flex flex-wrap justify-center gap-4 md:justify-start">
@@ -390,7 +415,7 @@ export default function HomePage({ params }: HomePageProps) {
                     {t('home.bookRideNow')}
                   </Link>
                   <Link
-                    href={`/${locale}/search?location=Kigali`}
+                    href={`/${locale}/search`}
                     className="inline-flex items-center rounded border-2 border-neutral-600 px-6 py-2.5 font-bold text-white transition-all hover:bg-neutral-800"
                   >
                     {t('home.contactSupport')}

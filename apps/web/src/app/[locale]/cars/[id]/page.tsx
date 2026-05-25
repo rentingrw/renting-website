@@ -9,6 +9,8 @@ import {
   Fuel,
   Gauge,
   Heart,
+  MessageCircle,
+  Phone,
   ShieldCheck,
   Star,
   ThumbsUp,
@@ -253,7 +255,7 @@ export default function CarDetailPage({ params }: CarPageProps) {
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-neutral-900 bg-teal-50">
                   <User className="h-6 w-6 text-teal-600" />
                 </div>
-                <div>
+                <div className="flex-1">
                   <p className="font-black text-neutral-900">{detail.ownerName}</p>
                   {reviews && reviews.totalReviews > 0 && (
                     <p className="text-sm font-medium text-neutral-600">
@@ -265,6 +267,24 @@ export default function CarDetailPage({ params }: CarPageProps) {
                     {t('detail.trustBadge')}
                   </p>
                 </div>
+              </div>
+              {/* Contact actions */}
+              <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                <a
+                  href="tel:+250788781648"
+                  className="flex flex-1 items-center justify-center gap-2 rounded border-2 border-teal-800 bg-teal-600 px-4 py-2.5 text-sm font-black text-white shadow-brutal-teal-sm transition-all hover:translate-x-px hover:translate-y-px hover:bg-teal-700 hover:shadow-none"
+                >
+                  <Phone className="h-4 w-4" />
+                  Call Hoster
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setBookingOpen(true)}
+                  className="flex flex-1 items-center justify-center gap-2 rounded border-2 border-neutral-900 bg-white px-4 py-2.5 text-sm font-black text-neutral-900 shadow-brutal-xs transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none"
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  Message
+                </button>
               </div>
             </div>
 
@@ -426,12 +446,20 @@ export default function CarDetailPage({ params }: CarPageProps) {
                   </div>
                 </div>
 
+                {/* Quick call — most important action */}
+                <a
+                  href="tel:+250788781648"
+                  className="flex w-full items-center justify-center gap-2 rounded border-2 border-teal-800 bg-teal-600 py-2.5 text-sm font-black uppercase tracking-wide text-white shadow-brutal-teal-sm transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none"
+                >
+                  <Phone className="h-4 w-4" />
+                  Call Hoster Directly
+                </a>
                 <button
                   type="button"
                   className="flex w-full items-center justify-center gap-2 rounded border-2 border-neutral-900 bg-white py-2 text-sm font-black uppercase tracking-wide text-neutral-900 shadow-brutal-xs transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none"
                 >
                   <Heart className="h-4 w-4" />
-                  Add to favorites
+                  Save to Favorites
                 </button>
               </div>
             </div>

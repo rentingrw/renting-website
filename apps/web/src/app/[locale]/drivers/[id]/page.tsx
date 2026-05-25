@@ -9,6 +9,7 @@ import {
   Heart,
   Languages,
   MapPinned,
+  Phone,
   ShieldCheck,
   Star,
   ThumbsUp,
@@ -337,12 +338,20 @@ export default function DriverDetailPage({ params }: DriverPageProps) {
                   </div>
                 </div>
 
+                {/* Direct call — key feature */}
+                <a
+                  href="tel:+250788781648"
+                  className="flex w-full items-center justify-center gap-2 rounded border-2 border-teal-800 bg-teal-600 py-2.5 text-sm font-black uppercase tracking-wide text-white shadow-brutal-teal-sm transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none"
+                >
+                  <Phone className="h-4 w-4" />
+                  Call Driver Directly
+                </a>
                 <button
                   type="button"
                   className="flex w-full items-center justify-center gap-2 rounded border-2 border-neutral-900 bg-white py-2 text-sm font-black uppercase tracking-wide text-neutral-900 shadow-brutal-xs transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none"
                 >
                   <Heart className="h-4 w-4" />
-                  Add to favorites
+                  Save to Favorites
                 </button>
               </div>
             </div>

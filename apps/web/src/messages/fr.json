@@ -5,7 +5,19 @@
       "search": "Recherche",
       "cars": "Voitures",
       "drivers": "Chauffeurs",
-      "dashboard": "Tableau de bord"
+      "stays": "Hébergements",
+      "taxi": "Taxi",
+      "dashboard": "Tableau de bord",
+      "favorites": "Favoris",
+      "inbox": "Messages",
+      "whyRenting": "Pourquoi Renting.rw",
+      "becomeHoster": "Devenir Hôte",
+      "becomeDriver": "Devenir Chauffeur",
+      "becomeTaxi": "Devenir Chauffeur Taxi"
+    },
+    "header": {
+      "earningBanner": "Gagnez jusqu'à 900 000 RWF par mois en partageant votre voiture sur Renting.rw —",
+      "earningBannerCta": "Commencer"
     },
     "auth": {
       "signIn": "Se connecter",
@@ -114,7 +126,9 @@
     "tabs": {
       "all": "Tout",
       "cars": "Voitures",
-      "drivers": "Chauffeurs"
+      "stays": "Hébergements",
+      "drivers": "Chauffeurs",
+      "taxi": "Taxi"
     },
     "filters": {
       "selfDrive": "Self-drive",

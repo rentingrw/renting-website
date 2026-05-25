@@ -5,7 +5,19 @@
       "search": "Shakisha",
       "cars": "Imodoka",
       "drivers": "Abatwara",
-      "dashboard": "Imbonerahamwe"
+      "stays": "Amacumbi",
+      "taxi": "Tagisi",
+      "dashboard": "Imbonerahamwe",
+      "favorites": "Ibyankwiye",
+      "inbox": "Ubutumwa",
+      "whyRenting": "Impamvu yo guhitamo Renting.rw",
+      "becomeHoster": "Bana Umucungamutungo",
+      "becomeDriver": "Bana Umushoferi",
+      "becomeTaxi": "Bana Umushoferi wa Tagisi"
+    },
+    "header": {
+      "earningBanner": "Ungura kugeza 900,000 RWF ku kwezi usangira imodoka yawe kuri Renting.rw —",
+      "earningBannerCta": "Tangira"
     },
     "auth": {
       "signIn": "Injira",
@@ -114,7 +126,9 @@
     "tabs": {
       "all": "Byose",
       "cars": "Imodoka",
-      "drivers": "Abashoferi"
+      "stays": "Amacumbi",
+      "drivers": "Abashoferi",
+      "taxi": "Tagisi"
     },
     "filters": {
       "selfDrive": "Witware",
