@@ -633,7 +633,8 @@ export default function CarDetailPage({ params }: CarPageProps) {
           title: detail.title,
           ownerLabel: `${t('detail.owner')}: ${detail.ownerName}`,
           defaultServiceType: detail.serviceType,
-          exactDailyRate: detail.dailyRateKigaliRwf,
+          exactDailyRate: priceBlock?.exact,
+          bookedRanges: bookedRanges,
         }}
       />
     </main>

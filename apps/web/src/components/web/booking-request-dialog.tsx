@@ -7,6 +7,7 @@ import { useTranslations } from 'next-intl';
 import { useEffect, useMemo, useState } from 'react';
 
 import { AddressInput } from '@/components/web/address-input';
+import { AvailabilityCalendar } from '@/components/web/availability-calendar';
 import { PickupMapPicker } from '@/components/web/pickup-map-picker';
 import {
   createCarBooking,
@@ -24,6 +25,7 @@ type CarTarget = {
   ownerLabel: string;
   defaultServiceType: ServiceType;
   exactDailyRate?: number;
+  bookedRanges?: Array<{ startDate: string; endDate: string }>;
 };
 
 type DriverTarget = {
@@ -59,6 +61,12 @@ function getDefaultEnd(start: string) {
   return toLocalDatetimeValue(d);
 }
 
+function combineDateAndTime(date: Date, time: string): Date {
+  const [h, m] = time.split(':').map(Number);
+  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate(), h, m, 0, 0);
+  return d;
+}
+
 function parseDuration(startStr: string, endStr: string): { days: number; hours: number; valid: boolean } {
   if (!startStr || !endStr) return { days: 0, hours: 0, valid: false };
   const from = new Date(startStr);
@@ -87,6 +95,10 @@ export function BookingRequestDialog({ open, onOpenChange, target }: BookingRequ
     if (open) {
       const saved = localStorage.getItem(LAST_PICKUP_KEY);
       if (saved) setPickupAddress(saved);
+      setCalStart(null);
+      setCalEnd(null);
+      setStartTime('09:00');
+      setEndTime('09:00');
     }
   }, [open]);
   const [notes, setNotes] = useState('');
@@ -94,10 +106,16 @@ export function BookingRequestDialog({ open, onOpenChange, target }: BookingRequ
   const [serviceType, setServiceType] = useState<ServiceType>(
     target.mode === 'car' ? target.defaultServiceType : 'private_driver',
   );
+  const [calStart, setCalStart] = useState<Date | null>(null);
+  const [calEnd, setCalEnd] = useState<Date | null>(null);
+  const [startTime, setStartTime] = useState('09:00');
+  const [endTime, setEndTime] = useState('09:00');
   const [showMap, setShowMap] = useState(false);
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const useCalendar = target.mode === 'car' && Array.isArray(target.bookedRanges);
 
   const duration = useMemo(() => parseDuration(startDate, endDate), [startDate, endDate]);
 
@@ -122,6 +140,10 @@ export function BookingRequestDialog({ open, onOpenChange, target }: BookingRequ
 
   async function handleSubmit() {
     setError(null);
+    if (useCalendar && (!calStart || !calEnd)) {
+      setError('Please select both a pick-up date and return date.');
+      return;
+    }
     if (!startDate || !endDate || !pickupAddress.trim()) {
       setError(t('booking.validation'));
       return;
@@ -277,41 +299,108 @@ export function BookingRequestDialog({ open, onOpenChange, target }: BookingRequ
             )}
 
             {/* Dates */}
-            <div>
-              <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-neutral-500">
-                Trip dates
-              </label>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <div className="border-2 border-neutral-900 bg-white">
-                  <div className="flex items-center gap-2 border-b border-neutral-200 px-3 py-1.5">
-                    <Car className="h-3.5 w-3.5 text-teal-600" />
-                    <span className="text-xs font-bold text-neutral-500">{t('booking.start')}</span>
-                  </div>
-                  <input
-                    type="datetime-local"
-                    value={startDate}
-                    onChange={(e) => handleStartChange(e.target.value)}
-                    className="w-full bg-transparent px-3 py-2 text-sm font-medium outline-none"
+            {useCalendar && target.mode === 'car' ? (
+              <div>
+                <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-neutral-500">
+                  Trip dates
+                </label>
+                <div className="border-2 border-neutral-900 bg-white p-3">
+                  <AvailabilityCalendar
+                    carId={target.id}
+                    initialBookedRanges={target.bookedRanges ?? []}
+                    selectedStart={calStart}
+                    selectedEnd={calEnd}
+                    onSelect={(start, end) => {
+                      setCalStart(start);
+                      setCalEnd(end);
+                      const s = combineDateAndTime(start, startTime);
+                      setStartDate(toLocalDatetimeValue(s));
+                      if (end) {
+                        const e = combineDateAndTime(end, endTime);
+                        setEndDate(toLocalDatetimeValue(e));
+                      }
+                    }}
                   />
                 </div>
-                <div className="border-2 border-neutral-900 bg-white">
-                  <div className="flex items-center gap-2 border-b border-neutral-200 px-3 py-1.5">
-                    <Clock className="h-3.5 w-3.5 text-teal-600" />
-                    <span className="text-xs font-bold text-neutral-500">{t('booking.end')}</span>
+
+                {/* Time pickers — shown once dates are selected */}
+                {calStart && (
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <div className="border-2 border-neutral-900 bg-white">
+                      <div className="flex items-center gap-2 border-b border-neutral-200 px-3 py-1.5">
+                        <Car className="h-3.5 w-3.5 text-teal-600" />
+                        <span className="text-xs font-bold text-neutral-500">Pick-up time</span>
+                      </div>
+                      <input
+                        type="time"
+                        value={startTime}
+                        onChange={e => {
+                          setStartTime(e.target.value);
+                          if (calStart) setStartDate(toLocalDatetimeValue(combineDateAndTime(calStart, e.target.value)));
+                        }}
+                        className="w-full bg-transparent px-3 py-2 text-sm font-medium outline-none"
+                      />
+                    </div>
+                    <div className={`border-2 bg-white ${calEnd ? 'border-neutral-900' : 'border-neutral-300 opacity-50'}`}>
+                      <div className="flex items-center gap-2 border-b border-neutral-200 px-3 py-1.5">
+                        <Clock className="h-3.5 w-3.5 text-teal-600" />
+                        <span className="text-xs font-bold text-neutral-500">Return time</span>
+                      </div>
+                      <input
+                        type="time"
+                        value={endTime}
+                        disabled={!calEnd}
+                        onChange={e => {
+                          setEndTime(e.target.value);
+                          if (calEnd) setEndDate(toLocalDatetimeValue(combineDateAndTime(calEnd, e.target.value)));
+                        }}
+                        className="w-full bg-transparent px-3 py-2 text-sm font-medium outline-none disabled:cursor-not-allowed"
+                      />
+                    </div>
                   </div>
-                  <input
-                    type="datetime-local"
-                    value={endDate}
-                    min={startDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="w-full bg-transparent px-3 py-2 text-sm font-medium outline-none"
-                  />
-                </div>
+                )}
+
+                {endDate && startDate && !duration.valid && (
+                  <p className="mt-1.5 text-xs font-medium text-red-600">Return must be after pick-up.</p>
+                )}
               </div>
-              {endDate && startDate && !duration.valid && (
-                <p className="mt-1.5 text-xs font-medium text-red-600">End time must be after start time.</p>
-              )}
-            </div>
+            ) : (
+              <div>
+                <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-neutral-500">
+                  Trip dates
+                </label>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <div className="border-2 border-neutral-900 bg-white">
+                    <div className="flex items-center gap-2 border-b border-neutral-200 px-3 py-1.5">
+                      <Car className="h-3.5 w-3.5 text-teal-600" />
+                      <span className="text-xs font-bold text-neutral-500">{t('booking.start')}</span>
+                    </div>
+                    <input
+                      type="datetime-local"
+                      value={startDate}
+                      onChange={(e) => handleStartChange(e.target.value)}
+                      className="w-full bg-transparent px-3 py-2 text-sm font-medium outline-none"
+                    />
+                  </div>
+                  <div className="border-2 border-neutral-900 bg-white">
+                    <div className="flex items-center gap-2 border-b border-neutral-200 px-3 py-1.5">
+                      <Clock className="h-3.5 w-3.5 text-teal-600" />
+                      <span className="text-xs font-bold text-neutral-500">{t('booking.end')}</span>
+                    </div>
+                    <input
+                      type="datetime-local"
+                      value={endDate}
+                      min={startDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      className="w-full bg-transparent px-3 py-2 text-sm font-medium outline-none"
+                    />
+                  </div>
+                </div>
+                {endDate && startDate && !duration.valid && (
+                  <p className="mt-1.5 text-xs font-medium text-red-600">End time must be after start time.</p>
+                )}
+              </div>
+            )}
 
             {/* Pickup */}
             <div>
