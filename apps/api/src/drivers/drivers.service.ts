@@ -5,7 +5,8 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { BookingStatus, Prisma, type User } from '@prisma/client';
+import { BookingStatus, Prisma, SubscriptionStatus, SubscriptionTier, PaymentMethod, type User } from '@prisma/client';
+import { randomUUID } from 'node:crypto';
 
 import type { AuthenticatedUser } from '../auth/types/authenticated-request.interface';
 import { prisma } from '../database/prisma';
@@ -71,6 +72,27 @@ export class DriversService {
       });
 
       await this.setPrimaryCityLocation(profile.id, coordinates.latitude, coordinates.longitude, tx);
+
+      // Give the driver an active free subscription so they appear in search immediately
+      const hasActiveFree = await tx.subscription.findFirst({
+        where: { userId: user.id, tier: SubscriptionTier.free, status: SubscriptionStatus.active },
+        select: { id: true },
+      });
+      if (!hasActiveFree) {
+        const now = new Date();
+        await tx.subscription.create({
+          data: {
+            userId: user.id,
+            tier: SubscriptionTier.free,
+            status: SubscriptionStatus.active,
+            amountRwf: 0,
+            paymentMethod: PaymentMethod.momo,
+            externalRef: `auto-free-${randomUUID()}`,
+            startsAt: now,
+            renewsAt: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
+          },
+        });
+      }
 
       return tx.driverProfile.findUnique({
         where: { id: profile.id },

@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -38,6 +39,7 @@ export class DriversController {
   }
 
   @Get(':id')
+  @SkipThrottle()
   @UseGuards(OptionalClerkAuthGuard)
   @ApiOperation({ summary: 'Get a driver\'s public profile by ID' })
   getPublicProfile(@Param('id') id: string, @Req() request: { user?: AuthenticatedUser }) {

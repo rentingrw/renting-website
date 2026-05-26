@@ -18,6 +18,8 @@ import Image from 'next/image';
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 
+import Link from 'next/link';
+
 import { AppHeader } from '@/components/web/app-header';
 import { SiteFooter } from '@/components/web/site-footer';
 import { BookingRequestDialog } from '@/components/web/booking-request-dialog';
@@ -174,7 +176,11 @@ export default function DriverDetailPage({ params }: DriverPageProps) {
             />
           </div>
           <div className="flex-1 text-center sm:text-left">
-            <h1 className="text-2xl font-black text-neutral-900 md:text-3xl">{detail.fullName}</h1>
+            <h1 className="text-2xl font-black text-neutral-900 md:text-3xl">
+              <Link href={`/${locale}/users/${detail.userId}`} className="hover:text-teal-700 hover:underline underline-offset-2">
+                {detail.fullName}
+              </Link>
+            </h1>
             <p className="mt-1 font-medium text-neutral-600">{detail.primaryCity}</p>
             <div className="mt-3 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
               {reviews && reviews.totalReviews > 0 && (

@@ -208,4 +208,30 @@ export class UsersService {
       roleAdded: !existingRole,
     };
   }
+
+  async getPublicProfile(userId: string) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        fullName: true,
+        avatarUrl: true,
+        trustScore: true,
+        primaryRole: true,
+        driverProfile: { select: { id: true, primaryCity: true, rating: true, completedTrips: true } },
+      },
+    });
+    if (!user) {
+      throw new NotFoundException('User not found.');
+    }
+    return {
+      id: user.id,
+      fullName: user.fullName,
+      avatarUrl: user.avatarUrl,
+      trustScore: user.trustScore,
+      primaryRole: user.primaryRole,
+      driverProfileId: user.driverProfile?.id ?? null,
+      driverPrimaryCity: user.driverProfile?.primaryCity ?? null,
+    };
+  }
 }

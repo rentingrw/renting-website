@@ -9,7 +9,7 @@ export type TierPlan = {
 };
 
 export const DRIVER_PLAN = {
-  priceRwf: 5_000,
+  priceRwf: 10_000,
 } as const;
 
 const PLAN_BY_TIER: Record<ProductTier, TierPlan> = {

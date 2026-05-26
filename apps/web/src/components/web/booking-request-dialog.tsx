@@ -1,6 +1,6 @@
 'use client';
 
-import { SignInButton, useAuth } from '@clerk/nextjs';
+import { SignInButton, useAuth, useUser } from '@clerk/nextjs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@rentingi/ui';
 import { CalendarDays, Car, CheckCircle2, ChevronRight, Clock, MapPin, ShipWheel, User } from 'lucide-react';
 import { useTranslations } from 'next-intl';
@@ -11,6 +11,7 @@ import { PickupMapPicker } from '@/components/web/pickup-map-picker';
 import {
   createCarBooking,
   createDriverBooking,
+  syncUser,
   type DriverCategory,
   type ServiceType,
 } from '@/lib/api';
@@ -75,6 +76,7 @@ const LAST_PICKUP_KEY = 'rentingi_last_pickup_address';
 export function BookingRequestDialog({ open, onOpenChange, target }: BookingRequestDialogProps) {
   const t = useTranslations('web');
   const { isSignedIn, getToken } = useAuth();
+  const { user } = useUser();
 
   const defaultStart = getDefaultStart();
   const [startDate, setStartDate] = useState(defaultStart);
@@ -129,27 +131,46 @@ export function BookingRequestDialog({ open, onOpenChange, target }: BookingRequ
       const token = await getToken();
       if (!token) throw new Error(t('booking.signInRequired'));
 
-      if (target.mode === 'car') {
-        await createCarBooking(token, {
-          listingId: target.id,
-          startDate: new Date(startDate).toISOString(),
-          endDate: new Date(endDate).toISOString(),
-          pickupAddress: pickupAddress.trim(),
-          totalAmountRwf: target.exactDailyRate ?? 0,
-          notes: notes.trim() || undefined,
-        });
-      } else {
-        await createDriverBooking(token, {
-          driverId: target.id,
-          serviceType,
-          startAt: new Date(startDate).toISOString(),
-          endAt: new Date(endDate).toISOString(),
-          pickupAddress: pickupAddress.trim(),
-          dropoffAddress: dropoffAddress.trim() || undefined,
-          totalAmountRwf: target.exactDailyRate ?? 0,
-          notes: notes.trim() || undefined,
-        });
+      const doBook = async (t2: string) => {
+        if (target.mode === 'car') {
+          await createCarBooking(t2, {
+            listingId: target.id,
+            startDate: new Date(startDate).toISOString(),
+            endDate: new Date(endDate).toISOString(),
+            pickupAddress: pickupAddress.trim(),
+            totalAmountRwf: target.exactDailyRate ?? 0,
+            notes: notes.trim() || undefined,
+          });
+        } else {
+          await createDriverBooking(t2, {
+            driverId: target.id,
+            serviceType,
+            startAt: new Date(startDate).toISOString(),
+            endAt: new Date(endDate).toISOString(),
+            pickupAddress: pickupAddress.trim(),
+            dropoffAddress: dropoffAddress.trim() || undefined,
+            totalAmountRwf: target.exactDailyRate ?? 0,
+            notes: notes.trim() || undefined,
+          });
+        }
+      };
+
+      try {
+        await doBook(token);
+      } catch (firstError) {
+        const msg = firstError instanceof Error ? firstError.message : '';
+        if (msg.toLowerCase().includes('sync') && user) {
+          await syncUser(token, {
+            email: user.primaryEmailAddress?.emailAddress ?? '',
+            fullName: user.fullName ?? user.firstName ?? 'User',
+            primaryRole: 'renter',
+          });
+          await doBook(token);
+        } else {
+          throw firstError;
+        }
       }
+
       if (pickupAddress.trim()) {
         localStorage.setItem(LAST_PICKUP_KEY, pickupAddress.trim());
       }

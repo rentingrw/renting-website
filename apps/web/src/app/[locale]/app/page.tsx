@@ -30,6 +30,7 @@ import {
   declineBooking,
   flagBookingIssue,
   getBookingMessages,
+  getUnreadMessageCount,
   markConversationRead,
   getCarBookingsMine,
   getCarsMine,
@@ -85,6 +86,7 @@ type DashboardBooking = {
   id: string;
   bookingType: BookingType;
   title: string;
+  listingId?: string;
   status: string;
   amountRwf: number;
   createdAt: string;
@@ -119,6 +121,7 @@ function toDashboardBookings(
       id: booking.id,
       bookingType: 'car',
       title: booking.listing.title,
+      listingId: booking.listingId,
       status: booking.status,
       amountRwf: booking.totalAmountRwf,
       createdAt: booking.createdAt,
@@ -227,7 +230,7 @@ export default function AppPage({ params }: AppPageProps) {
   const [editingCar, setEditingCar] = useState<OwnerCar | null>(null);
   const storeLocale = useStore((state) => state.locale);
   const storeSetLocale = useStore((state) => state.setLocale);
-  const tokenRef = useRef<string | null>(null);
+  const tokenRef = useRef<string | null>(null); // socket only; API calls always use fresh getToken()
 
   const sectionFromQuery = useMemo<DashboardSection | null>(() => {
     const section = searchParams.get('section');
@@ -372,7 +375,7 @@ export default function AppPage({ params }: AppPageProps) {
       if (!profile || !isLoaded) {
         return;
       }
-      const token = tokenRef.current ?? (await getToken());
+      const token = await getToken();
       if (!token) {
         return;
       }
@@ -385,14 +388,16 @@ export default function AppPage({ params }: AppPageProps) {
 
   useEffect(() => {
     async function loadChat() {
-      if (!selectedChat || !tokenRef.current) {
+      if (!selectedChat) {
         setMessages([]);
         return;
       }
       try {
-        const history = await getBookingMessages(tokenRef.current, selectedChat.bookingType, selectedChat.id);
+        const chatToken = await getToken();
+        if (!chatToken) return;
+        const history = await getBookingMessages(chatToken, selectedChat.bookingType, selectedChat.id);
         setMessages(history);
-        void markConversationRead(tokenRef.current, selectedChat.bookingType, selectedChat.id);
+        void markConversationRead(chatToken, selectedChat.bookingType, selectedChat.id);
       } catch (chatError) {
         setError(chatError instanceof Error ? chatError.message : 'Unable to load chat history.');
       }
@@ -409,7 +414,7 @@ export default function AppPage({ params }: AppPageProps) {
     }
 
     const refreshHandler = async () => {
-      const token = tokenRef.current;
+      const token = await getToken();
       if (token) {
         await loadDashboardData(token);
       }
@@ -503,6 +508,40 @@ export default function AppPage({ params }: AppPageProps) {
     };
   }, [bookings, profile, selectedChatKey]);
 
+  // Poll for new messages every 5s when in the messages section
+  useEffect(() => {
+    if (activeSection !== 'messages' || !selectedChat) return;
+    const poll = async () => {
+      try {
+        const token = await getToken();
+        if (!token) return;
+        const history = await getBookingMessages(token, selectedChat.bookingType, selectedChat.id);
+        setMessages(history);
+      } catch { /* ignore */ }
+    };
+    const id = setInterval(poll, 5000);
+    return () => clearInterval(id);
+  }, [activeSection, selectedChat?.key, getToken]);
+
+  // Poll for unread message count every 30s and surface a notification
+  useEffect(() => {
+    if (!profile) return;
+    let prev = 0;
+    const poll = async () => {
+      try {
+        const token = await getToken();
+        if (!token) return;
+        const count = await getUnreadMessageCount(token);
+        if (count > prev && activeSection !== 'messages') {
+          setNotifications((n) => [`You have ${count} unread message${count !== 1 ? 's' : ''}.`, ...n].slice(0, 6));
+        }
+        prev = count;
+      } catch { /* ignore */ }
+    };
+    const id = setInterval(poll, 30000);
+    return () => clearInterval(id);
+  }, [profile?.id, activeSection, getToken]);
+
   useEffect(() => {
     if (!profile) {
       return;
@@ -587,12 +626,11 @@ export default function AppPage({ params }: AppPageProps) {
   }
 
   async function withToken<T>(handler: (token: string) => Promise<T>): Promise<T | null> {
-    const token = tokenRef.current ?? (await getToken());
+    const token = await getToken();
     if (!token) {
       setError('Session is missing. Please sign in again.');
       return null;
     }
-    tokenRef.current = token;
     return handler(token);
   }
 
@@ -1527,9 +1565,21 @@ export default function AppPage({ params }: AppPageProps) {
           <Card className="flex flex-col overflow-hidden border-gray-200 bg-white shadow-sm">
             <CardHeader className="border-b border-gray-200 py-4">
               <CardTitle className="text-base text-gray-900">
-                {selectedChat
-                  ? `${t('app.messages.chatWith')} ${selectedChat.counterpartyName}`
-                  : t('app.messages.selectThread')}
+                {selectedChat ? (
+                  <span>
+                    {t('app.messages.chatWith')}{' '}
+                    {selectedChat.bookingType === 'car' && selectedChat.listingId ? (
+                      <Link
+                        href={`/${currentLocale}/cars/${selectedChat.listingId}`}
+                        className="text-teal-700 underline hover:text-teal-900"
+                      >
+                        {selectedChat.counterpartyName}
+                      </Link>
+                    ) : (
+                      selectedChat.counterpartyName
+                    )}
+                  </span>
+                ) : t('app.messages.selectThread')}
               </CardTitle>
             </CardHeader>
             <CardContent className="flex min-h-[400px] flex-1 flex-col gap-4 p-0">

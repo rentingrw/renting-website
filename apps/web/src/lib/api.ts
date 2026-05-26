@@ -580,6 +580,22 @@ export async function getCarsByOwner(userId: string, excludeId?: string): Promis
   return (await response.json()) as SearchCar[];
 }
 
+export type UserPublicProfile = {
+  id: string;
+  fullName: string;
+  avatarUrl: string | null;
+  trustScore: number;
+  primaryRole: string;
+  driverProfileId: string | null;
+  driverPrimaryCity: string | null;
+};
+
+export async function getUserPublicProfile(userId: string): Promise<UserPublicProfile> {
+  const response = await fetch(`${API_BASE_URL}/users/${userId}/public`, { cache: 'no-store' });
+  if (!response.ok) throw new Error('User not found.');
+  return (await response.json()) as UserPublicProfile;
+}
+
 export async function getCarAvailability(id: string, month: string): Promise<CarAvailabilityResponse> {
   const response = await fetch(`${API_BASE_URL}/cars/${id}/availability?month=${encodeURIComponent(month)}`, {
     cache: 'no-store',

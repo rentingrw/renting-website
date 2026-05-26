@@ -651,7 +651,7 @@ export class SubscriptionsService {
   }
 
   private buildCallbackUrl(): string {
-    const base = (process.env.PUBLIC_API_URL ?? 'http://localhost:3001').replace(/\/$/, '');
+    const base = (process.env.PUBLIC_API_URL || 'http://localhost:3001').replace(/\/$/, '');
     return `${base}/subscriptions/callback/ipay`;
   }
 

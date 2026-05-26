@@ -1,6 +1,7 @@
 'use client';
 
 import { useAuth } from '@clerk/nextjs';
+import { useRouter } from 'next/navigation';
 import {
   CalendarDays,
   Car,
@@ -65,6 +66,7 @@ function DetailSkeleton({ locale }: { locale: SupportedLocale }) {
 export default function CarDetailPage({ params }: CarPageProps) {
   const t = useTranslations('web');
   const { isSignedIn, getToken } = useAuth();
+  const router = useRouter();
   const [locale, setLocale] = useState<SupportedLocale>(routing.defaultLocale);
   const [carId, setCarId] = useState('');
   const [detail, setDetail] = useState<CarDetail | null>(null);
@@ -319,16 +321,12 @@ export default function CarDetailPage({ params }: CarPageProps) {
                   <User className="h-6 w-6 text-teal-600" />
                 </div>
                 <div className="flex-1">
-                  {detail.ownerDriverProfileId ? (
-                    <Link
-                      href={`/${locale}/drivers/${detail.ownerDriverProfileId}`}
-                      className="font-black text-neutral-900 underline-offset-2 hover:text-teal-700 hover:underline"
-                    >
-                      {detail.ownerName}
-                    </Link>
-                  ) : (
-                    <p className="font-black text-neutral-900">{detail.ownerName}</p>
-                  )}
+                  <Link
+                    href={`/${locale}/users/${detail.ownerId}`}
+                    className="font-black text-neutral-900 underline-offset-2 hover:text-teal-700 hover:underline"
+                  >
+                    {detail.ownerName}
+                  </Link>
                   {reviews && reviews.totalReviews > 0 && (
                     <p className="text-sm font-medium text-neutral-600">
                       {reviews.averageRating?.toFixed(1)} ★ · {reviews.totalReviews} {t('detail.trips')}
@@ -362,7 +360,13 @@ export default function CarDetailPage({ params }: CarPageProps) {
                 )}
                 <button
                   type="button"
-                  onClick={() => setBookingOpen(true)}
+                  onClick={() => {
+                    if (isSignedIn) {
+                      router.push(`/${locale}/app?section=messages`);
+                    } else {
+                      setBookingOpen(true);
+                    }
+                  }}
                   className="flex flex-1 items-center justify-center gap-2 rounded border-2 border-neutral-900 bg-white px-4 py-2.5 text-sm font-black text-neutral-900 shadow-brutal-xs transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none"
                 >
                   <MessageCircle className="h-4 w-4" />
@@ -462,7 +466,7 @@ export default function CarDetailPage({ params }: CarPageProps) {
             </div>
             {/* More from this hoster */}
             {ownerCars.length > 0 && (
-              <div>
+              <div id="more-from-owner">
                 <h2 className="mb-3 text-lg font-black text-neutral-900">More from {detail.ownerName}</h2>
                 <div className="grid gap-4 sm:grid-cols-2">
                   {ownerCars.map((car) => {

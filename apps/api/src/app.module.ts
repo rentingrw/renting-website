@@ -97,8 +97,8 @@ function validateEnv(config: Record<string, unknown>) {
       validate: validateEnv,
     }),
     ThrottlerModule.forRoot([
-      { name: 'default', ttl: 60_000, limit: 120 }, // 120 req/min per IP by default
-      { name: 'strict', ttl: 60_000, limit: 10 },   // for auth/payment endpoints
+      { name: 'default', ttl: 60_000, limit: 600 }, // 600 req/min per IP (dashboard makes ~8 parallel requests)
+      { name: 'strict', ttl: 60_000, limit: 30 },   // for auth/payment endpoints
     ]),
     ScheduleModule.forRoot(),
     CronModule,

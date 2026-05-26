@@ -10,6 +10,7 @@ import '../web.css';
 
 import { AppQueryClientProvider } from '@/lib/query-client';
 import { routing } from '@/i18n/routing';
+import { UserSync } from '@/components/web/user-sync';
 
 export const metadata: Metadata = {
   title: { default: 'renting.rw — Rwanda\'s Car & Driver Marketplace', template: '%s | renting.rw' },
@@ -48,7 +49,10 @@ export default async function LocaleLayout({
       <body className={inter.className}>
         <ClerkProvider>
           <NextIntlClientProvider messages={messages}>
-            <AppQueryClientProvider>{children}</AppQueryClientProvider>
+            <AppQueryClientProvider>
+              <UserSync />
+              {children}
+            </AppQueryClientProvider>
           </NextIntlClientProvider>
         </ClerkProvider>
       </body>
