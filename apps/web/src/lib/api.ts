@@ -3,7 +3,7 @@
 import type { SupportedLocale } from '@/i18n/routing';
 
 export type AppRole = 'renter' | 'car_owner' | 'driver';
-export type SearchType = 'all' | 'cars' | 'drivers';
+export type SearchType = 'all' | 'cars' | 'drivers' | 'taxis';
 export type ServiceType = 'self_drive' | 'with_driver' | 'private_driver' | 'airport_transfer' | 'corporate';
 export type VehicleType = 'sedan' | 'suv' | 'hatchback' | 'pickup' | 'van' | 'truck';
 export type DriverCategory = 'city' | 'outstation' | 'airport' | 'chauffeur' | 'tour_guide' | 'delivery';
@@ -18,10 +18,19 @@ export type MeResponse = {
   email: string;
   fullName: string;
   phone?: string | null;
+  whatsapp?: string | null;
   profilePhotoUrl?: string | null;
   primaryRole: AppRole;
   languagePreference: string;
   roles: AppRole[];
+  hasTaxiProfile?: boolean;
+  hasDriverProfile?: boolean;
+  isVerified?: boolean;
+  hosterProfile?: {
+    companyName: string | null;
+    workAddress: string | null;
+    contactPhone: string | null;
+  } | null;
 };
 
 type SyncPayload = {
@@ -54,6 +63,9 @@ export type SearchCar = {
   distanceMeters: number | null;
   pickupLatitude?: number | null;
   pickupLongitude?: number | null;
+  ownerTrustScore?: number | null;
+  isBookedNow?: boolean;
+  verified?: boolean;
   dailyRateKigaliRwf?: number;
   dailyRateCountrysideRwf?: number;
   approximateDailyRateRangeRwf?: {
@@ -82,6 +94,7 @@ export type SearchDriver = {
   distanceMeters: number | null;
   primaryCityLatitude?: number | null;
   primaryCityLongitude?: number | null;
+  isBookedNow?: boolean;
   dailyRateRwf?: number;
   hourlyRateRwf?: number | null;
   weeklyRateRwf?: number | null;
@@ -92,15 +105,34 @@ export type SearchDriver = {
   };
 };
 
+export type SearchTaxi = {
+  id: string;
+  fullName: string;
+  phone: string;
+  city: string;
+  seats: number;
+  details: string | null;
+  carModel: string | null;
+  vehicleType: string | null;
+  photos: string[];
+  photoUrl: string | null;
+  profilePhotoUrl: string | null;
+  distanceMeters: number | null;
+  cityLatitude?: number | null;
+  cityLongitude?: number | null;
+};
+
 export type SearchResponse = {
   type: SearchType;
   cars: SearchCar[];
   drivers: SearchDriver[];
+  taxis: SearchTaxi[];
   pagination?: {
     limit: number;
     offset: number;
     hasMoreCars: boolean;
     hasMoreDrivers: boolean;
+    hasMoreTaxis: boolean;
   };
 };
 
@@ -110,6 +142,10 @@ export type CarDetail = {
   ownerName: string;
   ownerPhone?: string | null;
   ownerDriverProfileId?: string | null;
+  ownerTrustScore?: number;
+  verified?: boolean;
+  instantBooking?: boolean;
+  isBookedNow?: boolean;
   title: string;
   description: string | null;
   vehicleType: VehicleType;
@@ -139,6 +175,7 @@ export type DriverDetail = {
   userId: string;
   fullName: string;
   phone?: string | null;
+  isBookedNow?: boolean;
   profilePhotoUrl: string | null;
   trustScore: number;
   driverCategory: DriverCategory;
@@ -189,7 +226,17 @@ type SearchQuery = {
   driverHasVehicle?: boolean;
   driverTransmission?: string;
   driverLicenseCategory?: string;
+  seatsMin?: number;
+  seatsMax?: number;
+  transmission?: string;
+  fuelType?: string;
+  priceMin?: number;
+  priceMax?: number;
+  yearMin?: number;
+  experienceMin?: number;
   limit?: number;
+  sort?: 'relevance' | 'score' | 'rating' | 'price_asc' | 'price_desc';
+  availableNow?: boolean;
 };
 
 type CarBookingPayload = {
@@ -199,6 +246,7 @@ type CarBookingPayload = {
   pickupAddress: string;
   totalAmountRwf: number;
   notes?: string;
+  renterPhone: string;
 };
 
 type DriverBookingPayload = {
@@ -210,6 +258,14 @@ type DriverBookingPayload = {
   dropoffAddress?: string;
   totalAmountRwf: number;
   notes?: string;
+  renterPhone: string;
+};
+
+export type CreatedBookingResponse = {
+  id: string;
+  status: BookingStatus;
+  fulfillment?: 'instant' | 'admin_desk';
+  providerContact?: { name: string; phone: string | null; whatsapp: string | null } | null;
 };
 
 type BookingType = 'car' | 'driver';
@@ -231,6 +287,8 @@ type BookingParty = {
   id: string;
   fullName: string;
   avatarUrl: string | null;
+  phone?: string | null;
+  whatsapp?: string | null;
 };
 
 type BookingDispute = {
@@ -256,6 +314,8 @@ export type CarBooking = {
   totalAmountRwf: number;
   notes: string | null;
   status: BookingStatus;
+  renterPhone?: string | null;
+  isInstant?: boolean;
   renterMarkedComplete: boolean;
   ownerMarkedComplete: boolean;
   chatEligible: boolean;
@@ -280,6 +340,8 @@ export type DriverBooking = {
   totalAmountRwf: number;
   notes: string | null;
   status: BookingStatus;
+  renterPhone?: string | null;
+  isInstant?: boolean;
   clientMarkedComplete: boolean;
   driverMarkedComplete: boolean;
   chatEligible: boolean;
@@ -364,6 +426,10 @@ export type SubscriptionOverview = {
   activeCars: number;
   maxCars: number | null;
   canPublish: boolean;
+  locationBoost?: boolean;
+  verified?: boolean;
+  instantBooking?: boolean;
+  publicContact?: boolean;
 };
 
 export type DriverProfileMe = {
@@ -444,7 +510,13 @@ export async function syncUser(token: string, payload: SyncPayload): Promise<voi
 
 export async function updateMe(
   token: string,
-  payload: { fullName?: string; profilePhotoUrl?: string; languagePreference?: string },
+  payload: {
+    fullName?: string;
+    profilePhotoUrl?: string;
+    languagePreference?: string;
+    phone?: string;
+    whatsapp?: string;
+  },
 ): Promise<MeResponse> {
   const response = await fetch(`${API_BASE_URL}/users/me`, {
     method: 'PATCH',
@@ -462,6 +534,19 @@ export async function addRole(token: string, role: AppRole): Promise<void> {
     body: JSON.stringify({ role }),
   });
   await ensureOk(response, 'Failed to add role.');
+}
+
+export async function upsertHosterProfile(
+  token: string,
+  payload: { companyName?: string; workAddress?: string; contactPhone?: string },
+): Promise<{ id: string; companyName: string | null; workAddress: string | null; contactPhone: string | null }> {
+  const response = await fetch(`${API_BASE_URL}/users/me/hoster-profile`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  await ensureOk(response, 'Failed to save hoster profile.');
+  return response.json();
 }
 
 export async function patchLanguagePreference(
@@ -572,6 +657,30 @@ export async function getDriverById(id: string, token?: string): Promise<DriverD
   return (await response.json()) as DriverDetail;
 }
 
+export type TaxiDriverPublic = {
+  id: string;
+  fullName: string;
+  phone: string;
+  whatsapp: string | null;
+  city: string;
+  seats: number;
+  details: string | null;
+  carModel: string | null;
+  vehicleType: string | null;
+  features: string[];
+  photos: string[];
+  photoUrl: string | null;
+  profilePhotoUrl: string | null;
+};
+
+export async function getTaxiDriverById(id: string): Promise<TaxiDriverPublic> {
+  const response = await fetch(`${API_BASE_URL}/taxi-drivers/${id}`, { cache: 'no-store' });
+  if (!response.ok) {
+    throw new Error('Failed to load taxi driver details.');
+  }
+  return (await response.json()) as TaxiDriverPublic;
+}
+
 export async function getCarsByOwner(userId: string, excludeId?: string): Promise<SearchCar[]> {
   const url = new URL(`${API_BASE_URL}/cars/by-owner/${userId}`);
   if (excludeId) url.searchParams.set('excludeId', excludeId);
@@ -588,6 +697,9 @@ export type UserPublicProfile = {
   primaryRole: string;
   driverProfileId: string | null;
   driverPrimaryCity: string | null;
+  rating?: number | null;
+  completedTrips?: number;
+  recentTrustEvents?: Array<{ id: string; type: string; delta: number; createdAt: string }>;
 };
 
 export async function getUserPublicProfile(userId: string): Promise<UserPublicProfile> {
@@ -606,7 +718,7 @@ export async function getCarAvailability(id: string, month: string): Promise<Car
   return (await response.json()) as CarAvailabilityResponse;
 }
 
-export async function createCarBooking(token: string, payload: CarBookingPayload): Promise<void> {
+export async function createCarBooking(token: string, payload: CarBookingPayload): Promise<CreatedBookingResponse> {
   const response = await fetch(`${API_BASE_URL}/bookings`, {
     method: 'POST',
     headers: {
@@ -615,12 +727,11 @@ export async function createCarBooking(token: string, payload: CarBookingPayload
     },
     body: JSON.stringify(payload),
   });
-  if (!response.ok) {
-    throw new Error('Failed to create booking request.');
-  }
+  await ensureOk(response, 'Failed to create booking request.');
+  return (await response.json()) as CreatedBookingResponse;
 }
 
-export async function createDriverBooking(token: string, payload: DriverBookingPayload): Promise<void> {
+export async function createDriverBooking(token: string, payload: DriverBookingPayload): Promise<CreatedBookingResponse> {
   const response = await fetch(`${API_BASE_URL}/driver-bookings`, {
     method: 'POST',
     headers: {
@@ -629,9 +740,8 @@ export async function createDriverBooking(token: string, payload: DriverBookingP
     },
     body: JSON.stringify(payload),
   });
-  if (!response.ok) {
-    await ensureOk(response, 'Failed to create driver booking request.');
-  }
+  await ensureOk(response, 'Failed to create driver booking request.');
+  return (await response.json()) as CreatedBookingResponse;
 }
 
 async function ensureOk(response: Response, fallbackMessage: string): Promise<void> {
@@ -870,10 +980,12 @@ export type SubscriptionInitiateResponse = {
   subscriptionId: string;
   reference: string;
   status: string;
-  tier: string;
+  tier?: string;
   amountRwf: number;
-  paymentMethod: string;
+  paymentMethod?: string;
   redirectUrl?: string;
+  activated?: boolean;
+  promoCode?: string;
 };
 
 export async function initiateSubscription(
@@ -882,6 +994,7 @@ export async function initiateSubscription(
     tier: 'basic' | 'premium' | 'enterprise';
     paymentMethod: 'mtn_momo' | 'airtel_money';
     mobileNumber: string;
+    promoCode?: string;
   },
 ): Promise<SubscriptionInitiateResponse> {
   const response = await fetch(`${API_BASE_URL}/subscriptions/initiate`, {
@@ -902,6 +1015,7 @@ export async function upgradeSubscription(
     tier: 'basic' | 'premium' | 'enterprise';
     paymentMethod: 'mtn_momo' | 'airtel_money';
     mobileNumber: string;
+    promoCode?: string;
   },
 ): Promise<SubscriptionInitiateResponse> {
   const response = await fetch(`${API_BASE_URL}/subscriptions/upgrade`, {
@@ -946,13 +1060,13 @@ export async function getDriverSubscriptionOverview(token: string): Promise<{
     headers: { Authorization: `Bearer ${token}` },
     cache: 'no-store',
   });
-  if (!response.ok) return { subscription: null, isActive: false, planPriceRwf: 5000 };
+  if (!response.ok) return { subscription: null, isActive: false, planPriceRwf: 10000 };
   return response.json();
 }
 
 export async function initiateDriverSubscription(
   token: string,
-  payload: { paymentMethod: 'mtn_momo' | 'airtel_money'; mobileNumber: string },
+  payload: { paymentMethod: 'mtn_momo' | 'airtel_money'; mobileNumber: string; promoCode?: string },
 ): Promise<SubscriptionInitiateResponse> {
   const response = await fetch(`${API_BASE_URL}/subscriptions/driver/initiate`, {
     method: 'POST',
@@ -969,6 +1083,40 @@ export async function cancelDriverSubscription(token: string): Promise<void> {
     headers: { Authorization: `Bearer ${token}` },
   });
   await ensureOk(response, 'Failed to cancel driver subscription.');
+}
+
+export async function getTaxiSubscriptionOverview(token: string): Promise<{
+  subscription: null | { id: string; status: string; renewsAt: string | null; amountRwf: number; paymentMethod: string | null };
+  isActive: boolean;
+  planPriceRwf: number;
+}> {
+  const response = await fetch(`${API_BASE_URL}/subscriptions/taxi/me`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  if (!response.ok) return { subscription: null, isActive: false, planPriceRwf: 10000 };
+  return response.json();
+}
+
+export async function initiateTaxiSubscription(
+  token: string,
+  payload: { paymentMethod: 'mtn_momo' | 'airtel_money'; mobileNumber: string; promoCode?: string },
+): Promise<SubscriptionInitiateResponse> {
+  const response = await fetch(`${API_BASE_URL}/subscriptions/taxi/initiate`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  await ensureOk(response, 'Failed to start taxi subscription payment.');
+  return response.json();
+}
+
+export async function cancelTaxiSubscription(token: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/subscriptions/taxi/cancel`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  await ensureOk(response, 'Failed to cancel taxi subscription.');
 }
 
 export async function cancelSubscription(token: string): Promise<void> {
@@ -1035,6 +1183,13 @@ export type DriverProfilePayload = {
   certifications: string[];
   serviceAreas: string[];
   availabilityCalendar: Array<{ from: string; to: string }>;
+  licenseCategories?: string[];
+  transmission?: string;
+  addressText?: string;
+  idDocumentUrl?: string;
+  licenseDocumentUrl?: string;
+  phone?: string;
+  profilePhotoUrl?: string;
 };
 
 export async function createDriverProfile(token: string, payload: DriverProfilePayload): Promise<void> {
@@ -1072,6 +1227,13 @@ export type DriverProfileFull = {
   vehicleTypes: string[];
   certifications: string[];
   serviceAreas: string[];
+  licenseCategories?: string[];
+  transmission?: string | null;
+  addressText?: string | null;
+  idDocumentUrl?: string | null;
+  licenseDocumentUrl?: string | null;
+  phone?: string | null;
+  profilePhotoUrl?: string | null;
   availabilityCalendar: Array<{ from: string; to: string }>;
   rating: number | null;
   completedTrips: number;
@@ -1174,4 +1336,89 @@ export async function removeDriverFavorite(token: string, driverProfileId: strin
   });
   if (response.status === 404) return;
   await ensureOk(response, 'Failed to remove driver favorite.');
+}
+
+export type TaxiDriverMe = {
+  id: string;
+  userId: string | null;
+  fullName: string;
+  phone: string;
+  whatsapp: string | null;
+  city: string;
+  seats: number;
+  details: string | null;
+  carModel: string | null;
+  plate: string | null;
+  vehicleType: string | null;
+  features: string[];
+  photos: string[];
+  photoUrl: string | null;
+  profilePhotoUrl: string | null;
+  status: string;
+};
+
+export type TaxiDriverPayload = {
+  fullName: string;
+  phone: string;
+  whatsapp?: string;
+  city: string;
+  seats: number;
+  details?: string;
+  carModel: string;
+  plate: string;
+  vehicleType: string;
+  features?: string[];
+  photos: string[];
+  photoUrl?: string;
+  profilePhotoUrl?: string;
+};
+
+export async function getTaxiDriverMe(token: string): Promise<TaxiDriverMe | null> {
+  const response = await fetch(`${API_BASE_URL}/taxi-drivers/me`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  if (response.status === 404) return null;
+  await ensureOk(response, 'Failed to load taxi profile.');
+  return (await response.json()) as TaxiDriverMe;
+}
+
+export async function registerTaxiDriver(token: string, payload: TaxiDriverPayload): Promise<TaxiDriverMe> {
+  const response = await fetch(`${API_BASE_URL}/taxi-drivers/register`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  await ensureOk(response, 'Failed to register taxi profile.');
+  return (await response.json()) as TaxiDriverMe;
+}
+
+export async function updateTaxiDriverMe(token: string, payload: TaxiDriverPayload): Promise<TaxiDriverMe> {
+  const response = await fetch(`${API_BASE_URL}/taxi-drivers/me`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  await ensureOk(response, 'Failed to update taxi profile.');
+  return (await response.json()) as TaxiDriverMe;
+}
+
+export async function uploadImageFile(
+  token: string,
+  file: File,
+  folder?: string,
+): Promise<string> {
+  const { uploadUrl, fields } = await getCarUploadUrl(token, folder);
+  const formData = new FormData();
+  Object.entries(fields).forEach(([key, value]) => formData.append(key, String(value)));
+  formData.append('file', file);
+  const response = await fetch(uploadUrl, { method: 'POST', body: formData });
+  if (!response.ok) {
+    throw new Error('Photo upload failed.');
+  }
+  const data = (await response.json()) as { secure_url?: string };
+  if (!data.secure_url) {
+    throw new Error('Photo upload failed.');
+  }
+  return data.secure_url;
 }

@@ -1,4 +1,5 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, ParseUUIDPipe, UseGuards } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -8,13 +9,13 @@ import { prisma } from '../database/prisma';
 import { TrustScoreService } from './trust-score.service';
 
 @ApiTags('Trust Score')
-@ApiBearerAuth()
 @Controller('trust-score')
-@UseGuards(ClerkAuthGuard)
 export class TrustScoreController {
   constructor(private readonly trustScoreService: TrustScoreService) {}
 
   @Get('events')
+  @UseGuards(ClerkAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Get the trust score event log for the authenticated user' })
   async getMyEventLog(@CurrentUser() authUser: AuthenticatedUser) {
     const user = await prisma.user.findUnique({
@@ -27,5 +28,12 @@ export class TrustScoreController {
     }
 
     return this.trustScoreService.getEventsForUser(user.id);
+  }
+
+  @Get('public/:userId')
+  @SkipThrottle()
+  @ApiOperation({ summary: 'Public trust score event log for a user profile' })
+  getPublicLog(@Param('userId', ParseUUIDPipe) userId: string) {
+    return this.trustScoreService.getPublicEvents(userId);
   }
 }

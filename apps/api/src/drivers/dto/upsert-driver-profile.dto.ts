@@ -90,6 +90,38 @@ export class CreateDriverProfileDto {
   @ValidateNested({ each: true })
   @Type(() => UnavailableRangeDto)
   availabilityCalendar!: UnavailableRangeDto[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  licenseCategories?: string[];
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  transmission?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(240)
+  addressText?: string;
+
+  @IsOptional()
+  @IsString()
+  idDocumentUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  licenseDocumentUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  phone?: string;
+
+  @IsOptional()
+  @IsString()
+  profilePhotoUrl?: string;
 }
 
 export class UpdateDriverProfileDto {
@@ -167,4 +199,36 @@ export class UpdateDriverProfileDto {
   @ValidateNested({ each: true })
   @Type(() => UnavailableRangeDto)
   availabilityCalendar?: UnavailableRangeDto[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  licenseCategories?: string[];
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  transmission?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(240)
+  addressText?: string;
+
+  @IsOptional()
+  @IsString()
+  idDocumentUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  licenseDocumentUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  phone?: string;
+
+  @IsOptional()
+  @IsString()
+  profilePhotoUrl?: string;
 }

@@ -13,7 +13,20 @@ export async function POST(req: Request) {
   const secret = process.env.ADMIN_JWT_SECRET;
 
   if (!validEmail || !validPassword || !secret) {
-    return NextResponse.json({ message: 'Server misconfiguration.' }, { status: 500 });
+    const missing = [
+      !validEmail ? 'ADMIN_USERNAME' : null,
+      !validPassword ? 'ADMIN_PASSWORD' : null,
+      !secret ? 'ADMIN_JWT_SECRET' : null,
+    ].filter(Boolean);
+    return NextResponse.json(
+      {
+        message:
+          process.env.NODE_ENV === 'production'
+            ? 'Server misconfiguration.'
+            : `Server misconfiguration. Missing ${missing.join(', ')} in apps/admin/.env`,
+      },
+      { status: 500 },
+    );
   }
 
   if (body.email !== validEmail || body.password !== validPassword) {

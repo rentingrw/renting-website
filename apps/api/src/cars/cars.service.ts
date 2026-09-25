@@ -5,15 +5,18 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { BookingStatus, ListingStatus, Prisma, type User } from '@prisma/client';
+import { BookingStatus, ListingStatus, Prisma, SubscriptionKind, type User } from '@prisma/client';
 import { createHash } from 'node:crypto';
 
 import { prisma } from '../database/prisma';
 import type { AuthenticatedUser } from '../auth/types/authenticated-request.interface';
 import {
   getTierPlan,
+  liveSubscriptionWhere,
   storedTierToProductTier,
 } from '../subscriptions/subscription-tier.util';
+import { getContactVisibility } from '../subscriptions/contact-visibility.util';
+import { listingIsBookedNow } from '../bookings/booking-desk.util';
 import type { CreateCarDto } from './dto/create-car.dto';
 import type { UpdateCarDto } from './dto/update-car.dto';
 
@@ -173,13 +176,7 @@ export class CarsService {
     const subscription = await prisma.subscription.findFirst({
       where: {
         userId: owner.id,
-        OR: [
-          { status: 'active' },
-          {
-            status: 'cancelled',
-            renewsAt: { gt: new Date() },
-          },
-        ],
+        ...liveSubscriptionWhere(SubscriptionKind.hoster),
       },
       orderBy: {
         startsAt: 'desc',
@@ -260,6 +257,7 @@ export class CarsService {
             id: true,
             fullName: true,
             phone: true,
+            trustScore: true,
             driverProfile: { select: { id: true } },
           },
         },
@@ -271,7 +269,37 @@ export class CarsService {
     }
 
     const includeExactRates = Boolean(user);
-    return this.mapListing(listing, includeExactRates);
+    const caller = user
+      ? await prisma.user.findUnique({ where: { clerkId: user.clerkUserId }, select: { id: true } })
+      : null;
+    const isOwner = caller?.id === listing.ownerId;
+    let bookingConfirmed = false;
+    if (caller && !isOwner) {
+      const confirmed = await prisma.carBooking.findFirst({
+        where: {
+          listingId: listing.id,
+          renterId: caller.id,
+          status: { in: [BookingStatus.confirmed, BookingStatus.active, BookingStatus.completed, BookingStatus.auto_completed] },
+        },
+        select: { id: true },
+      });
+      bookingConfirmed = confirmed !== null;
+    }
+    const hosterSub = await prisma.subscription.findFirst({
+      where: { userId: listing.ownerId, ...liveSubscriptionWhere(SubscriptionKind.hoster) },
+      orderBy: { startsAt: 'desc' },
+    });
+    const visibility = getContactVisibility({
+      kind: SubscriptionKind.hoster,
+      storedTier: hosterSub?.tier,
+      bookingConfirmed,
+    });
+    return this.mapListing(listing, includeExactRates, {
+      showContact: isOwner || visibility.publicContact,
+      verified: visibility.verified,
+      instantBooking: visibility.instantBooking,
+      isBookedNow: await listingIsBookedNow(listing.id),
+    });
   }
 
   async getMine(authUser: AuthenticatedUser) {
@@ -359,11 +387,12 @@ export class CarsService {
             id: true,
             fullName: true,
             phone: true,
+            trustScore: true,
           },
         },
       },
     });
-    return listings.map((l) => this.mapListing(l, false));
+    return listings.map((l) => this.mapListing(l, false, { showContact: false }));
   }
 
   async getAvailability(listingId: string, month: string) {
@@ -441,15 +470,24 @@ export class CarsService {
     };
   }
 
-  private mapListing(listing: CarListingWithOwner, includeExactRates: boolean) {
+  private mapListing(
+    listing: CarListingWithOwner,
+    includeExactRates: boolean,
+    extras?: { showContact?: boolean; verified?: boolean; instantBooking?: boolean; isBookedNow?: boolean },
+  ) {
     const kigaliPriceApproximation = this.getApproximatePriceRange(listing.dailyRateKigaliRwf);
     const countrysidePriceApproximation = this.getApproximatePriceRange(listing.dailyRateCountrysideRwf);
+    const showContact = extras?.showContact ?? includeExactRates;
     return {
       id: listing.id,
       ownerId: listing.ownerId,
       ownerName: listing.owner.fullName,
-      ownerPhone: listing.owner.phone ?? null,
+      ownerPhone: showContact ? listing.owner.phone ?? null : null,
       ownerDriverProfileId: (listing.owner as { driverProfile?: { id: string } | null }).driverProfile?.id ?? null,
+      ownerTrustScore: Number((listing.owner as { trustScore?: unknown }).trustScore ?? 100),
+      verified: extras?.verified ?? false,
+      instantBooking: extras?.instantBooking ?? false,
+      isBookedNow: extras?.isBookedNow ?? false,
       title: listing.title,
       description: listing.description,
       vehicleType: listing.vehicleType,

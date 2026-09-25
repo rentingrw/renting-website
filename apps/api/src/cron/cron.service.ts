@@ -147,65 +147,11 @@ export class CronService {
   }
 
   /**
-   * Job 3 — Subscription Renewal
-   * - Reminder: active subscriptions renewing within 3 days → SMS + email
-   * - Expiry: active subscriptions past renews_at → expire, pause listings, notify
+   * Subscription reminders and expiry live in SubscriptionsService.
    */
   @Cron(`*/${CRON_INTERVAL_MINUTES} * * * *`)
   async runSubscriptionRenewal() {
-    this.logger.debug('Running subscription renewal job');
-
-    try {
-      const now = new Date();
-      const threeDaysFromNow = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
-
-      const [renewalReminders, expiredSubscriptions] = await Promise.all([
-        prisma.subscription.findMany({
-        where: {
-          status: SubscriptionStatus.active,
-          renewsAt: {
-            not: null,
-            gte: now,
-            lte: threeDaysFromNow,
-          },
-        },
-        select: {
-          id: true,
-          userId: true,
-          renewsAt: true,
-          tier: true,
-        },
-      }),
-        prisma.subscription.findMany({
-        where: {
-          status: SubscriptionStatus.active,
-          renewsAt: {
-            not: null,
-            lt: now,
-          },
-        },
-        select: {
-          id: true,
-          userId: true,
-          tier: true,
-        },
-      }),
-      ]);
-
-      for (const sub of renewalReminders) {
-        await this.sendRenewalReminder(sub);
-      }
-
-      for (const sub of expiredSubscriptions) {
-        await this.expireSubscription(sub);
-      }
-    } catch (error) {
-      if (error instanceof PrismaClientKnownRequestError && error.code === 'P2021') {
-        this.logger.warn('Cron skipped: database tables not yet migrated. Run: pnpm --filter @rentingi/db migrate');
-      } else {
-        throw error;
-      }
-    }
+    return;
   }
 
   private async autoCancelCarBooking(booking: {

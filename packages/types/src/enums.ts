@@ -51,6 +51,15 @@ export enum SubscriptionStatus {
   expired = 'expired',
   past_due = 'past_due',
   unpaid = 'unpaid',
+  draft = 'draft',
+  pending_payment = 'pending_payment',
+  suspended = 'suspended',
+}
+
+export enum SubscriptionKind {
+  hoster = 'hoster',
+  driver = 'driver',
+  taxi = 'taxi',
 }
 
 export enum PaymentMethod {

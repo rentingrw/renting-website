@@ -18,4 +18,14 @@ export class UpdateMeDto {
   @IsOptional()
   @IsEnum(Language)
   languagePreference?: Language;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  phone?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  whatsapp?: string;
 }

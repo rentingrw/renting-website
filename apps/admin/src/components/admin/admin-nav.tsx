@@ -10,6 +10,7 @@ import {
   MessageSquareWarning,
   Users,
   Wallet,
+  Ticket,
   UserCheck,
 } from 'lucide-react';
 
@@ -20,7 +21,8 @@ const ITEMS = [
   { href: '/users', label: 'Users', icon: Users },
   { href: '/disputes', label: 'Disputes', icon: MessageSquareWarning },
   { href: '/subscriptions', label: 'Subscriptions', icon: Wallet },
-  { href: '/bookings', label: 'Bookings', icon: BookOpen },
+  { href: '/promo-codes', label: 'Promo codes', icon: Ticket },
+  { href: '/bookings', label: 'Booking desk', icon: BookOpen },
 ];
 
 export function AdminNav() {

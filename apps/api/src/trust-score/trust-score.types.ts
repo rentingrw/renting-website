@@ -10,7 +10,8 @@ export type TrustDeltaEventType =
   | 'not_as_described'
   | 'damage'
   | 'no_response_1h'
-  | 'cancel_lt_24h';
+  | 'cancel_lt_24h'
+  | 'booking_rejected';
 
 export interface TrustEventInput {
   userId: string;

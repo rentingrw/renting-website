@@ -1,34 +1,49 @@
 'use client';
 
-import { ChevronDown, Search, UserRound, X } from 'lucide-react';
-import Image from 'next/image';
-import Link from 'next/link';
+import { UserRound } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { AppHeader } from '@/components/web/app-header';
-import { SiteFooter } from '@/components/web/site-footer';
 import { AddressInput } from '@/components/web/address-input';
+import { DriverListingCard } from '@/components/web/driver-listing-card';
+import { useFavoriteIds } from '@/components/web/favorite-button';
+import {
+  compactRwf,
+  FilterButton,
+  FilterRange,
+  FilterSection,
+  FilterSlider,
+  ListingFilterRail,
+} from '@/components/web/listing-filter-rail';
+import { SiteFooter } from '@/components/web/site-footer';
 import { isSupportedLocale, routing, type SupportedLocale } from '@/i18n/routing';
-import { searchMarketplace, type SearchDriver } from '@/lib/api';
-import { formatCurrencyRwf, formatRange, trustTierFromScore } from '@/lib/format';
-import { stockImages } from '@/lib/stock-images';
+import { searchMarketplace, type DriverCategory, type SearchDriver } from '@/lib/api';
 
 const LICENSE_CATEGORIES = ['A', 'B', 'C', 'D', 'E', 'F'];
+const DRIVER_CATEGORIES: DriverCategory[] = ['city', 'outstation', 'airport', 'chauffeur', 'tour_guide', 'delivery'];
 const PAGE_SIZE = 20;
+const DRIVER_PRICE = { min: 10_000, max: 150_000, step: 5_000 };
+const DRIVER_PRICE_PRESETS = {
+  low: { min: 10_000, max: 40_000 },
+  mid: { min: 40_000, max: 80_000 },
+  high: { min: 80_000, max: 150_000 },
+} as const;
+
+type ListingSort = 'rating' | 'price_asc' | 'price_desc' | '';
 
 function DriverCardSkeleton() {
   return (
-    <div className="overflow-hidden rounded-md border-2 border-neutral-900 bg-white shadow-brutal animate-pulse">
-      <div className="border-b-2 border-neutral-900 bg-teal-50 p-5 flex flex-col items-center">
-        <div className="h-20 w-20 rounded-full border-2 border-neutral-900 bg-neutral-200" />
-        <div className="mt-3 h-5 w-32 rounded bg-neutral-200" />
-        <div className="mt-2 h-4 w-24 rounded bg-neutral-200" />
+    <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-card animate-pulse">
+      <div className="border-b-2 border-border bg-brand-soft p-5 flex flex-col items-center">
+        <div className="h-20 w-20 rounded-full border-2 border-border bg-muted" />
+        <div className="mt-3 h-5 w-32 rounded bg-muted" />
+        <div className="mt-2 h-4 w-24 rounded bg-muted" />
       </div>
       <div className="p-4 space-y-2">
-        <div className="h-5 w-20 rounded bg-neutral-200" />
-        <div className="h-4 w-28 rounded bg-neutral-200" />
+        <div className="h-5 w-20 rounded bg-muted" />
+        <div className="h-4 w-28 rounded bg-muted" />
       </div>
     </div>
   );
@@ -38,23 +53,45 @@ export default function DriversPage({ params }: { params: Promise<{ locale: stri
   const t = useTranslations('web');
   const searchParams = useSearchParams();
   const [locale, setLocale] = useState<SupportedLocale>(routing.defaultLocale);
-  const [location, setLocation] = useState(searchParams.get('location') ?? 'Kigali');
+  const [location, setLocation] = useState(searchParams.get('location') ?? '');
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
-
-  // New filter state
   const [driverHasVehicle, setDriverHasVehicle] = useState<boolean | null>(null);
   const [driverTransmission, setDriverTransmission] = useState<'Manual' | 'Automatic' | null>(null);
   const [driverLicenseCategory, setDriverLicenseCategory] = useState<string | null>(null);
-  const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
-  const categoryDropdownRef = useRef<HTMLDivElement>(null);
-
+  const [driverCategory, setDriverCategory] = useState<DriverCategory | ''>('');
+  const [experienceMin, setExperienceMin] = useState(0);
+  const [priceMin, setPriceMin] = useState(DRIVER_PRICE.min);
+  const [priceMax, setPriceMax] = useState(DRIVER_PRICE.max);
+  const [availableNow, setAvailableNow] = useState(false);
+  const [sort, setSort] = useState<ListingSort>('');
   const [drivers, setDrivers] = useState<SearchDriver[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const driverFavorites = useFavoriteIds('driver');
+
+  function searchArgs(nextOffset: number) {
+    return {
+      type: 'drivers' as const,
+      location: location.trim() || undefined,
+      latitude: latitude ?? undefined,
+      longitude: longitude ?? undefined,
+      driverHasVehicle: driverHasVehicle ?? undefined,
+      driverTransmission: driverTransmission ?? undefined,
+      driverLicenseCategory: driverLicenseCategory ?? undefined,
+      driverCategory: driverCategory || undefined,
+      experienceMin: experienceMin > 0 ? experienceMin : undefined,
+      priceMin: priceMin > DRIVER_PRICE.min ? priceMin : undefined,
+      priceMax: priceMax < DRIVER_PRICE.max ? priceMax : undefined,
+      availableNow: availableNow || undefined,
+      sort: sort || undefined,
+      limit: PAGE_SIZE,
+      offset: nextOffset,
+    };
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -66,17 +103,6 @@ export default function DriversPage({ params }: { params: Promise<{ locale: stri
     return () => { cancelled = true; };
   }, [params]);
 
-  // Close category dropdown on outside click
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(e.target as Node)) {
-        setCategoryDropdownOpen(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, []);
-
   useEffect(() => {
     let cancelled = false;
     async function runSearch() {
@@ -84,17 +110,7 @@ export default function DriversPage({ params }: { params: Promise<{ locale: stri
       setError(null);
       setOffset(0);
       try {
-        const data = await searchMarketplace({
-          type: 'drivers',
-          location,
-          latitude: latitude ?? undefined,
-          longitude: longitude ?? undefined,
-          driverHasVehicle: driverHasVehicle ?? undefined,
-          driverTransmission: driverTransmission ?? undefined,
-          driverLicenseCategory: driverLicenseCategory ?? undefined,
-          limit: PAGE_SIZE,
-          offset: 0,
-        });
+        const data = await searchMarketplace(searchArgs(0));
         if (!cancelled) {
           setDrivers(data.drivers);
           setHasMore(Boolean(data.pagination?.hasMoreDrivers));
@@ -107,23 +123,14 @@ export default function DriversPage({ params }: { params: Promise<{ locale: stri
     }
     runSearch();
     return () => { cancelled = true; };
-  }, [location, latitude, longitude, driverHasVehicle, driverTransmission, driverLicenseCategory, t]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availableNow, driverCategory, driverHasVehicle, driverLicenseCategory, driverTransmission, experienceMin, location, latitude, longitude, priceMax, priceMin, sort, t]);
 
   async function handleLoadMore() {
     const nextOffset = offset + PAGE_SIZE;
     setLoadingMore(true);
     try {
-      const data = await searchMarketplace({
-        type: 'drivers',
-        location,
-        latitude: latitude ?? undefined,
-        longitude: longitude ?? undefined,
-        driverHasVehicle: driverHasVehicle ?? undefined,
-        driverTransmission: driverTransmission ?? undefined,
-        driverLicenseCategory: driverLicenseCategory ?? undefined,
-        limit: PAGE_SIZE,
-        offset: nextOffset,
-      });
+      const data = await searchMarketplace(searchArgs(nextOffset));
       setDrivers((prev) => [...prev, ...data.drivers]);
       setOffset(nextOffset);
       setHasMore(Boolean(data.pagination?.hasMoreDrivers));
@@ -134,6 +141,26 @@ export default function DriversPage({ params }: { params: Promise<{ locale: stri
     }
   }
 
+  function toggleSort(next: ListingSort) {
+    setSort((prev) => (prev === next ? '' : next));
+  }
+
+  function applyPricePreset(key: keyof typeof DRIVER_PRICE_PRESETS) {
+    const preset = DRIVER_PRICE_PRESETS[key];
+    if (priceMin === preset.min && priceMax === preset.max) {
+      setPriceMin(DRIVER_PRICE.min);
+      setPriceMax(DRIVER_PRICE.max);
+      return;
+    }
+    setPriceMin(preset.min);
+    setPriceMax(preset.max);
+  }
+
+  function categoryLabel(category: DriverCategory) {
+    if (category === 'tour_guide') return t('filters.tourGuide');
+    return t(`filters.${category}` as 'filters.city');
+  }
+
   function clearFilters() {
     setLocation('');
     setLatitude(null);
@@ -141,243 +168,183 @@ export default function DriversPage({ params }: { params: Promise<{ locale: stri
     setDriverHasVehicle(null);
     setDriverTransmission(null);
     setDriverLicenseCategory(null);
+    setDriverCategory('');
+    setExperienceMin(0);
+    setPriceMin(DRIVER_PRICE.min);
+    setPriceMax(DRIVER_PRICE.max);
+    setAvailableNow(false);
+    setSort('');
   }
 
-  const activeFilterCount = [
-    driverHasVehicle !== null,
-    driverTransmission !== null,
-    driverLicenseCategory !== null,
-  ].filter(Boolean).length;
-
   return (
-    <main className="min-h-screen bg-[#f5f0e8]">
+    <main className="min-h-screen bg-background">
       <AppHeader locale={locale} variant="default" />
 
-      {/* Filter bar */}
-      <div className="sticky top-[57px] z-40 border-b-2 border-neutral-900 bg-white">
-        <div className="mx-auto max-w-7xl px-4 py-3 sm:px-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="relative min-w-0 flex-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
-              <AddressInput
-                value={location}
-                onChange={(v) => { setLocation(v); setLatitude(null); setLongitude(null); }}
-                onPlaceSelected={(p) => { setLocation(p.address); setLatitude(p.latitude); setLongitude(p.longitude); }}
-                placeholder={t('search.locationPlaceholder')}
-                className="h-10 w-full rounded border-2 border-neutral-900 bg-white pl-9 pr-4 text-sm font-semibold text-neutral-900 placeholder:font-normal placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
-              />
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {/* Without Car / With Car */}
-              <button
-                type="button"
-                onClick={() => setDriverHasVehicle((prev) => (prev === false ? null : false))}
-                className={`rounded border-2 border-neutral-900 px-3 py-1.5 text-xs font-black uppercase tracking-wide transition-all ${
-                  driverHasVehicle === false
-                    ? 'bg-neutral-900 text-white'
-                    : 'bg-white text-neutral-700 hover:bg-neutral-100'
-                }`}
-              >
-                Without Car
-              </button>
-              <button
-                type="button"
-                onClick={() => setDriverHasVehicle((prev) => (prev === true ? null : true))}
-                className={`rounded border-2 border-neutral-900 px-3 py-1.5 text-xs font-black uppercase tracking-wide transition-all ${
-                  driverHasVehicle === true
-                    ? 'bg-neutral-900 text-white'
-                    : 'bg-white text-neutral-700 hover:bg-neutral-100'
-                }`}
-              >
-                With Car
-              </button>
+      <div className="flex flex-col md:flex-row md:items-start">
+        <ListingFilterRail>
+          <AddressInput
+            value={location}
+            onChange={(v) => { setLocation(v); setLatitude(null); setLongitude(null); }}
+            onPlaceSelected={(p) => { setLocation(p.address); setLatitude(p.latitude); setLongitude(p.longitude); }}
+            placeholder={t('search.locationPlaceholder')}
+            className="mb-1 h-10 w-full rounded-xl border-0 bg-white px-3 text-sm font-bold text-foreground placeholder:font-medium placeholder:text-muted-foreground focus:outline-none"
+            showLocateMe
+          />
+          <FilterButton
+            active={driverHasVehicle === false}
+            onClick={() => setDriverHasVehicle((prev) => (prev === false ? null : false))}
+          >
+            {t('listing.withoutCar')}
+          </FilterButton>
+          <FilterButton
+            active={driverHasVehicle === true}
+            onClick={() => setDriverHasVehicle((prev) => (prev === true ? null : true))}
+          >
+            {t('listing.withCar')}
+          </FilterButton>
+          <FilterButton active={availableNow} onClick={() => setAvailableNow((prev) => !prev)}>
+            {t('listing.available')}
+          </FilterButton>
+          <FilterButton active={sort === 'rating'} onClick={() => toggleSort('rating')}>
+            {t('listing.topRated')}
+          </FilterButton>
+          <FilterButton active={sort === 'price_asc'} onClick={() => toggleSort('price_asc')}>
+            {t('filters.sortLow')}
+          </FilterButton>
+          <FilterButton active={sort === 'price_desc'} onClick={() => toggleSort('price_desc')}>
+            {t('filters.sortHigh')}
+          </FilterButton>
 
-              {/* Transmission */}
-              <button
-                type="button"
-                onClick={() => setDriverTransmission((prev) => (prev === 'Manual' ? null : 'Manual'))}
-                className={`rounded border-2 border-neutral-900 px-3 py-1.5 text-xs font-black uppercase tracking-wide transition-all ${
-                  driverTransmission === 'Manual'
-                    ? 'bg-neutral-900 text-white'
-                    : 'bg-white text-neutral-700 hover:bg-neutral-100'
-                }`}
-              >
-                Manual
-              </button>
-              <button
-                type="button"
-                onClick={() => setDriverTransmission((prev) => (prev === 'Automatic' ? null : 'Automatic'))}
-                className={`rounded border-2 border-neutral-900 px-3 py-1.5 text-xs font-black uppercase tracking-wide transition-all ${
-                  driverTransmission === 'Automatic'
-                    ? 'bg-neutral-900 text-white'
-                    : 'bg-white text-neutral-700 hover:bg-neutral-100'
-                }`}
-              >
-                Automatic
-              </button>
-
-              {/* License Category dropdown */}
-              <div className="relative" ref={categoryDropdownRef}>
+          <FilterSection title={t('filters.price')}>
+            <div className="grid grid-cols-3 gap-1.5">
+              {(['low', 'mid', 'high'] as const).map((key) => (
                 <button
+                  key={key}
                   type="button"
-                  onClick={() => setCategoryDropdownOpen((o) => !o)}
-                  className={`flex items-center gap-1 rounded border-2 border-neutral-900 px-3 py-1.5 text-xs font-black uppercase tracking-wide transition-all ${
-                    driverLicenseCategory
-                      ? 'bg-neutral-900 text-white'
-                      : 'bg-white text-neutral-700 hover:bg-neutral-100'
+                  onClick={() => applyPricePreset(key)}
+                  className={`rounded-lg border px-2 py-1.5 text-xs font-bold ${
+                    priceMin === DRIVER_PRICE_PRESETS[key].min && priceMax === DRIVER_PRICE_PRESETS[key].max
+                      ? 'border-white bg-white text-ink'
+                      : 'border-white/20 bg-white/10 text-white hover:bg-white/15'
                   }`}
                 >
-                  {driverLicenseCategory ? `Cat. ${driverLicenseCategory}` : 'Category'}
-                  {driverLicenseCategory ? (
-                    <X
-                      className="h-3 w-3"
-                      onClick={(e) => { e.stopPropagation(); setDriverLicenseCategory(null); setCategoryDropdownOpen(false); }}
-                    />
-                  ) : (
-                    <ChevronDown className="h-3 w-3" />
-                  )}
+                  {key === 'low' ? t('filters.priceLow') : key === 'mid' ? t('filters.priceMid') : t('filters.priceHigh')}
                 </button>
-                {categoryDropdownOpen && (
-                  <div className="absolute left-0 top-full z-50 mt-1 w-40 rounded border-2 border-neutral-900 bg-white shadow-brutal">
-                    <p className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-neutral-400">
-                      License Category
-                    </p>
-                    {LICENSE_CATEGORIES.map((cat) => (
-                      <button
-                        key={cat}
-                        type="button"
-                        onClick={() => {
-                          setDriverLicenseCategory(driverLicenseCategory === cat ? null : cat);
-                          setCategoryDropdownOpen(false);
-                        }}
-                        className={`flex w-full items-center justify-between px-3 py-2 text-sm font-bold transition-colors hover:bg-neutral-100 ${
-                          driverLicenseCategory === cat ? 'text-teal-700' : 'text-neutral-800'
-                        }`}
-                      >
-                        <span>Category {cat}</span>
-                        {driverLicenseCategory === cat && <span className="text-xs">✓</span>}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Clear filters */}
-              {activeFilterCount > 0 && (
-                <button
-                  type="button"
-                  onClick={() => { setDriverHasVehicle(null); setDriverTransmission(null); setDriverLicenseCategory(null); }}
-                  className="flex items-center gap-1 rounded border-2 border-red-400 px-2 py-1.5 text-xs font-black uppercase tracking-wide text-red-600 hover:bg-red-50"
-                >
-                  <X className="h-3 w-3" />
-                  Clear
-                </button>
-              )}
+              ))}
             </div>
-          </div>
-        </div>
-      </div>
+            <FilterRange
+              label={t('listing.perDay')}
+              min={DRIVER_PRICE.min}
+              max={DRIVER_PRICE.max}
+              step={DRIVER_PRICE.step}
+              valueMin={priceMin}
+              valueMax={priceMax}
+              onChange={(nextMin, nextMax) => {
+                setPriceMin(nextMin);
+                setPriceMax(nextMax);
+              }}
+              format={compactRwf}
+            />
+          </FilterSection>
 
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
-        <h1 className="text-2xl font-black text-neutral-900">
-          {location || 'Kigali'} — {t('tabs.drivers')}
-        </h1>
-        <p className="mt-1 text-sm font-medium text-neutral-500">
-          {loading ? t('search.loading') : t('search.resultsCount', { count: drivers.length })}
-        </p>
-        {error && (
-          <p className="mt-2 rounded border-2 border-red-600 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
-            {error}
-          </p>
-        )}
+          <FilterSection title={t('filters.experience')}>
+            <FilterSlider
+              label={t('filters.experience')}
+              min={0}
+              max={20}
+              value={experienceMin}
+              onChange={setExperienceMin}
+              format={(value) => t('filters.experienceValue', { years: value })}
+            />
+          </FilterSection>
 
-        <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {loading ? (
-            [...Array(8)].map((_, i) => <DriverCardSkeleton key={i} />)
-          ) : (
-            drivers.map((driver) => (
-              <Link
-                key={driver.id}
-                href={`/${locale}/drivers/${driver.id}`}
-                className="group block overflow-hidden rounded-md border-2 border-neutral-900 bg-white shadow-brutal transition-all hover:translate-x-px hover:translate-y-px hover:shadow-brutal-sm"
+          <FilterSection title={t('filters.driverCategory')}>
+            {DRIVER_CATEGORIES.map((category) => (
+              <FilterButton
+                key={category}
+                active={driverCategory === category}
+                onClick={() => setDriverCategory((prev) => (prev === category ? '' : category))}
               >
-                {/* Photo header */}
-                <div className="flex flex-col items-center border-b-2 border-neutral-900 bg-teal-50 px-4 py-5">
-                  <div className="relative h-20 w-20 overflow-hidden rounded-full border-2 border-neutral-900 bg-white">
-                    <Image
-                      src={driver.profilePhotoUrl ?? stockImages.drivers[0]}
-                      alt={driver.fullName}
-                      fill
-                      sizes="80px"
-                      className="object-cover"
-                    />
-                  </div>
-                  <p className="mt-3 text-center font-black text-neutral-900">{driver.fullName}</p>
-                  <p className="mt-1 text-center text-xs font-medium text-neutral-500">
-                    {driver.primaryCity}
-                    {(driver.categories?.length || driver.driverCategory)
-                      ? ` · ${(driver.categories?.slice(0, 2).join(', ') || driver.driverCategory?.replace('_', ' ')) ?? ''}`
-                      : ''}
-                  </p>
-                </div>
+                {categoryLabel(category)}
+              </FilterButton>
+            ))}
+          </FilterSection>
 
-                {/* Info footer */}
-                <div className="flex items-center justify-between p-4">
-                  <span className="rounded border-2 border-teal-600 bg-teal-50 px-2 py-0.5 text-xs font-black text-teal-700">
-                    {trustTierFromScore(driver.trustScore)}
-                  </span>
-                  <span className="text-sm font-black text-teal-700">
-                    {driver.dailyRateRwf
-                      ? formatCurrencyRwf(driver.dailyRateRwf)
-                      : driver.approximateRateRangeRwf
-                        ? formatRange(
-                            driver.approximateRateRangeRwf.daily.min,
-                            driver.approximateRateRangeRwf.daily.max,
-                          )
-                        : t('home.priceUnavailable')}{' '}
-                    / {t('home.day')}
-                  </span>
-                </div>
-              </Link>
-            ))
-          )}
-        </div>
-
-        {!loading && hasMore && (
-          <div className="mt-8 flex justify-center">
-            <button
-              type="button"
-              onClick={handleLoadMore}
-              disabled={loadingMore}
-              className="rounded border-2 border-neutral-900 bg-white px-6 py-2.5 text-sm font-black uppercase tracking-wide text-neutral-900 shadow-brutal-xs transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none disabled:opacity-50"
+          {(['Manual', 'Automatic'] as const).map((value) => (
+            <FilterButton
+              key={value}
+              active={driverTransmission === value}
+              onClick={() => setDriverTransmission((prev) => (prev === value ? null : value))}
             >
-              {loadingMore ? t('search.loadingMore') : t('search.loadMore')}
-            </button>
-          </div>
-        )}
+              {value === 'Manual' ? t('listing.manual') : t('listing.automatic')}
+            </FilterButton>
+          ))}
 
-        {!loading && drivers.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-md border-2 border-neutral-900 bg-white shadow-brutal">
-              <UserRound className="h-8 w-8 text-neutral-400" />
-            </div>
-            <h3 className="mt-5 text-xl font-black text-neutral-900">{t('search.noResults')}</h3>
-            <p className="mt-2 max-w-xs text-sm font-medium text-neutral-500">{t('search.noResultsHint')}</p>
-            <button
-              type="button"
-              onClick={clearFilters}
-              className="mt-6 rounded border-2 border-teal-800 bg-teal-600 px-5 py-2.5 text-sm font-black uppercase tracking-wide text-white shadow-brutal-teal-sm transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none"
-            >
-              {t('search.clearFilters')}
-            </button>
-          </div>
-        )}
+          <FilterSection title={t('listing.licenseCategory')}>
+            {LICENSE_CATEGORIES.map((cat) => (
+              <FilterButton
+                key={cat}
+                active={driverLicenseCategory === cat}
+                onClick={() => setDriverLicenseCategory((prev) => (prev === cat ? null : cat))}
+              >
+                {cat}
+              </FilterButton>
+            ))}
+          </FilterSection>
+        </ListingFilterRail>
 
-        {!loading && !hasMore && drivers.length > 0 && (
-          <p className="mt-8 text-center text-xs font-semibold uppercase tracking-widest text-neutral-400">
-            {t('search.allResultsShown', { count: drivers.length })}
+        <div className="min-w-0 flex-1 px-4 py-6 sm:px-6">
+          <h1 className="text-2xl font-bold text-foreground">{t('home.driversInRwanda')}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {loading ? t('search.loading') : t('search.resultsCount', { count: drivers.length })}
           </p>
-        )}
+          {error ? (
+            <p className="mt-2 rounded-xl bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{error}</p>
+          ) : null}
+
+          <div className="mt-6 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+            {loading ? (
+              [...Array(8)].map((_, i) => <DriverCardSkeleton key={i} />)
+            ) : (
+              drivers.map((driver) => (
+                <DriverListingCard
+                  key={driver.id}
+                  driver={driver}
+                  locale={locale}
+                  favorited={driverFavorites.ids.has(driver.id)}
+                  onFavoriteChange={(next) => driverFavorites.setFavorited(driver.id, next)}
+                />
+              ))
+            )}
+          </div>
+
+          {!loading && hasMore ? (
+            <div className="mt-8 flex justify-center">
+              <button
+                type="button"
+                onClick={handleLoadMore}
+                disabled={loadingMore}
+                className="rounded-full bg-ink px-6 py-2.5 text-sm font-bold text-white hover:bg-ink/90 disabled:opacity-50"
+              >
+                {loadingMore ? t('search.loadingMore') : t('search.loadMore')}
+              </button>
+            </div>
+          ) : null}
+
+          {!loading && drivers.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <UserRound className="h-10 w-10 text-muted-foreground" />
+              <h3 className="mt-4 text-lg font-bold text-foreground">{t('search.noResults')}</h3>
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="mt-4 rounded-full bg-ink px-5 py-2 text-sm font-bold text-white"
+              >
+                {t('search.clearFilters')}
+              </button>
+            </div>
+          ) : null}
+        </div>
       </div>
 
       <SiteFooter locale={locale} />

@@ -45,7 +45,7 @@ export function LanguageSwitcher({ locale, dark }: LanguageSwitcherProps) {
               dark
                 ? active
                   ? 'bg-emerald-500 text-white'
-                  : 'text-zinc-400 hover:bg-zinc-700 hover:text-white'
+                  : 'text-zinc-400 hover:bg-muted hover:text-foreground'
                 : active
                   ? 'bg-primary text-primary-foreground'
                   : 'text-muted-foreground hover:bg-muted hover:text-foreground'

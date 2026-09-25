@@ -9,25 +9,31 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { AppHeader } from '@/components/web/app-header';
 import { AddressInput } from '@/components/web/address-input';
+import { FavoriteButton, useFavoriteIds } from '@/components/web/favorite-button';
+import { InitialsAvatar } from '@/components/web/initials-avatar';
+import { ShareMenu } from '@/components/web/share-menu';
 import { isSupportedLocale, routing, type SupportedLocale } from '@/i18n/routing';
 import {
   searchMarketplace,
   type DriverCategory,
   type SearchCar,
   type SearchDriver,
+  type SearchTaxi,
   type SearchType,
   type ServiceType,
   type VehicleType,
 } from '@/lib/api';
-import { formatCurrencyRwf, formatRange, trustTierFromScore } from '@/lib/format';
+import { TrustBadge } from '@/components/web/trust-badge';
+import { SearchFilterBar } from '@/components/web/search-filter-bar';
+import { formatCurrencyRwf, formatRange } from '@/lib/format';
 
 const SearchResultsMap = dynamic(
   () => import('@/components/web/search-results-map').then((m) => ({ default: m.SearchResultsMap })),
   {
     ssr: false,
     loading: () => (
-      <div className="flex h-full min-h-[400px] items-center justify-center border-l-2 border-neutral-900 bg-neutral-100">
-        <span className="text-sm font-semibold text-neutral-500">Loading map…</span>
+      <div className="flex h-full min-h-[400px] items-center justify-center border-l-2 border-border bg-muted">
+        <span className="text-sm font-semibold text-muted-foreground">Loading map…</span>
       </div>
     ),
   },
@@ -52,15 +58,23 @@ function parseCoordinate(value: string | null): number | null {
 
 function ResultSkeleton() {
   return (
-    <div className="flex animate-pulse gap-3 rounded-md border-2 border-neutral-900 bg-white p-3">
-      <div className="h-14 w-20 shrink-0 rounded bg-neutral-200" />
+    <div className="flex animate-pulse gap-3 rounded-xl border border-white/10 bg-white/10 p-3">
+      <div className="h-16 w-24 shrink-0 rounded bg-white/10" />
       <div className="min-w-0 flex-1 space-y-2">
-        <div className="h-4 w-3/4 rounded bg-neutral-200" />
-        <div className="h-3 w-1/2 rounded bg-neutral-200" />
-        <div className="h-4 w-24 rounded bg-neutral-200" />
+        <div className="h-4 w-3/4 rounded bg-white/10" />
+        <div className="h-3 w-1/2 rounded bg-white/10" />
+        <div className="h-4 w-24 rounded bg-white/10" />
       </div>
     </div>
   );
+}
+
+function panelChip(active: boolean) {
+  return `rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+    active
+      ? 'border-white bg-white text-ink'
+      : 'border-white/20 bg-white/10 text-white/85 hover:bg-white/15'
+  }`;
 }
 
 export default function SearchPage({ params }: SearchPageProps) {
@@ -70,7 +84,7 @@ export default function SearchPage({ params }: SearchPageProps) {
   const initialLongitude = parseCoordinate(searchParams.get('longitude'));
   const [locale, setLocale] = useState<SupportedLocale>(routing.defaultLocale);
   const [type, setType] = useState<SearchType>((searchParams.get('type') as SearchType) ?? 'all');
-  const [location, setLocation] = useState(searchParams.get('location') ?? 'Kigali');
+  const [location, setLocation] = useState(searchParams.get('location') ?? '');
   const [latitude, setLatitude] = useState<number | null>(initialLatitude);
   const [longitude, setLongitude] = useState<number | null>(initialLongitude);
   const [from, setFrom] = useState(searchParams.get('from') ?? '');
@@ -80,13 +94,20 @@ export default function SearchPage({ params }: SearchPageProps) {
   const [driverCategory, setDriverCategory] = useState<DriverCategory | ''>('');
   const [cars, setCars] = useState<SearchCar[]>([]);
   const [drivers, setDrivers] = useState<SearchDriver[]>([]);
+  const [taxis, setTaxis] = useState<SearchTaxi[]>([]);
   const [offset, setOffset] = useState(0);
   const [hasMoreCars, setHasMoreCars] = useState(false);
   const [hasMoreDrivers, setHasMoreDrivers] = useState(false);
+  const [hasMoreTaxis, setHasMoreTaxis] = useState(false);
   const [activePin, setActivePin] = useState<string | null>(null);
+  const [mobileView, setMobileView] = useState<'list' | 'map'>('list');
+  const [availableNow, setAvailableNow] = useState(false);
+  const [topRated, setTopRated] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const carFavorites = useFavoriteIds('car');
+  const driverFavorites = useFavoriteIds('driver');
 
   useEffect(() => {
     let cancelled = false;
@@ -106,7 +127,7 @@ export default function SearchPage({ params }: SearchPageProps) {
       setOffset(0);
       try {
         const data = await searchMarketplace({
-          type, location,
+          type, location: location.trim() || undefined,
           latitude: latitude ?? undefined,
           longitude: longitude ?? undefined,
           from: from || undefined,
@@ -114,14 +135,18 @@ export default function SearchPage({ params }: SearchPageProps) {
           serviceType: serviceType || undefined,
           vehicleType: vehicleType || undefined,
           driverCategory: driverCategory || undefined,
+          availableNow: availableNow || undefined,
+          sort: topRated ? 'score' : undefined,
           limit: PAGE_SIZE, offset: 0,
         });
         if (!cancelled) {
           setCars(data.cars);
           setDrivers(data.drivers);
+          setTaxis(data.taxis ?? []);
           setHasMoreCars(Boolean(data.pagination?.hasMoreCars));
           setHasMoreDrivers(Boolean(data.pagination?.hasMoreDrivers));
-          setActivePin(data.cars[0]?.id ?? data.drivers[0]?.id ?? null);
+          setHasMoreTaxis(Boolean(data.pagination?.hasMoreTaxis));
+          setActivePin(data.cars[0]?.id ?? data.drivers[0]?.id ?? data.taxis?.[0]?.id ?? null);
         }
       } catch (searchError) {
         if (!cancelled) setError(searchError instanceof Error ? searchError.message : t('search.error'));
@@ -131,7 +156,7 @@ export default function SearchPage({ params }: SearchPageProps) {
     }
     runSearch();
     return () => { cancelled = true; };
-  }, [driverCategory, from, latitude, location, longitude, serviceType, t, to, type, vehicleType]);
+  }, [availableNow, driverCategory, from, latitude, location, longitude, serviceType, t, to, topRated, type, vehicleType]);
 
   async function handleLoadMore() {
     const nextOffset = offset + PAGE_SIZE;
@@ -139,21 +164,25 @@ export default function SearchPage({ params }: SearchPageProps) {
     setError(null);
     try {
       const data = await searchMarketplace({
-        type, location,
+        type, location: location.trim() || undefined,
         latitude: latitude ?? undefined,
         longitude: longitude ?? undefined,
         from: from || undefined,
         to: to || undefined,
         serviceType: serviceType || undefined,
         vehicleType: vehicleType || undefined,
-        driverCategory: driverCategory || undefined,
-        limit: PAGE_SIZE, offset: nextOffset,
+          driverCategory: driverCategory || undefined,
+          availableNow: availableNow || undefined,
+          sort: topRated ? 'score' : undefined,
+          limit: PAGE_SIZE, offset: nextOffset,
       });
       setCars((prev) => [...prev, ...data.cars]);
       setDrivers((prev) => [...prev, ...data.drivers]);
+      setTaxis((prev) => [...prev, ...(data.taxis ?? [])]);
       setOffset(nextOffset);
       setHasMoreCars(Boolean(data.pagination?.hasMoreCars));
       setHasMoreDrivers(Boolean(data.pagination?.hasMoreDrivers));
+      setHasMoreTaxis(Boolean(data.pagination?.hasMoreTaxis));
     } catch (searchError) {
       setError(searchError instanceof Error ? searchError.message : t('search.error'));
     } finally {
@@ -164,6 +193,7 @@ export default function SearchPage({ params }: SearchPageProps) {
   const mergedResults = useMemo(() => {
     const includeCars = type === 'all' || type === 'cars';
     const includeDrivers = type === 'all' || type === 'drivers';
+    const includeTaxis = type === 'all' || type === 'taxis';
     return [
       ...(includeCars ? cars.map((car) => {
         const priceLabel = car.dailyRateKigaliRwf
@@ -191,34 +221,60 @@ export default function SearchPage({ params }: SearchPageProps) {
           latitude: driver.primaryCityLatitude, longitude: driver.primaryCityLongitude,
         };
       }) : []),
+      ...(includeTaxis ? taxis.map((taxi) => {
+        const bits = [
+          taxi.vehicleType,
+          taxi.carModel,
+          taxi.seats ? `${taxi.seats} seats` : null,
+        ].filter(Boolean);
+        return {
+          id: taxi.id,
+          label: taxi.fullName,
+          address: taxi.city,
+          photo: taxi.profilePhotoUrl ?? taxi.photoUrl ?? taxi.photos?.[0] ?? null,
+          priceLabel: taxi.phone,
+          href: `/${locale}/taxi-drivers/${taxi.id}`,
+          kind: 'taxi' as const,
+          description: bits.join(' • '),
+          latitude: taxi.cityLatitude,
+          longitude: taxi.cityLongitude,
+        };
+      }) : []),
     ];
-  }, [cars, drivers, locale, type]);
+  }, [cars, drivers, locale, taxis, type]);
 
   const tabs: { value: SearchType; label: string }[] = [
     { value: 'all', label: t('tabs.all') },
     { value: 'cars', label: t('tabs.cars') },
     { value: 'drivers', label: t('tabs.drivers') },
+    { value: 'taxis', label: t('tabs.taxi') },
   ];
 
   const extraTabs = [
     { href: `/${locale}/stays`, label: t('tabs.stays') },
-    { href: `/${locale}/taxi-drivers`, label: t('tabs.taxi') },
   ];
 
-  const hasMore = type === 'all' ? hasMoreCars || hasMoreDrivers : type === 'cars' ? hasMoreCars : hasMoreDrivers;
+  const hasMore =
+    type === 'all'
+      ? hasMoreCars || hasMoreDrivers || hasMoreTaxis
+      : type === 'cars'
+        ? hasMoreCars
+        : type === 'drivers'
+          ? hasMoreDrivers
+          : hasMoreTaxis;
 
   return (
-    <main className="flex min-h-screen flex-col bg-[#f5f0e8]">
+    <main className="flex min-h-screen flex-col bg-background">
       <AppHeader locale={locale} variant="default" />
 
       {/* Filter bar */}
-      <div className="sticky top-[57px] z-40 border-b-2 border-neutral-900 bg-white">
+      <div className="sticky top-[57px] z-40 border-b-2 border-border bg-card">
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:gap-3">
           <AddressInput
             value={location}
             onChange={(v) => { setLocation(v); setLatitude(null); setLongitude(null); }}
             onPlaceSelected={(p) => { setLocation(p.address); setLatitude(p.latitude); setLongitude(p.longitude); }}
-            className="h-10 min-w-0 flex-1 rounded border-2 border-neutral-900 bg-white px-4 text-sm font-semibold text-neutral-900 placeholder:font-normal placeholder:text-neutral-400 focus:outline-none"
+            className="h-10 min-w-0 flex-1 rounded border-2 border-border bg-card px-4 text-sm font-semibold text-foreground placeholder:font-normal placeholder:text-muted-foreground focus:outline-none"
             placeholder={t('search.locationPlaceholder')}
             showLocateMe
           />
@@ -227,21 +283,36 @@ export default function SearchPage({ params }: SearchPageProps) {
               type="date"
               value={from}
               onChange={(e) => setFrom(e.target.value)}
-              className="h-10 min-w-0 flex-1 rounded border-2 border-neutral-900 bg-white px-3 text-sm font-semibold text-neutral-900 sm:flex-initial focus:outline-none"
+              className="h-10 min-w-0 flex-1 rounded border-2 border-border bg-card px-3 text-sm font-semibold text-foreground sm:flex-initial focus:outline-none"
             />
             <input
               type="date"
               value={to}
               onChange={(e) => setTo(e.target.value)}
-              className="h-10 min-w-0 flex-1 rounded border-2 border-neutral-900 bg-white px-3 text-sm font-semibold text-neutral-900 sm:flex-initial focus:outline-none"
+              className="h-10 min-w-0 flex-1 rounded border-2 border-border bg-card px-3 text-sm font-semibold text-foreground sm:flex-initial focus:outline-none"
             />
           </div>
         </div>
       </div>
 
+      <div className="flex border-b border-white/10 bg-ink md:hidden">
+        {(['list', 'map'] as const).map((view) => (
+          <button
+            key={view}
+            type="button"
+            onClick={() => setMobileView(view)}
+            className={`flex-1 py-2.5 text-sm font-semibold ${
+              mobileView === view ? 'bg-white text-ink' : 'text-white/70'
+            }`}
+          >
+            {view === 'list' ? t('search.showList') : t('search.showMap')}
+          </button>
+        ))}
+      </div>
+
       <div className="grid flex-1 grid-cols-1 md:grid-cols-[440px_1fr] md:h-[calc(100vh-113px)]">
         {/* Results panel */}
-        <section className="overflow-y-auto border-r-2 border-neutral-900 bg-white p-4">
+        <section className={`${mobileView === 'map' ? 'hidden' : 'block'} overflow-y-auto bg-ink p-4 text-white md:block`}>
           {/* Type tabs */}
           <div className="flex flex-wrap gap-1.5">
             {tabs.map((tab) => (
@@ -249,11 +320,7 @@ export default function SearchPage({ params }: SearchPageProps) {
                 key={tab.value}
                 type="button"
                 onClick={() => setType(tab.value)}
-                className={`rounded border-2 border-neutral-900 px-3 py-1.5 text-xs font-black uppercase tracking-wide transition-colors ${
-                  type === tab.value
-                    ? 'bg-neutral-900 text-white'
-                    : 'bg-white text-neutral-700 hover:bg-neutral-100'
-                }`}
+                className={panelChip(type === tab.value)}
               >
                 {tab.label}
               </button>
@@ -262,57 +329,60 @@ export default function SearchPage({ params }: SearchPageProps) {
               <Link
                 key={tab.href}
                 href={tab.href}
-                className="rounded border-2 border-neutral-300 bg-white px-3 py-1.5 text-xs font-black uppercase tracking-wide text-neutral-500 transition-colors hover:border-neutral-900 hover:text-neutral-900"
+                className={panelChip(false)}
               >
                 {tab.label}
               </Link>
             ))}
           </div>
 
-          {/* Filters */}
-          <div className="mt-3 flex flex-wrap gap-2">
-            {SERVICE_TYPES.map((value) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setServiceType((prev) => (prev === value ? '' : value))}
-                className={`rounded border-2 border-neutral-900 px-2.5 py-1 text-xs font-black uppercase tracking-wide transition-all ${
-                  serviceType === value
-                    ? 'bg-neutral-900 text-white'
-                    : 'bg-white text-neutral-700 hover:bg-neutral-100'
-                }`}
-              >
-                {value === 'self_drive' ? t('filters.selfDrive') : t('filters.withDriver')}
-              </button>
-            ))}
-          </div>
-
-          <div className="mt-2 grid grid-cols-2 gap-2">
-            <select
-              value={vehicleType}
-              onChange={(e) => setVehicleType(e.target.value as VehicleType | '')}
-              className="h-9 rounded border-2 border-neutral-900 bg-white px-2 text-xs font-black uppercase tracking-wide text-neutral-900 focus:outline-none"
-            >
-              <option value="">{t('filters.carType')}</option>
-              {VEHICLE_TYPES.map((item) => (
-                <option key={item} value={item}>{VEHICLE_TYPE_LABELS[item] ?? item}</option>
-              ))}
-            </select>
-            <select
-              value={driverCategory}
-              onChange={(e) => setDriverCategory(e.target.value as DriverCategory | '')}
-              className="h-9 rounded border-2 border-neutral-900 bg-white px-2 text-xs font-black uppercase tracking-wide text-neutral-900 focus:outline-none"
-            >
-              <option value="">{t('filters.driverCategory')}</option>
-              {DRIVER_CATEGORIES.map((item) => (
-                <option key={item} value={item}>{CATEGORY_LABELS[item] ?? item}</option>
-              ))}
-            </select>
-          </div>
-
-          <p className="mt-3 text-xs font-semibold uppercase tracking-widest text-neutral-400">
-            {loading ? t('search.loading') : t('search.resultsCount', { count: mergedResults.length })}
-          </p>
+          <SearchFilterBar
+            variant="dark"
+            availableNow={availableNow}
+            onAvailableNowChange={setAvailableNow}
+            topRated={topRated}
+            onTopRatedChange={setTopRated}
+            resultCount={mergedResults.length}
+            loading={loading}
+            extra={
+              <>
+                {SERVICE_TYPES.map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setServiceType((prev) => (prev === value ? '' : value))}
+                    className={panelChip(serviceType === value)}
+                  >
+                    {value === 'self_drive' ? t('filters.selfDrive') : t('filters.withDriver')}
+                  </button>
+                ))}
+              </>
+            }
+            moreFilters={
+              <div className="grid grid-cols-1 gap-3">
+                <select
+                  value={vehicleType}
+                  onChange={(e) => setVehicleType(e.target.value as VehicleType | '')}
+                  className="h-10 rounded border-2 border-border bg-card px-3 text-sm font-semibold text-foreground"
+                >
+                  <option value="">{t('filters.carType')}</option>
+                  {VEHICLE_TYPES.map((item) => (
+                    <option key={item} value={item}>{VEHICLE_TYPE_LABELS[item] ?? item}</option>
+                  ))}
+                </select>
+                <select
+                  value={driverCategory}
+                  onChange={(e) => setDriverCategory(e.target.value as DriverCategory | '')}
+                  className="h-10 rounded border-2 border-border bg-card px-3 text-sm font-semibold text-foreground"
+                >
+                  <option value="">{t('filters.driverCategory')}</option>
+                  {DRIVER_CATEGORIES.map((item) => (
+                    <option key={item} value={item}>{CATEGORY_LABELS[item] ?? item}</option>
+                  ))}
+                </select>
+              </div>
+            }
+          />
           {error ? (
             <p className="mt-2 rounded border-2 border-red-600 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{error}</p>
           ) : null}
@@ -320,19 +390,37 @@ export default function SearchPage({ params }: SearchPageProps) {
           <div className="mt-3 space-y-2">
             {loading ? (
               [1, 2, 3, 4, 5].map((i) => <ResultSkeleton key={i} />)
+            ) : mergedResults.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-white/20 bg-white/5 px-4 py-10 text-center">
+                <p className="text-sm font-semibold text-white">{t('search.noResults')}</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAvailableNow(false);
+                    setTopRated(false);
+                    setServiceType('');
+                    setVehicleType('');
+                    setDriverCategory('');
+                  }}
+                  className="mt-4 rounded-full border border-white/25 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/10"
+                >
+                  {t('search.clearFilters')}
+                </button>
+              </div>
             ) : (
               <>
                 {(type === 'all' || type === 'cars') && cars.map((car) => (
-                  <Link key={car.id} href={`/${locale}/cars/${car.id}`}>
+                  <div key={car.id} className="relative">
+                    <Link href={`/${locale}/cars/${car.id}`}>
                     <div
                       onMouseEnter={() => setActivePin(car.id)}
-                      className={`flex cursor-pointer gap-3 rounded-md border-2 bg-white p-3 transition-all hover:translate-x-px hover:translate-y-px ${
+                      className={`flex cursor-pointer gap-3 rounded-xl border bg-card p-3 pr-16 transition hover:shadow-soft ${
                         activePin === car.id
-                          ? 'border-teal-600 shadow-brutal-teal-sm'
-                          : 'border-neutral-900 shadow-brutal-xs hover:shadow-none'
+                          ? 'border-hill shadow-soft-sm'
+                          : 'border-border'
                       }`}
                     >
-                      <div className="relative h-16 w-24 shrink-0 overflow-hidden rounded border border-neutral-300 bg-neutral-100">
+                      <div className="relative h-16 w-24 shrink-0 overflow-hidden rounded border border-neutral-300 bg-muted">
                         {car.photos?.[0] ? (
                           <Image
                             src={car.photos[0]}
@@ -342,73 +430,127 @@ export default function SearchPage({ params }: SearchPageProps) {
                             className="object-cover"
                           />
                         ) : (
-                          <div className="flex h-full w-full items-center justify-center bg-neutral-200">
+                          <div className="flex h-full w-full items-center justify-center bg-muted">
                             <span className="text-2xl">🚗</span>
                           </div>
                         )}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-black text-neutral-900">{car.title}</p>
-                        <p className="text-xs font-medium text-neutral-500">
+                        <p className="truncate text-sm font-semibold text-foreground">{car.title}</p>
+                        <p className="text-xs font-medium text-muted-foreground">
                           {car.vehicleType} · {car.serviceType.replace('_', ' ')}
+                          {car.isBookedNow ? ` · ${t('listing.booked')}` : ` · ${t('listing.available')}`}
                         </p>
                         {car.distanceMeters != null && (
-                          <p className="text-xs text-neutral-400">{(car.distanceMeters / 1000).toFixed(1)} km away</p>
+                          <p className="text-xs text-muted-foreground">
+                            {t('search.kmAway', { km: (car.distanceMeters / 1000).toFixed(1) })}
+                          </p>
                         )}
-                        <p className="mt-1 text-sm font-black text-teal-700">
+                        <p className="mt-1 text-sm font-semibold text-brand">
                           {car.dailyRateKigaliRwf
                             ? formatCurrencyRwf(car.dailyRateKigaliRwf)
                             : car.approximateDailyRateRangeRwf
                               ? formatRange(car.approximateDailyRateRangeRwf.kigali.min, car.approximateDailyRateRangeRwf.kigali.max)
                               : t('home.priceUnavailable')}
-                          <span className="text-xs font-medium text-neutral-400"> /day</span>
+                          <span className="text-xs font-medium text-muted-foreground"> /day</span>
                         </p>
                       </div>
                     </div>
-                  </Link>
+                    </Link>
+                    <div className="absolute right-2 top-2 z-10 flex gap-1">
+                      <FavoriteButton
+                        kind="car"
+                        id={car.id}
+                        favorited={carFavorites.ids.has(car.id)}
+                        onChanged={(next) => carFavorites.setFavorited(car.id, next)}
+                      />
+                      <ShareMenu url={`/${locale}/cars/${car.id}`} title={car.title} />
+                    </div>
+                  </div>
                 ))}
 
                 {(type === 'all' || type === 'drivers') && drivers.map((driver) => (
-                  <Link key={driver.id} href={`/${locale}/drivers/${driver.id}`}>
+                  <div key={driver.id} className="relative">
+                    <Link href={`/${locale}/drivers/${driver.id}`}>
                     <div
                       onMouseEnter={() => setActivePin(driver.id)}
-                      className={`flex cursor-pointer gap-3 rounded-md border-2 bg-white p-3 transition-all hover:translate-x-px hover:translate-y-px ${
+                      className={`flex cursor-pointer gap-3 rounded-xl border bg-card p-3 pr-16 transition hover:shadow-soft ${
                         activePin === driver.id
-                          ? 'border-teal-600 shadow-brutal-teal-sm'
-                          : 'border-neutral-900 shadow-brutal-xs hover:shadow-none'
+                          ? 'border-sky-500 shadow-soft-sm'
+                          : 'border-border'
                       }`}
                     >
-                      <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full border-2 border-neutral-900 bg-neutral-100">
-                        {driver.profilePhotoUrl ? (
-                          <Image src={driver.profilePhotoUrl} alt={driver.fullName} fill sizes="56px" className="object-cover" />
-                        ) : (
-                          <div className="flex h-full w-full items-center justify-center text-xs font-black uppercase text-neutral-400">
-                            {driver.fullName.charAt(0)}
-                          </div>
-                        )}
-                      </div>
+                      <InitialsAvatar name={driver.fullName} src={driver.profilePhotoUrl} size={56} />
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-black text-neutral-900">{driver.fullName}</p>
-                        <p className="text-xs font-medium text-neutral-500">{driver.categories.slice(0, 2).join(' · ')}</p>
+                        <p className="truncate text-sm font-black text-foreground">{driver.fullName}</p>
+                        <p className="text-xs font-medium text-muted-foreground">{driver.categories.slice(0, 2).join(' · ')}</p>
                         {driver.distanceMeters != null && (
-                          <p className="text-xs text-neutral-400">{(driver.distanceMeters / 1000).toFixed(1)} km away</p>
+                          <p className="text-xs text-muted-foreground">
+                            {t('search.kmAway', { km: (driver.distanceMeters / 1000).toFixed(1) })}
+                          </p>
                         )}
                         <div className="mt-1 flex items-center gap-2">
-                          <span className="rounded border border-teal-600 bg-teal-50 px-1.5 py-0.5 text-xs font-black text-teal-700">
-                            {trustTierFromScore(driver.trustScore)}
-                          </span>
-                          <p className="text-xs font-black text-teal-700">
+                          <TrustBadge score={driver.trustScore} />
+                          <p className="text-xs font-black text-brand">
                             {driver.dailyRateRwf
                               ? formatCurrencyRwf(driver.dailyRateRwf)
                               : driver.approximateRateRangeRwf
                                 ? formatRange(driver.approximateRateRangeRwf.daily.min, driver.approximateRateRangeRwf.daily.max)
                                 : t('home.priceUnavailable')}
-                            <span className="font-medium text-neutral-400"> /day</span>
+                            <span className="font-medium text-muted-foreground"> /day</span>
                           </p>
                         </div>
                       </div>
                     </div>
-                  </Link>
+                    </Link>
+                    <div className="absolute right-2 top-2 z-10 flex gap-1">
+                      <FavoriteButton
+                        kind="driver"
+                        id={driver.id}
+                        favorited={driverFavorites.ids.has(driver.id)}
+                        onChanged={(next) => driverFavorites.setFavorited(driver.id, next)}
+                      />
+                      <ShareMenu url={`/${locale}/drivers/${driver.id}`} title={driver.fullName} />
+                    </div>
+                  </div>
+                ))}
+
+                {(type === 'all' || type === 'taxis') && taxis.map((taxi) => (
+                  <div key={taxi.id} className="relative">
+                    <Link href={`/${locale}/taxi-drivers/${taxi.id}`}>
+                    <div
+                      onMouseEnter={() => setActivePin(taxi.id)}
+                      className={`flex cursor-pointer gap-3 rounded-xl border bg-card p-3 pr-16 transition hover:shadow-soft ${
+                        activePin === taxi.id
+                          ? 'border-red-500 shadow-soft-sm'
+                          : 'border-border'
+                      }`}
+                    >
+                      <InitialsAvatar
+                        name={taxi.fullName}
+                        src={taxi.profilePhotoUrl ?? taxi.photoUrl ?? taxi.photos?.[0] ?? null}
+                        size={56}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-black text-foreground">{taxi.fullName}</p>
+                        <p className="text-xs font-medium text-muted-foreground">
+                          {taxi.city}
+                          {taxi.carModel ? ` · ${taxi.carModel}` : ''}
+                          {taxi.seats ? ` · ${taxi.seats} seats` : ''}
+                        </p>
+                        {taxi.distanceMeters != null && (
+                          <p className="text-xs text-muted-foreground">
+                            {t('search.kmAway', { km: (taxi.distanceMeters / 1000).toFixed(1) })}
+                          </p>
+                        )}
+                        <p className="mt-1 text-sm font-semibold text-red-700">{taxi.phone}</p>
+                      </div>
+                    </div>
+                    </Link>
+                    <div className="absolute right-2 top-2 z-10 flex gap-1">
+                      <ShareMenu url={`/${locale}/taxi-drivers/${taxi.id}`} title={taxi.fullName} />
+                    </div>
+                  </div>
                 ))}
 
                 {hasMore && (
@@ -416,7 +558,7 @@ export default function SearchPage({ params }: SearchPageProps) {
                     type="button"
                     onClick={handleLoadMore}
                     disabled={loadingMore}
-                    className="w-full rounded border-2 border-neutral-900 bg-white py-2.5 text-xs font-black uppercase tracking-wide text-neutral-900 shadow-brutal-xs transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none disabled:opacity-50"
+                    className="w-full rounded-xl bg-white py-2.5 text-sm font-semibold text-ink hover:bg-white/90 disabled:opacity-50"
                   >
                     {loadingMore ? t('search.loadingMore') : t('search.loadMore')}
                   </button>
@@ -427,9 +569,9 @@ export default function SearchPage({ params }: SearchPageProps) {
         </section>
 
         {/* Map panel */}
-        <section className="relative hidden bg-neutral-100 md:block">
+        <section className={`${mobileView === 'list' ? 'hidden' : 'block'} relative min-h-[60vh] bg-muted md:block`}>
           <SearchResultsMap
-            centerHint={location || 'Kigali'}
+            centerHint={location.trim() || undefined}
             centerLatitude={latitude ?? undefined}
             centerLongitude={longitude ?? undefined}
             results={mergedResults}
@@ -437,6 +579,17 @@ export default function SearchPage({ params }: SearchPageProps) {
             onActiveChange={setActivePin}
             emptyLabel={t('search.mapEmpty')}
             loadingLabel={t('map.loading')}
+            viewDetailsLabel={t('map.viewDetails')}
+            kindLabels={{
+              car: t('map.kindCar'),
+              driver: t('map.kindDriver'),
+              taxi: t('map.kindTaxi'),
+            }}
+            legendLabels={{
+              car: t('map.legendCars'),
+              driver: t('map.legendDrivers'),
+              taxi: t('map.legendTaxis'),
+            }}
           />
         </section>
       </div>

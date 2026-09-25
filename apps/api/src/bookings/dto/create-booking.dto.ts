@@ -38,4 +38,8 @@ export class CreateBookingDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @IsString()
+  @IsNotEmpty()
+  renterPhone!: string;
 }

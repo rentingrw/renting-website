@@ -5,8 +5,8 @@ import { Skeleton } from '@rentingi/ui';
 /** Dashboard app loading - matches layout structure */
 export function AppLoadingSkeleton() {
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="sticky top-0 z-50 h-14 border-b border-gray-200 bg-background/90" />
+    <div className="min-h-screen bg-background">
+      <div className="sticky top-0 z-50 h-14 border-b border-border bg-background/90" />
       <main className="mx-auto w-full max-w-7xl space-y-6 p-4 md:p-8">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
@@ -14,7 +14,7 @@ export function AppLoadingSkeleton() {
             <Skeleton className="mt-2 h-4 w-32 bg-gray-200" />
           </div>
         </div>
-        <div className="-mx-4 flex gap-1 border-b border-gray-200 bg-white px-4 py-3 md:mx-0">
+        <div className="-mx-4 flex gap-1 border-b border-border bg-card px-4 py-3 md:mx-0">
           <Skeleton className="h-9 w-20 rounded-lg bg-gray-200" />
           <Skeleton className="h-9 w-24 rounded-lg bg-gray-200" />
         </div>
@@ -31,7 +31,7 @@ export function AppLoadingSkeleton() {
 /** Search result card skeleton */
 export function SearchCardSkeleton({ variant = 'car' }: { variant?: 'car' | 'driver' }) {
   return (
-    <div className="flex gap-3 rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
+    <div className="flex gap-3 rounded-lg border border-border bg-card p-3 shadow-sm">
       <Skeleton
         className={`shrink-0 bg-gray-200 ${variant === 'car' ? 'h-16 w-24' : 'h-16 w-16 rounded-full'}`}
       />

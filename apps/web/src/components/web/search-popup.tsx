@@ -1,6 +1,6 @@
 'use client';
 
-import { Badge, Button, Card, CardContent, Dialog, DialogContent, DialogHeader, DialogTitle } from '@rentingi/ui';
+import { Button, Card, CardContent, Dialog, DialogContent, DialogHeader, DialogTitle } from '@rentingi/ui';
 import { Search } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -11,11 +11,14 @@ import {
   searchMarketplace,
   type SearchCar,
   type SearchDriver,
+  type SearchTaxi,
   type SearchType,
 } from '@/lib/api';
-import { formatCurrencyRwf, formatRange, trustTierFromScore } from '@/lib/format';
+import { formatCurrencyRwf, formatRange } from '@/lib/format';
 import { stockImages } from '@/lib/stock-images';
 import type { SupportedLocale } from '@/i18n/routing';
+import { InitialsAvatar } from '@/components/web/initials-avatar';
+import { TrustBadge } from '@/components/web/trust-badge';
 import { LoadingSpinner, SearchPopupLoadingSkeleton } from '@/components/web/loading-states';
 
 type SearchPopupProps = {
@@ -32,6 +35,7 @@ export function SearchPopup({ open, onOpenChange, locale }: SearchPopupProps) {
   const [type, setType] = useState<SearchType>('all');
   const [cars, setCars] = useState<SearchCar[]>([]);
   const [drivers, setDrivers] = useState<SearchDriver[]>([]);
+  const [taxis, setTaxis] = useState<SearchTaxi[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searched, setSearched] = useState(false);
@@ -44,7 +48,7 @@ export function SearchPopup({ open, onOpenChange, locale }: SearchPopupProps) {
       const trimmed = query.trim();
       const params: Parameters<typeof searchMarketplace>[0] = {
         type,
-        location: 'Kigali',
+        location: trimmed || undefined,
         limit: PAGE_SIZE,
         offset: 0,
       };
@@ -54,10 +58,12 @@ export function SearchPopup({ open, onOpenChange, locale }: SearchPopupProps) {
       const data = await searchMarketplace(params);
       setCars(data.cars);
       setDrivers(data.drivers);
+      setTaxis(data.taxis ?? []);
     } catch (err) {
       setError(err instanceof Error ? err.message : t('search.error'));
       setCars([]);
       setDrivers([]);
+      setTaxis([]);
     } finally {
       setLoading(false);
     }
@@ -69,7 +75,7 @@ export function SearchPopup({ open, onOpenChange, locale }: SearchPopupProps) {
     const trimmed = query.trim();
     const params: Parameters<typeof searchMarketplace>[0] = {
       type,
-      location: 'Kigali',
+      location: trimmed || undefined,
       limit: PAGE_SIZE,
       offset: 0,
     };
@@ -82,11 +88,13 @@ export function SearchPopup({ open, onOpenChange, locale }: SearchPopupProps) {
       .then((data) => {
         setCars(data.cars);
         setDrivers(data.drivers);
+        setTaxis(data.taxis ?? []);
       })
       .catch((err) => {
         setError(err instanceof Error ? err.message : t('search.error'));
         setCars([]);
         setDrivers([]);
+        setTaxis([]);
       })
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only run when popup opens
@@ -99,19 +107,23 @@ export function SearchPopup({ open, onOpenChange, locale }: SearchPopupProps) {
 
   const includeCars = type === 'all' || type === 'cars';
   const includeDrivers = type === 'all' || type === 'drivers';
-  const totalCount = (includeCars ? cars.length : 0) + (includeDrivers ? drivers.length : 0);
+  const includeTaxis = type === 'all' || type === 'taxis';
+  const totalCount =
+    (includeCars ? cars.length : 0) +
+    (includeDrivers ? drivers.length : 0) +
+    (includeTaxis ? taxis.length : 0);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] w-[95vw] max-w-2xl overflow-hidden border-gray-200 bg-white p-0 sm:max-h-[85vh]">
-        <DialogHeader className="border-b border-gray-200 p-4">
-          <DialogTitle className="text-lg text-gray-900">{t('app.cta.findTitle')}</DialogTitle>
+      <DialogContent className="max-h-[90vh] w-[95vw] max-w-2xl overflow-hidden border-border bg-card p-0 sm:max-h-[85vh]">
+        <DialogHeader className="border-b border-border p-4">
+          <DialogTitle className="text-lg text-foreground">{t('app.cta.findTitle')}</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="border-b border-gray-200 p-4">
+        <form onSubmit={handleSubmit} className="border-b border-border p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <div className="relative min-w-0 flex-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <input
                 type="text"
                 value={query}
@@ -121,41 +133,45 @@ export function SearchPopup({ open, onOpenChange, locale }: SearchPopupProps) {
                   if (!next.trim()) {
                     setCars([]);
                     setDrivers([]);
+                    setTaxis([]);
                     setError(null);
                     setSearched(true);
                     setLoading(true);
                     searchMarketplace({
                       type,
-                      location: 'Kigali',
+                      location: undefined,
                       limit: PAGE_SIZE,
                       offset: 0,
                     })
                       .then((data) => {
                         setCars(data.cars);
                         setDrivers(data.drivers);
+                        setTaxis(data.taxis ?? []);
                       })
                       .catch((err) => {
                         setError(err instanceof Error ? err.message : t('search.error'));
                         setCars([]);
                         setDrivers([]);
+                        setTaxis([]);
                       })
                       .finally(() => setLoading(false));
                   }
                 }}
                 placeholder={t('search.locationPlaceholder')}
-                className="w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-10 pr-4 text-gray-900 placeholder:text-gray-500 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+                className="w-full rounded-lg border border-gray-300 bg-card py-2.5 pl-10 pr-4 text-foreground placeholder:text-muted-foreground focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20"
               />
             </div>
             <select
               value={type}
               onChange={(e) => setType(e.target.value as SearchType)}
-              className="h-10 rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:border-teal-500 focus:outline-none"
+              className="h-10 rounded-lg border border-gray-300 bg-card px-3 text-sm text-foreground focus:border-sky-500 focus:outline-none"
             >
               <option value="all">{t('tabs.all')}</option>
               <option value="cars">{t('tabs.cars')}</option>
               <option value="drivers">{t('tabs.drivers')}</option>
+              <option value="taxis">{t('tabs.taxi')}</option>
             </select>
-            <Button type="submit" disabled={loading} className="bg-teal-600 hover:bg-teal-700">
+            <Button type="submit" disabled={loading} className="bg-brand hover:bg-brand-hover">
               {loading ? (
                 <span className="flex items-center gap-2">
                   <LoadingSpinner className="h-4 w-4" />
@@ -172,14 +188,14 @@ export function SearchPopup({ open, onOpenChange, locale }: SearchPopupProps) {
           {error ? (
             <p className="text-sm text-red-600">{error}</p>
           ) : !searched ? (
-            <p className="py-8 text-center text-sm text-gray-500">{t('app.cta.findSubtitle')}</p>
+            <p className="py-8 text-center text-sm text-muted-foreground">{t('app.cta.findSubtitle')}</p>
           ) : loading ? (
             <SearchPopupLoadingSkeleton />
           ) : totalCount === 0 ? (
-            <p className="py-8 text-center text-sm text-gray-500">{t('search.resultsCount', { count: 0 })}</p>
+            <p className="py-8 text-center text-sm text-muted-foreground">{t('search.resultsCount', { count: 0 })}</p>
           ) : (
             <div className="space-y-3">
-              <p className="text-xs text-gray-500">{t('search.resultsCount', { count: totalCount })}</p>
+              <p className="text-xs text-muted-foreground">{t('search.resultsCount', { count: totalCount })}</p>
               {includeCars &&
                 cars.map((car) => (
                   <Link
@@ -187,7 +203,7 @@ export function SearchPopup({ open, onOpenChange, locale }: SearchPopupProps) {
                     href={`/${locale}/cars/${car.id}`}
                     onClick={() => onOpenChange(false)}
                   >
-                    <Card className="overflow-hidden border-gray-200 bg-white shadow-sm transition hover:border-teal-500/50 hover:shadow-md">
+                    <Card className="overflow-hidden border-border bg-card shadow-sm transition hover:border-sky-500/50 hover:shadow-md">
                       <CardContent className="flex gap-3 p-3">
                         <div className="h-16 w-24 shrink-0 overflow-hidden rounded-md bg-gray-100">
                           <Image
@@ -199,11 +215,11 @@ export function SearchPopup({ open, onOpenChange, locale }: SearchPopupProps) {
                           />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium text-gray-900">{car.title}</p>
-                          <p className="text-xs text-gray-500">
+                          <p className="truncate text-sm font-medium text-foreground">{car.title}</p>
+                          <p className="text-xs text-muted-foreground">
                             {car.locationText} • {car.vehicleType}
                           </p>
-                          <p className="mt-1 text-sm font-medium text-teal-600">
+                          <p className="mt-1 text-sm font-medium text-brand">
                             {car.dailyRateKigaliRwf
                               ? formatCurrencyRwf(car.dailyRateKigaliRwf)
                               : car.approximateDailyRateRangeRwf
@@ -225,27 +241,17 @@ export function SearchPopup({ open, onOpenChange, locale }: SearchPopupProps) {
                     href={`/${locale}/drivers/${driver.id}`}
                     onClick={() => onOpenChange(false)}
                   >
-                    <Card className="overflow-hidden border-gray-200 bg-white shadow-sm transition hover:border-teal-500/50 hover:shadow-md">
+                    <Card className="overflow-hidden border-border bg-card shadow-sm transition hover:border-sky-500/50 hover:shadow-md">
                       <CardContent className="flex gap-3 p-3">
-                        <div className="h-16 w-16 shrink-0 overflow-hidden rounded-full bg-gray-100">
-                          <Image
-                            src={driver.profilePhotoUrl ?? stockImages.drivers[0]}
-                            alt=""
-                            fill
-                            sizes="64px"
-                            className="object-cover"
-                          />
-                        </div>
+                        <InitialsAvatar name={driver.fullName} src={driver.profilePhotoUrl} size={64} />
                         <div className="min-w-0 flex-1">
-                          <p className="font-medium text-gray-900">{driver.fullName}</p>
-                          <p className="text-xs text-gray-500">
+                          <p className="font-medium text-foreground">{driver.fullName}</p>
+                          <p className="text-xs text-muted-foreground">
                             {driver.primaryCity} • {driver.categories.slice(0, 2).join(' • ')}
                           </p>
                           <div className="mt-1 flex items-center gap-2">
-                            <Badge className="bg-teal-50 text-teal-700 text-xs">
-                              {trustTierFromScore(driver.trustScore)}
-                            </Badge>
-                            <span className="text-sm font-medium text-teal-600">
+                            <TrustBadge score={driver.trustScore} />
+                            <span className="text-sm font-medium text-brand">
                               {driver.dailyRateRwf
                                 ? formatCurrencyRwf(driver.dailyRateRwf)
                                 : driver.approximateRateRangeRwf
@@ -256,6 +262,33 @@ export function SearchPopup({ open, onOpenChange, locale }: SearchPopupProps) {
                                   : t('home.priceUnavailable')}
                             </span>
                           </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </Link>
+                ))}
+              {includeTaxis &&
+                taxis.map((taxi) => (
+                  <Link
+                    key={taxi.id}
+                    href={`/${locale}/taxi-drivers/${taxi.id}`}
+                    onClick={() => onOpenChange(false)}
+                  >
+                    <Card className="overflow-hidden border-border bg-card shadow-sm transition hover:border-red-500/50 hover:shadow-md">
+                      <CardContent className="flex gap-3 p-3">
+                        <InitialsAvatar
+                          name={taxi.fullName}
+                          src={taxi.profilePhotoUrl ?? taxi.photoUrl ?? taxi.photos?.[0] ?? null}
+                          size={64}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium text-foreground">{taxi.fullName}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {taxi.city}
+                            {taxi.carModel ? ` • ${taxi.carModel}` : ''}
+                            {taxi.seats ? ` • ${taxi.seats} seats` : ''}
+                          </p>
+                          <p className="mt-1 text-sm font-medium text-red-300">{taxi.phone}</p>
                         </div>
                       </CardContent>
                     </Card>

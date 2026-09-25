@@ -7,6 +7,7 @@ import { ClerkAuthGuard } from '../auth/guards/clerk-auth.guard';
 import type { AuthenticatedUser } from '../auth/types/authenticated-request.interface';
 import { InitiateSubscriptionDto } from './dto/initiate-subscription.dto';
 import { InitiateDriverSubscriptionDto } from './dto/initiate-driver-subscription.dto';
+import { InitiateTaxiSubscriptionDto } from './dto/initiate-taxi-subscription.dto';
 import { UpgradeSubscriptionDto } from './dto/upgrade-subscription.dto';
 import { SubscriptionsService } from './subscriptions.service';
 
@@ -14,6 +15,12 @@ import { SubscriptionsService } from './subscriptions.service';
 @Controller('subscriptions')
 export class SubscriptionsController {
   constructor(private readonly subscriptionsService: SubscriptionsService) {}
+
+  @Get('plans')
+  @ApiOperation({ summary: 'List hoster, driver, and taxi subscription plans' })
+  getPlans() {
+    return this.subscriptionsService.getPlans();
+  }
 
   @Post('initiate')
   @UseGuards(ClerkAuthGuard)
@@ -100,6 +107,39 @@ export class SubscriptionsController {
   @ApiOperation({ summary: 'Cancel the authenticated user\'s driver subscription' })
   cancelDriverSubscription(@CurrentUser() user: AuthenticatedUser) {
     return this.subscriptionsService.cancelDriverSubscription(user);
+  }
+
+  @Get('taxi/history')
+  @UseGuards(ClerkAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get payment history for taxi subscriptions' })
+  getTaxiPaymentHistory(@CurrentUser() user: AuthenticatedUser) {
+    return this.subscriptionsService.getTaxiPaymentHistory(user);
+  }
+
+  @Post('taxi/initiate')
+  @UseGuards(ClerkAuthGuard)
+  @ApiBearerAuth()
+  @Throttle({ strict: { ttl: 60_000, limit: 5 } })
+  @ApiOperation({ summary: 'Initiate a taxi driver subscription payment' })
+  initiateTaxi(@CurrentUser() user: AuthenticatedUser, @Body() payload: InitiateTaxiSubscriptionDto) {
+    return this.subscriptionsService.initiateTaxi(user, payload);
+  }
+
+  @Get('taxi/me')
+  @UseGuards(ClerkAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get the active taxi subscription for the authenticated user' })
+  getTaxiSubscriptionMine(@CurrentUser() user: AuthenticatedUser) {
+    return this.subscriptionsService.getTaxiSubscriptionMine(user);
+  }
+
+  @Post('taxi/cancel')
+  @UseGuards(ClerkAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Cancel the authenticated user\'s taxi subscription' })
+  cancelTaxiSubscription(@CurrentUser() user: AuthenticatedUser) {
+    return this.subscriptionsService.cancelTaxiSubscription(user);
   }
 }
 

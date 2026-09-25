@@ -9,6 +9,7 @@ import type { AuthenticatedUser } from '../auth/types/authenticated-request.inte
 import { AddRoleDto } from './dto/add-role.dto';
 import { UpdateMeDto } from './dto/update-me.dto';
 import { SubmitKycDto } from './dto/submit-kyc.dto';
+import { UpsertHosterProfileDto } from './dto/upsert-hoster-profile.dto';
 import { UsersService } from './users.service';
 
 @ApiTags('Users')
@@ -38,6 +39,14 @@ export class UsersController {
   @ApiOperation({ summary: 'Add a secondary role to the current authenticated user' })
   addRole(@CurrentUser() user: AuthenticatedUser, @Body() payload: AddRoleDto) {
     return this.usersService.addSecondaryRole(user.clerkUserId, payload.role);
+  }
+
+  @Post('me/hoster-profile')
+  @UseGuards(ClerkAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create or update the hoster profile and grant the car_owner role' })
+  upsertHosterProfile(@CurrentUser() user: AuthenticatedUser, @Body() payload: UpsertHosterProfileDto) {
+    return this.usersService.upsertHosterProfile(user.clerkUserId, payload);
   }
 
   @Post('me/kyc')

@@ -1,14 +1,89 @@
-/* Web app neo-brutalism overrides */
-:root {
-  --background: 47 33% 95%;
-  --foreground: 0 0% 7%;
+/* Signature green is the footer forest (#14221F), used like Booking.com blue:
+   chrome (header + footer), CTAs, links. Canvas stays warm paper. */
+
+/* html:root beats @rentingi/ui layered :root so the consumer app stays light. */
+html:root {
+  color-scheme: light;
+  --background: 40 33% 96%;
+  --foreground: 158 18% 14%;
   --card: 0 0% 100%;
-  --card-foreground: 0 0% 7%;
-  --primary: 174 72% 32%;
+  --card-foreground: 158 18% 14%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 158 18% 14%;
+  --primary: 165 26% 11%;
   --primary-foreground: 0 0% 100%;
-  --muted: 47 20% 89%;
-  --muted-foreground: 0 0% 38%;
-  --border: 0 0% 85%;
-  --input: 214.3 31.8% 91.4%;
-  --ring: 174 72% 32%;
+  --secondary: 150 10% 93%;
+  --secondary-foreground: 158 18% 14%;
+  --muted: 150 10% 93%;
+  --muted-foreground: 160 8% 38%;
+  --accent: 165 26% 11%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 4 72% 46%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 150 10% 86%;
+  --input: 150 10% 86%;
+  --ring: 165 26% 11%;
+  --radius: 0.9rem;
+  --ink: #14221f;
+  --sun: #d4a017;
+}
+
+body {
+  background-color: #f6f4ef;
+  color: #1c2a27;
+  font-size: 16px;
+  line-height: 1.5;
+  hyphens: none;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.hero-title {
+  font-size: clamp(2.15rem, 5.4vw, 3.4rem) !important;
+  line-height: 1.12;
+  font-weight: 800;
+}
+
+input[type='date'] {
+  color-scheme: light;
+}
+
+input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+input[type='range']::-webkit-slider-runnable-track {
+  background: transparent;
+  height: 8px;
+}
+
+input[type='range']::-moz-range-track {
+  background: transparent;
+  height: 8px;
+  border: none;
+}
+
+.renting-map-pin {
+  background: transparent !important;
+  border: none !important;
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: 14px;
+  box-shadow: 0 12px 32px rgba(20, 34, 31, 0.12);
+}
+
+.leaflet-popup-content {
+  margin: 10px 12px;
+}
+
+.leaflet-container {
+  background: #e7eee9;
 }

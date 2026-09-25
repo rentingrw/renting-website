@@ -23,7 +23,11 @@ export class AdminJwtGuard implements CanActivate {
     }
 
     const token = authHeader.slice(7);
-    const secret = this.configService.getOrThrow<string>('ADMIN_JWT_SECRET');
+    const secret =
+      this.configService.get<string>('ADMIN_JWT_SECRET') ?? process.env.ADMIN_JWT_SECRET;
+    if (!secret) {
+      throw new UnauthorizedException('Admin auth is not configured (ADMIN_JWT_SECRET).');
+    }
 
     try {
       const payload = jwt.verify(token, secret) as jwt.JwtPayload;

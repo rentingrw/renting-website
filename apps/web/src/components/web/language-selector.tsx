@@ -37,14 +37,14 @@ function switchLocaleInPath(pathname: string, locale: SupportedLocale): string {
 type LanguageSelectorProps = {
   locale: SupportedLocale;
   onLocaleChange?: (locale: SupportedLocale) => void;
-  /** Light theme (default) or dark theme for dashboard */
-  variant?: 'light' | 'dark';
+  /** Light canvas, or dark green chrome like the header/footer */
+  variant?: 'light' | 'dark' | 'brand';
 };
 
 export function LanguageSelector({ locale, onLocaleChange, variant = 'light' }: LanguageSelectorProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const isDark = variant === 'dark';
+  const isDark = variant === 'dark' || variant === 'brand';
 
   function handleLocaleSelect(nextLocale: SupportedLocale) {
     if (nextLocale === locale) return;
@@ -63,20 +63,18 @@ export function LanguageSelector({ locale, onLocaleChange, variant = 'light' }: 
           type="button"
           className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium transition ${
             isDark
-              ? 'text-white hover:bg-zinc-800'
-              : 'text-gray-700 hover:bg-gray-100'
+              ? 'text-white hover:bg-white/10'
+              : 'text-muted-foreground hover:bg-muted'
           }`}
           aria-label="Select language"
         >
           <span className="text-lg leading-none">{localeFlag[locale]}</span>
-          <ChevronDown className={`h-4 w-4 ${isDark ? 'text-zinc-400' : 'text-gray-500'}`} />
+          <ChevronDown className={`h-4 w-4 ${isDark ? 'text-white/80' : 'text-muted-foreground'}`} />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        className={`min-w-[10rem] ${
-          isDark ? 'border-zinc-800 bg-zinc-900' : ''
-        }`}
+        className={`min-w-[10rem] border border-border bg-card text-foreground`}
       >
         {supportedLocales.map((candidate) => (
           <DropdownMenuItem
@@ -84,12 +82,8 @@ export function LanguageSelector({ locale, onLocaleChange, variant = 'light' }: 
             onClick={() => handleLocaleSelect(candidate)}
             className={`flex cursor-pointer items-center gap-2 ${
               candidate === locale
-                ? isDark
-                  ? 'bg-emerald-500/20 text-emerald-400'
-                  : 'bg-teal-50 text-teal-700'
-                : isDark
-                  ? 'text-zinc-300 focus:bg-zinc-800 focus:text-white'
-                  : 'focus:bg-gray-100'
+                ? 'bg-brand-soft text-brand'
+                : 'focus:bg-brand-soft'
             }`}
           >
             <span className="text-lg">{localeFlag[candidate]}</span>

@@ -4,6 +4,7 @@ import { prisma } from '../database/prisma';
 
 import type { UpdateMeDto } from './dto/update-me.dto';
 import type { SubmitKycDto } from './dto/submit-kyc.dto';
+import type { UpsertHosterProfileDto } from './dto/upsert-hoster-profile.dto';
 import { deriveTrustTier } from './trust-tier';
 
 @Injectable()
@@ -11,7 +12,12 @@ export class UsersService {
   async getMe(clerkUserId: string) {
     const user = await prisma.user.findUnique({
       where: { clerkId: clerkUserId },
-      include: { roles: true },
+      include: {
+        roles: true,
+        taxiDriver: { select: { id: true } },
+        driverProfile: { select: { id: true } },
+        carOwnerProfile: { select: { companyName: true, workAddress: true, contactPhone: true } },
+      },
     });
 
     if (!user) {
@@ -29,6 +35,7 @@ export class UsersService {
       clerkId: user.clerkId,
       email: user.email,
       phone: user.phone,
+      whatsapp: user.whatsapp,
       fullName: user.fullName,
       profilePhotoUrl: user.avatarUrl,
       status: user.status,
@@ -38,6 +45,15 @@ export class UsersService {
       roles: Array.from(roles),
       languagePreference: user.languagePreference,
       isVerified: user.isVerified,
+      hasTaxiProfile: Boolean(user.taxiDriver),
+      hasDriverProfile: Boolean(user.driverProfile),
+      hosterProfile: user.carOwnerProfile
+        ? {
+            companyName: user.carOwnerProfile.companyName,
+            workAddress: user.carOwnerProfile.workAddress,
+            contactPhone: user.carOwnerProfile.contactPhone,
+          }
+        : null,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };
@@ -66,6 +82,12 @@ export class UsersService {
     if (payload.languagePreference !== undefined) {
       updateData.languagePreference = payload.languagePreference;
     }
+    if (payload.phone !== undefined) {
+      updateData.phone = payload.phone.trim() || null;
+    }
+    if (payload.whatsapp !== undefined) {
+      updateData.whatsapp = payload.whatsapp.trim() || null;
+    }
 
     return prisma.user.update({
       where: { id: user.id },
@@ -74,6 +96,8 @@ export class UsersService {
         id: true,
         email: true,
         fullName: true,
+        phone: true,
+        whatsapp: true,
         avatarUrl: true,
         languagePreference: true,
         updatedAt: true,
@@ -209,6 +233,48 @@ export class UsersService {
     };
   }
 
+  async upsertHosterProfile(clerkUserId: string, payload: UpsertHosterProfileDto) {
+    const user = await prisma.user.findUnique({
+      where: { clerkId: clerkUserId },
+      select: { id: true, deletedAt: true, primaryRole: true },
+    });
+    if (!user) throw new NotFoundException('User not found. Sync your account first.');
+    if (user.deletedAt) throw new ForbiddenException('This account has been deactivated.');
+
+    await this.addSecondaryRole(clerkUserId, 'car_owner');
+
+    if (payload.contactPhone?.trim()) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { phone: payload.contactPhone.trim(), primaryRole: user.primaryRole === 'renter' ? 'car_owner' : undefined },
+      });
+    } else if (user.primaryRole === 'renter') {
+      await prisma.user.update({ where: { id: user.id }, data: { primaryRole: 'car_owner' } });
+    }
+
+    const profile = await prisma.carOwnerProfile.upsert({
+      where: { userId: user.id },
+      create: {
+        userId: user.id,
+        companyName: payload.companyName,
+        workAddress: payload.workAddress,
+        contactPhone: payload.contactPhone,
+      },
+      update: {
+        ...(payload.companyName !== undefined ? { companyName: payload.companyName } : {}),
+        ...(payload.workAddress !== undefined ? { workAddress: payload.workAddress } : {}),
+        ...(payload.contactPhone !== undefined ? { contactPhone: payload.contactPhone } : {}),
+      },
+    });
+
+    return {
+      id: profile.id,
+      companyName: profile.companyName,
+      workAddress: profile.workAddress,
+      contactPhone: profile.contactPhone,
+    };
+  }
+
   async getPublicProfile(userId: string) {
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -224,14 +290,28 @@ export class UsersService {
     if (!user) {
       throw new NotFoundException('User not found.');
     }
+    const events = await prisma.trustScoreEvent.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      take: 8,
+      select: { id: true, type: true, delta: true, createdAt: true },
+    });
     return {
       id: user.id,
       fullName: user.fullName,
       avatarUrl: user.avatarUrl,
-      trustScore: user.trustScore,
+      trustScore: Number(user.trustScore),
       primaryRole: user.primaryRole,
       driverProfileId: user.driverProfile?.id ?? null,
       driverPrimaryCity: user.driverProfile?.primaryCity ?? null,
+      rating: user.driverProfile?.rating ? Number(user.driverProfile.rating) : null,
+      completedTrips: user.driverProfile?.completedTrips ?? 0,
+      recentTrustEvents: events.map((event) => ({
+        id: event.id,
+        type: event.type,
+        delta: Number(event.delta),
+        createdAt: event.createdAt,
+      })),
     };
   }
 }

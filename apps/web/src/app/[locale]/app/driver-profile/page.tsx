@@ -4,6 +4,7 @@ import { useAuth } from '@clerk/nextjs';
 import { DashboardHeader } from '@/components/web/dashboard-header';
 import { isSupportedLocale, routing, type SupportedLocale } from '@/i18n/routing';
 import {
+  addRole,
   createDriverProfile,
   getDriverProfileFull,
   updateDriverProfile,
@@ -12,6 +13,7 @@ import {
   type VehicleType,
 } from '@/lib/api';
 import { CheckCircle2, Plus, X } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 type DriverProfilePageProps = {
@@ -37,6 +39,7 @@ function labelFor(value: string) {
 export default function DriverProfilePage({ params }: DriverProfilePageProps) {
   const [locale, setLocale] = useState<SupportedLocale>(routing.defaultLocale);
   const { getToken } = useAuth();
+  const router = useRouter();
   const [existing, setExisting] = useState<DriverProfileFull | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -74,21 +77,26 @@ export default function DriverProfilePage({ params }: DriverProfilePageProps) {
       if (!token) { setLoading(false); return; }
       try {
         const profile = await getDriverProfileFull(token);
-        if (!cancelled && profile) {
-          setExisting(profile);
-          setDriverCategory(profile.driverCategory);
-          setYearsExperience(profile.yearsExperience);
-          setBiography(profile.biography ?? '');
-          setDailyRateRwf(profile.dailyRateRwf);
-          setHourlyRateRwf(profile.hourlyRateRwf != null ? String(profile.hourlyRateRwf) : '');
-          setWeeklyRateRwf(profile.weeklyRateRwf != null ? String(profile.weeklyRateRwf) : '');
-          setPrimaryCity(profile.primaryCity);
-          setLanguages(profile.languages.length ? profile.languages : ['en', 'rw']);
-          setCategories(profile.categories.length ? (profile.categories as DriverCategory[]) : [profile.driverCategory]);
-          setVehicleTypes(profile.vehicleTypes.length ? (profile.vehicleTypes as VehicleType[]) : ['sedan']);
-          setCertifications(profile.certifications);
-          setServiceAreas(profile.serviceAreas.length ? profile.serviceAreas : ['Kigali']);
+        if (cancelled) return;
+        if (!profile) {
+          const routeParams = await params;
+          const nextLocale = isSupportedLocale(routeParams.locale) ? routeParams.locale : routing.defaultLocale;
+          router.replace(`/${nextLocale}/onboard/driver`);
+          return;
         }
+        setExisting(profile);
+        setDriverCategory(profile.driverCategory);
+        setYearsExperience(profile.yearsExperience);
+        setBiography(profile.biography ?? '');
+        setDailyRateRwf(profile.dailyRateRwf);
+        setHourlyRateRwf(profile.hourlyRateRwf != null ? String(profile.hourlyRateRwf) : '');
+        setWeeklyRateRwf(profile.weeklyRateRwf != null ? String(profile.weeklyRateRwf) : '');
+        setPrimaryCity(profile.primaryCity);
+        setLanguages(profile.languages.length ? profile.languages : ['en', 'rw']);
+        setCategories(profile.categories.length ? (profile.categories as DriverCategory[]) : [profile.driverCategory]);
+        setVehicleTypes(profile.vehicleTypes.length ? (profile.vehicleTypes as VehicleType[]) : ['sedan']);
+        setCertifications(profile.certifications);
+        setServiceAreas(profile.serviceAreas.length ? profile.serviceAreas : ['Kigali']);
       } catch {
         // silently fail
       } finally {
@@ -97,7 +105,7 @@ export default function DriverProfilePage({ params }: DriverProfilePageProps) {
     }
     load();
     return () => { cancelled = true; };
-  }, [getToken]);
+  }, [getToken, params, router]);
 
   function toggleArrayItem<T extends string>(arr: T[], item: T, setArr: (v: T[]) => void) {
     if (arr.includes(item)) {
@@ -139,6 +147,7 @@ export default function DriverProfilePage({ params }: DriverProfilePageProps) {
       if (existing) {
         await updateDriverProfile(token, payload);
       } else {
+        await addRole(token, 'driver');
         await createDriverProfile(token, payload);
       }
       setSaved(true);
@@ -150,11 +159,11 @@ export default function DriverProfilePage({ params }: DriverProfilePageProps) {
     }
   }
 
-  const inputClass = 'w-full rounded border-2 border-neutral-900 px-4 py-2.5 text-sm font-semibold text-neutral-900 placeholder:text-neutral-400 focus:border-teal-600 focus:outline-none';
-  const labelClass = 'mb-1.5 block text-xs font-black uppercase tracking-widest text-neutral-500';
+  const inputClass = 'w-full rounded-xl border border-border bg-white px-4 py-2.5 text-sm font-medium text-foreground placeholder:text-muted-foreground focus:border-brand focus:outline-none';
+  const labelClass = 'mb-1.5 block text-xs font-black uppercase tracking-widest text-muted-foreground';
 
   return (
-    <div className="min-h-screen bg-[#f5f0e8]">
+    <div className="min-h-screen bg-background">
       <DashboardHeader
         locale={locale}
         onLocaleChange={() => {}}
@@ -164,10 +173,10 @@ export default function DriverProfilePage({ params }: DriverProfilePageProps) {
 
       <main className="mx-auto max-w-3xl px-4 py-8 md:px-8">
         <div className="mb-6">
-          <h1 className="text-2xl font-black text-neutral-900">
+          <h1 className="text-2xl font-black text-foreground">
             {existing ? 'Update Driver Profile' : 'Create Driver Profile'}
           </h1>
-          <p className="mt-1 text-sm text-neutral-500">
+          <p className="mt-1 text-sm text-muted-foreground">
             {existing
               ? 'Your profile is live. Update any details below.'
               : 'Set up your profile so customers can find and book you.'}
@@ -177,15 +186,15 @@ export default function DriverProfilePage({ params }: DriverProfilePageProps) {
         {loading ? (
           <div className="space-y-4">
             {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="h-16 animate-pulse rounded-md border-2 border-neutral-200 bg-neutral-100" />
+              <div key={i} className="h-16 animate-pulse rounded-md border-2 border-border bg-muted" />
             ))}
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-6 rounded-md border-2 border-neutral-900 bg-white p-6 shadow-brutal">
+          <form onSubmit={handleSubmit} className="space-y-6 rounded-2xl border border-border bg-card p-6 shadow-card">
             {saved && (
-              <div className="flex items-center gap-2 rounded border-2 border-teal-600 bg-teal-50 px-4 py-3">
-                <CheckCircle2 className="h-4 w-4 text-teal-600" />
-                <p className="text-sm font-bold text-teal-700">
+              <div className="flex items-center gap-2 rounded border-2 border-brand bg-brand-soft px-4 py-3">
+                <CheckCircle2 className="h-4 w-4 text-brand" />
+                <p className="text-sm font-bold text-brand">
                   Profile {existing ? 'updated' : 'created'} successfully!
                 </p>
               </div>
@@ -217,8 +226,8 @@ export default function DriverProfilePage({ params }: DriverProfilePageProps) {
                     onClick={() => toggleArrayItem(categories, cat, setCategories)}
                     className={`rounded border-2 px-3 py-1.5 text-sm font-bold transition-all ${
                       categories.includes(cat)
-                        ? 'border-teal-600 bg-teal-600 text-white'
-                        : 'border-neutral-300 bg-white text-neutral-700 hover:border-neutral-900'
+                        ? 'border-brand bg-brand text-white'
+                        : 'border-neutral-300 bg-card text-muted-foreground hover:border-border'
                     }`}
                   >
                     {labelFor(cat)}
@@ -317,8 +326,8 @@ export default function DriverProfilePage({ params }: DriverProfilePageProps) {
                     onClick={() => setAvailabilityMode(mode)}
                     className={`rounded border-2 px-3 py-1.5 text-sm font-bold transition-all ${
                       availabilityMode === mode
-                        ? 'border-teal-600 bg-teal-600 text-white'
-                        : 'border-neutral-300 bg-white text-neutral-700 hover:border-neutral-900'
+                        ? 'border-brand bg-brand text-white'
+                        : 'border-neutral-300 bg-card text-muted-foreground hover:border-border'
                     }`}
                   >
                     {mode}
@@ -338,8 +347,8 @@ export default function DriverProfilePage({ params }: DriverProfilePageProps) {
                     onClick={() => setDrivingCapability(cap)}
                     className={`rounded border-2 px-3 py-1.5 text-sm font-bold transition-all ${
                       drivingCapability === cap
-                        ? 'border-teal-600 bg-teal-600 text-white'
-                        : 'border-neutral-300 bg-white text-neutral-700 hover:border-neutral-900'
+                        ? 'border-brand bg-brand text-white'
+                        : 'border-neutral-300 bg-card text-muted-foreground hover:border-border'
                     }`}
                   >
                     {cap}
@@ -359,15 +368,15 @@ export default function DriverProfilePage({ params }: DriverProfilePageProps) {
                     onClick={() => toggleArrayItem(licenseCategories, lc, setLicenseCategories)}
                     className={`h-10 w-10 rounded border-2 text-sm font-black transition-all ${
                       licenseCategories.includes(lc)
-                        ? 'border-teal-600 bg-teal-600 text-white'
-                        : 'border-neutral-300 bg-white text-neutral-700 hover:border-neutral-900'
+                        ? 'border-brand bg-brand text-white'
+                        : 'border-neutral-300 bg-card text-muted-foreground hover:border-border'
                     }`}
                   >
                     {lc}
                   </button>
                 ))}
               </div>
-              <p className="mt-1 text-xs text-neutral-500">B = car, C = truck, D = bus, A = motorcycle</p>
+              <p className="mt-1 text-xs text-muted-foreground">B = car, C = truck, D = bus, A = motorcycle</p>
             </div>
 
             {/* Vehicle types */}
@@ -381,8 +390,8 @@ export default function DriverProfilePage({ params }: DriverProfilePageProps) {
                     onClick={() => toggleArrayItem(vehicleTypes, vt, setVehicleTypes)}
                     className={`rounded border-2 px-3 py-1.5 text-sm font-bold capitalize transition-all ${
                       vehicleTypes.includes(vt)
-                        ? 'border-teal-600 bg-teal-600 text-white'
-                        : 'border-neutral-300 bg-white text-neutral-700 hover:border-neutral-900'
+                        ? 'border-brand bg-brand text-white'
+                        : 'border-neutral-300 bg-card text-muted-foreground hover:border-border'
                     }`}
                   >
                     {vt}
@@ -408,8 +417,8 @@ export default function DriverProfilePage({ params }: DriverProfilePageProps) {
                     }}
                     className={`rounded border-2 px-3 py-1.5 text-sm font-bold transition-all ${
                       languages.includes(value)
-                        ? 'border-teal-600 bg-teal-600 text-white'
-                        : 'border-neutral-300 bg-white text-neutral-700 hover:border-neutral-900'
+                        ? 'border-brand bg-brand text-white'
+                        : 'border-neutral-300 bg-card text-muted-foreground hover:border-border'
                     }`}
                   >
                     {label}
@@ -425,13 +434,13 @@ export default function DriverProfilePage({ params }: DriverProfilePageProps) {
                 {serviceAreas.filter((a) => !a.startsWith('Availability:')).map((area) => (
                   <span
                     key={area}
-                    className="flex items-center gap-1 rounded border-2 border-neutral-900 bg-neutral-50 px-2.5 py-1 text-sm font-bold"
+                    className="flex items-center gap-1 rounded border-2 border-border bg-neutral-50 px-2.5 py-1 text-sm font-bold"
                   >
                     {area}
                     <button
                       type="button"
                       onClick={() => setServiceAreas(serviceAreas.filter((a) => a !== area))}
-                      className="text-neutral-500 hover:text-red-600"
+                      className="text-muted-foreground hover:text-red-600"
                     >
                       <X className="h-3 w-3" />
                     </button>
@@ -444,7 +453,7 @@ export default function DriverProfilePage({ params }: DriverProfilePageProps) {
                   value={customServiceArea}
                   onChange={(e) => setCustomServiceArea(e.target.value)}
                   placeholder="Add a city or area..."
-                  className="flex-1 rounded border-2 border-neutral-900 px-3 py-2 text-sm focus:border-teal-600 focus:outline-none"
+                  className="flex-1 rounded border-2 border-border px-3 py-2 text-sm focus:border-brand focus:outline-none"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
@@ -465,7 +474,7 @@ export default function DriverProfilePage({ params }: DriverProfilePageProps) {
                     }
                     setCustomServiceArea('');
                   }}
-                  className="flex items-center gap-1 rounded border-2 border-neutral-900 px-3 py-2 text-sm font-bold hover:bg-neutral-100"
+                  className="flex items-center gap-1 rounded border-2 border-border px-3 py-2 text-sm font-bold hover:bg-muted"
                 >
                   <Plus className="h-4 w-4" /> Add
                 </button>
@@ -481,7 +490,7 @@ export default function DriverProfilePage({ params }: DriverProfilePageProps) {
             <button
               type="submit"
               disabled={saving}
-              className="w-full rounded border-2 border-teal-800 bg-teal-600 py-3.5 text-sm font-black uppercase tracking-wide text-white shadow-brutal-teal-sm transition-all hover:translate-x-px hover:translate-y-px hover:bg-teal-700 hover:shadow-none disabled:cursor-not-allowed disabled:opacity-60"
+              className="w-full rounded border-2 border-brand-strong bg-brand py-3.5 text-sm font-black uppercase tracking-wide text-white shadow-brutal-sky-sm transition-all hover:translate-x-px hover:translate-y-px hover:bg-brand-hover hover:shadow-none disabled:cursor-not-allowed disabled:opacity-60"
             >
               {saving ? 'Saving...' : existing ? 'Update Driver Profile' : 'Create Driver Profile'}
             </button>

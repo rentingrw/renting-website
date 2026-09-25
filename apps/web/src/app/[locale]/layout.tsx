@@ -13,8 +13,8 @@ import { routing } from '@/i18n/routing';
 import { UserSync } from '@/components/web/user-sync';
 
 export const metadata: Metadata = {
-  title: { default: 'renting.rw — Rwanda\'s Car & Driver Marketplace', template: '%s | renting.rw' },
-  description: 'Book verified cars and professional drivers in Rwanda. Self-drive, airport transfers, city trips and more.',
+  title: { default: 'renting.rw, Rwanda\'s Car & Driver Marketplace', template: '%s | renting.rw' },
+  description: 'Book cars and professional drivers in Rwanda. Self-drive, airport transfers, city trips and more.',
   metadataBase: new URL('https://renting.rw'),
   icons: {
     icon: '/favicon.png',
@@ -46,8 +46,19 @@ export default async function LocaleLayout({
 
   return (
     <html lang={locale}>
-      <body className={inter.className}>
-        <ClerkProvider>
+      <body className={`${inter.className} bg-background text-foreground`}>
+        <ClerkProvider
+          appearance={{
+            layout: { unsafe_disableDevelopmentModeWarnings: true },
+            variables: {
+              colorPrimary: '#14221f',
+              colorBackground: '#ffffff',
+              colorText: '#1c2a27',
+              colorTextSecondary: '#5c6b67',
+              borderRadius: '0.9rem',
+            },
+          }}
+        >
           <NextIntlClientProvider messages={messages}>
             <AppQueryClientProvider>
               <UserSync />

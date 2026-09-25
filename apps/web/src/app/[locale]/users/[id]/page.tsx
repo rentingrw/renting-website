@@ -1,12 +1,14 @@
 'use client';
 
-import { Car, ShieldCheck, Star, User } from 'lucide-react';
-import Image from 'next/image';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 
 import { AppHeader } from '@/components/web/app-header';
 import { SiteFooter } from '@/components/web/site-footer';
+import { CarListingCard } from '@/components/web/car-listing-card';
+import { ProfileHeader } from '@/components/web/profile-header';
+import { ShareMenu } from '@/components/web/share-menu';
 import { isSupportedLocale, routing, type SupportedLocale } from '@/i18n/routing';
 import {
   getCarsByOwner,
@@ -15,8 +17,6 @@ import {
   type SearchCar,
   type UserPublicProfile,
 } from '@/lib/api';
-import { formatRange, trustTierFromScore } from '@/lib/format';
-import { stockImages } from '@/lib/stock-images';
 
 type Props = {
   params: Promise<{ locale: string; id: string }>;
@@ -24,20 +24,20 @@ type Props = {
 
 function Skeleton({ locale }: { locale: SupportedLocale }) {
   return (
-    <main className="min-h-screen bg-[#f5f0e8]">
+    <main className="min-h-screen bg-background">
       <AppHeader locale={locale} variant="default" />
       <div className="mx-auto max-w-4xl animate-pulse px-4 py-10 md:px-6">
-        <div className="mb-8 flex gap-5 rounded-md border-2 border-neutral-900 bg-white p-6 shadow-brutal">
-          <div className="h-24 w-24 shrink-0 rounded-full border-2 border-neutral-900 bg-neutral-200" />
+        <div className="mb-8 flex gap-5 rounded-2xl border border-border bg-card p-6 shadow-card">
+          <div className="h-24 w-24 shrink-0 rounded-full border-2 border-border bg-muted" />
           <div className="flex-1 space-y-3">
-            <div className="h-7 w-1/2 rounded bg-neutral-200" />
-            <div className="h-5 w-1/4 rounded bg-neutral-200" />
-            <div className="h-5 w-1/3 rounded bg-neutral-200" />
+            <div className="h-7 w-1/2 rounded bg-muted" />
+            <div className="h-5 w-1/4 rounded bg-muted" />
+            <div className="h-5 w-1/3 rounded bg-muted" />
           </div>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-48 rounded-md border-2 border-neutral-900 bg-neutral-200" />
+            <div key={i} className="h-48 rounded-md border-2 border-border bg-muted" />
           ))}
         </div>
       </div>
@@ -46,6 +46,7 @@ function Skeleton({ locale }: { locale: SupportedLocale }) {
 }
 
 export default function UserProfilePage({ params }: Props) {
+  const t = useTranslations('web.listing');
   const [locale, setLocale] = useState<SupportedLocale>(routing.defaultLocale);
   const [userId, setUserId] = useState('');
   const [profile, setProfile] = useState<UserPublicProfile | null>(null);
@@ -102,7 +103,7 @@ export default function UserProfilePage({ params }: Props) {
 
   if (error || !profile) {
     return (
-      <main className="min-h-screen bg-[#f5f0e8]">
+      <main className="min-h-screen bg-background">
         <AppHeader locale={locale} variant="default" />
         <div className="mx-auto max-w-4xl p-8">
           <p className="rounded-md border-2 border-red-600 bg-red-50 p-4 font-semibold text-red-700">
@@ -114,111 +115,72 @@ export default function UserProfilePage({ params }: Props) {
   }
 
   const avatarSrc = profile.avatarUrl ?? null;
-  const trustLabel = trustTierFromScore(Number(profile.trustScore));
 
   return (
-    <main className="min-h-screen bg-[#f5f0e8]">
+    <main className="min-h-screen bg-background">
       <AppHeader locale={locale} variant="default" />
 
       <div className="mx-auto max-w-4xl px-4 py-10 md:px-6">
-        {/* Profile card */}
-        <section className="mb-8 flex flex-col items-center gap-5 rounded-md border-2 border-neutral-900 bg-white p-6 shadow-brutal sm:flex-row sm:items-start">
-          <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-full border-2 border-neutral-900 bg-teal-50">
-            {avatarSrc ? (
-              <Image src={avatarSrc} alt={profile.fullName} fill sizes="96px" className="object-cover" />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center">
-                <User className="h-10 w-10 text-teal-600" />
-              </div>
-            )}
-          </div>
-
-          <div className="flex-1 text-center sm:text-left">
-            <h1 className="text-2xl font-black text-neutral-900">{profile.fullName}</h1>
-
-            <div className="mt-2 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
-              <span className="flex items-center gap-1 rounded border-2 border-teal-600 bg-teal-50 px-2.5 py-1 text-sm font-black text-teal-700">
-                <ShieldCheck className="h-3.5 w-3.5" />
-                {trustLabel}
-              </span>
-
-              {totalReviews > 0 && (
-                <span className="flex items-center gap-1 rounded border-2 border-neutral-900 bg-white px-2.5 py-1 text-sm font-black text-neutral-900">
-                  <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
-                  {averageRating?.toFixed(1)}
-                  <span className="font-medium text-neutral-500">({totalReviews})</span>
-                </span>
-              )}
-
-              <span className="rounded border-2 border-neutral-300 bg-neutral-50 px-2.5 py-1 text-xs font-black uppercase tracking-wide text-neutral-600">
-                {profile.primaryRole.replace('_', ' ')}
-              </span>
-            </div>
-
-            {/* Driver profile link */}
-            {profile.driverProfileId && (
-              <div className="mt-3">
+        <ProfileHeader
+          name={profile.fullName}
+          photo={avatarSrc}
+          city={profile.driverPrimaryCity}
+          trustScore={Number(profile.trustScore)}
+          rating={averageRating}
+          reviewCount={totalReviews}
+          actions={
+            <>
+              <ShareMenu url={`/${locale}/users/${profile.id}`} title={profile.fullName} />
+              {profile.driverProfileId ? (
                 <Link
                   href={`/${locale}/drivers/${profile.driverProfileId}`}
-                  className="inline-flex items-center gap-2 rounded border-2 border-neutral-900 bg-white px-4 py-2 text-sm font-black text-neutral-900 shadow-brutal-xs transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none"
+                  className="rounded border-2 border-border bg-card px-4 py-2 text-sm font-black text-foreground"
                 >
-                  View Driver Profile
-                  {profile.driverPrimaryCity && (
-                    <span className="font-medium text-neutral-500">· {profile.driverPrimaryCity}</span>
-                  )}
+                  {t('viewDriverProfile')}
                 </Link>
-              </div>
-            )}
-          </div>
-        </section>
+              ) : null}
+            </>
+          }
+        />
 
-        {/* Car listings */}
+        {profile.recentTrustEvents && profile.recentTrustEvents.length > 0 ? (
+          <section className="mb-8 rounded-md border-2 border-border bg-card p-4">
+            <h2 className="mb-3 text-sm font-black uppercase tracking-widest text-muted-foreground">{t('trustHistory')}</h2>
+            <ul className="space-y-2">
+              {profile.recentTrustEvents.map((event) => (
+                <li key={event.id} className="flex items-center justify-between text-sm">
+                  <span className="font-medium text-muted-foreground">{event.type.replace(/_/g, ' ')}</span>
+                  <span className={`font-black ${event.delta >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
+                    {event.delta > 0 ? '+' : ''}{event.delta}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+
         {cars.length > 0 && (
           <section>
-            <h2 className="mb-4 text-lg font-black text-neutral-900">
-              Cars listed by {profile.fullName}
+            <h2 className="mb-4 text-lg font-black text-foreground">
+              {t('carsListedBy', { name: profile.fullName })}
             </h2>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {cars.map((car) => {
-                const photo = car.photos?.[0] ?? stockImages.carPlaceholder;
-                const rateDisplay = car.approximateDailyRateRangeRwf
-                  ? formatRange(car.approximateDailyRateRangeRwf.kigali.min, car.approximateDailyRateRangeRwf.kigali.max)
-                  : car.dailyRateKigaliRwf
-                    ? `${car.dailyRateKigaliRwf.toLocaleString()} RWF`
-                    : 'Price on request';
-
-                return (
-                  <Link
-                    key={car.id}
-                    href={`/${locale}/cars/${car.id}`}
-                    className="group overflow-hidden rounded-md border-2 border-neutral-900 bg-white shadow-brutal-xs transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none"
-                  >
-                    <div className="relative aspect-[16/10] overflow-hidden bg-neutral-100">
-                      <Image
-                        src={photo}
-                        alt={car.title}
-                        fill
-                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                        className="object-cover"
-                      />
-                    </div>
-                    <div className="p-3">
-                      <p className="text-sm font-black leading-tight text-neutral-900">{car.title}</p>
-                      <p className="mt-0.5 text-xs font-semibold text-neutral-500">
-                        {car.year} {car.brand} {car.model} · {car.locationText}
-                      </p>
-                      <p className="mt-1 text-sm font-black text-teal-700">{rateDisplay}/day</p>
-                    </div>
-                  </Link>
-                );
-              })}
+              {cars.map((car) => (
+                <CarListingCard
+                  key={car.id}
+                  car={car}
+                  locale={locale}
+                  favorited={false}
+                  onFavoriteChange={() => undefined}
+                />
+              ))}
             </div>
           </section>
         )}
 
         {cars.length === 0 && !profile.driverProfileId && (
-          <p className="text-center text-sm font-medium text-neutral-500">
-            No public listings yet.
+          <p className="text-center text-sm font-medium text-muted-foreground">
+            {t('noListings')}
           </p>
         )}
       </div>

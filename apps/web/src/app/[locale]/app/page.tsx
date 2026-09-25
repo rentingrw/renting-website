@@ -22,16 +22,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { isSupportedLocale, routing, type SupportedLocale } from '@/i18n/routing';
 import {
-  type AppRole,
   cancelBooking,
-  confirmBooking,
   createCarListing,
   createReview,
-  declineBooking,
   flagBookingIssue,
-  getBookingMessages,
-  getUnreadMessageCount,
-  markConversationRead,
   getCarBookingsMine,
   getCarsMine,
   getDriverBookingsMine,
@@ -40,30 +34,28 @@ import {
   getSubscriptionOverview,
   getSubscriptionPaymentHistory,
   getDriverSubscriptionOverview,
-  getKycStatus,
-  submitKyc,
   initiateDriverSubscription,
   cancelDriverSubscription,
+  getTaxiSubscriptionOverview,
+  initiateTaxiSubscription,
+  cancelTaxiSubscription,
   cancelSubscription,
   initiateSubscription,
   markBookingComplete,
   patchLanguagePreference,
   pauseCar,
   publishCar,
-  sendBookingMessage,
   syncUser,
   upgradeSubscription,
   updateCarListing,
   type CarBooking,
   type CarListingPayload,
-  type ChatMessage,
   type DriverBooking,
   type DriverProfileMe,
   type MeResponse,
   type OwnerCar,
   type SubscriptionOverview,
   type SubscriptionPayment,
-  type KycStatus,
 } from '@/lib/api';
 import { formatCurrencyRwf } from '@/lib/format';
 import { setLocaleCookie } from '@/lib/locale';
@@ -79,7 +71,7 @@ type AppPageProps = {
 };
 
 type BookingType = 'car' | 'driver';
-type DashboardSection = 'overview' | 'cars' | 'bookings' | 'messages' | 'subscription';
+type DashboardSection = 'overview' | 'cars' | 'bookings' | 'subscription';
 
 type DashboardBooking = {
   key: string;
@@ -102,6 +94,8 @@ type DashboardBooking = {
   canCancel: boolean;
   canMarkComplete: boolean;
   canFlagIssue: boolean;
+  counterpartyPhone: string | null;
+  counterpartyWhatsapp: string | null;
 };
 
 function toDashboardBookings(
@@ -133,10 +127,12 @@ function toDashboardBookings(
       counterpartyAvatarUrl: counterparty.avatarUrl,
       photoUrl: booking.listing.photos?.[0] ?? null,
       youAre,
-      needsYourResponse: booking.status === 'pending' && youAre === 'owner',
+      needsYourResponse: false,
       canCancel: booking.status === 'confirmed',
       canMarkComplete: booking.status === 'active',
       canFlagIssue: booking.status === 'confirmed' || booking.status === 'active',
+      counterpartyPhone: counterparty.phone ?? null,
+      counterpartyWhatsapp: counterparty.whatsapp ?? null,
     };
   });
 
@@ -159,23 +155,16 @@ function toDashboardBookings(
       counterpartyAvatarUrl: counterparty.avatarUrl,
       photoUrl: null,
       youAre,
-      needsYourResponse: booking.status === 'pending' && youAre === 'driver',
+      needsYourResponse: false,
       canCancel: booking.status === 'confirmed',
       canMarkComplete: booking.status === 'active',
       canFlagIssue: booking.status === 'confirmed' || booking.status === 'active',
+      counterpartyPhone: counterparty.phone ?? null,
+      counterpartyWhatsapp: counterparty.whatsapp ?? null,
     };
   });
 
   return [...mappedCars, ...mappedDrivers].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
-}
-
-function remainingMinutes(createdAt: string): number {
-  const deadline = new Date(createdAt).getTime() + 60 * 60 * 1000;
-  return Math.max(0, Math.floor((deadline - Date.now()) / 60000));
-}
-
-function isLiveChatStatus(status: string): boolean {
-  return status === 'confirmed' || status === 'active';
 }
 
 export default function AppPage({ params }: AppPageProps) {
@@ -188,7 +177,6 @@ export default function AppPage({ params }: AppPageProps) {
   const [profile, setProfile] = useState<MeResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
-  const [selectedRole, setSelectedRole] = useState<AppRole>('renter');
   const [syncingProfile, setSyncingProfile] = useState(false);
   const [, setUpdatingLanguage] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -200,11 +188,8 @@ export default function AppPage({ params }: AppPageProps) {
   const [subscriptionHistory, setSubscriptionHistory] = useState<SubscriptionPayment[]>([]);
   const [driverSubscription, setDriverSubscription] = useState<{ subscription: null | { id: string; status: string; renewsAt: string | null; amountRwf: number; paymentMethod: string | null }; isActive: boolean; planPriceRwf: number } | null>(null);
   const [driverProfile, setDriverProfile] = useState<DriverProfileMe | null>(null);
-  const [activeSection, setActiveSection] = useState<DashboardSection>('overview');
+  const [activeSection, setActiveSection] = useState<DashboardSection>('bookings');
   const [selectedBookingKey, setSelectedBookingKey] = useState<string | null>(null);
-  const [selectedChatKey, setSelectedChatKey] = useState<string | null>(null);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [chatInput, setChatInput] = useState('');
   const [notifications, setNotifications] = useState<string[]>([]);
   const [trustScore, setTrustScore] = useState<number | null>(null);
   const [reviewTarget, setReviewTarget] = useState<{
@@ -221,11 +206,12 @@ export default function AppPage({ params }: AppPageProps) {
   const [subscriptionPhone, setSubscriptionPhone] = useState('');
   const [driverSubPaymentMethod, setDriverSubPaymentMethod] = useState<'mtn_momo' | 'airtel_money'>('mtn_momo');
   const [driverSubPhone, setDriverSubPhone] = useState('');
-  const [kycStatus, setKycStatus] = useState<KycStatus | null>(null);
-  const [kycNationalId, setKycNationalId] = useState('');
-  const [kycTin, setKycTin] = useState('');
-  const [kycCompanyName, setKycCompanyName] = useState('');
-  const [kycSubmitting, setKycSubmitting] = useState(false);
+  const [subscriptionPromo, setSubscriptionPromo] = useState('');
+  const [driverSubPromo, setDriverSubPromo] = useState('');
+  const [taxiSubscription, setTaxiSubscription] = useState<{ subscription: null | { id: string; status: string; renewsAt: string | null; amountRwf: number; paymentMethod: string | null }; isActive: boolean; planPriceRwf: number } | null>(null);
+  const [taxiSubPaymentMethod, setTaxiSubPaymentMethod] = useState<'mtn_momo' | 'airtel_money'>('mtn_momo');
+  const [taxiSubPhone, setTaxiSubPhone] = useState('');
+  const [taxiSubPromo, setTaxiSubPromo] = useState('');
   const [listingWizardOpen, setListingWizardOpen] = useState(false);
   const [editingCar, setEditingCar] = useState<OwnerCar | null>(null);
   const storeLocale = useStore((state) => state.locale);
@@ -238,7 +224,6 @@ export default function AppPage({ params }: AppPageProps) {
       section === 'overview' ||
       section === 'cars' ||
       section === 'bookings' ||
-      section === 'messages' ||
       section === 'subscription'
     ) {
       return section;
@@ -321,14 +306,6 @@ export default function AppPage({ params }: AppPageProps) {
     () => bookings.find((item) => item.key === selectedBookingKey) ?? null,
     [bookings, selectedBookingKey],
   );
-  const chatEligible = useMemo(
-    () => bookings.filter((item) => item.chatEligible && isLiveChatStatus(item.status)),
-    [bookings],
-  );
-  const selectedChat = useMemo(
-    () => chatEligible.find((item) => item.key === selectedChatKey) ?? null,
-    [chatEligible, selectedChatKey],
-  );
 
   async function loadDashboardData(token: string) {
     if (!profile) {
@@ -337,7 +314,7 @@ export default function AppPage({ params }: AppPageProps) {
     setAppBusy(true);
     setError(null);
     try {
-      const [carData, driverData, carMine, sub, driverMe, history, driverSub, kyc] = await Promise.all([
+      const [carData, driverData, carMine, sub, driverMe, history, driverSub, taxiSub] = await Promise.all([
         getCarBookingsMine(token),
         getDriverBookingsMine(token),
         profile.roles.includes('car_owner') ? getCarsMine(token) : Promise.resolve([]),
@@ -345,7 +322,7 @@ export default function AppPage({ params }: AppPageProps) {
         profile.roles.includes('driver') ? getDriverProfileMe(token) : Promise.resolve(null),
         profile.roles.includes('car_owner') ? getSubscriptionPaymentHistory(token) : Promise.resolve([]),
         profile.roles.includes('driver') ? getDriverSubscriptionOverview(token) : Promise.resolve(null),
-        profile.roles.includes('car_owner') ? getKycStatus(token).catch(() => null) : Promise.resolve(null),
+        profile.hasTaxiProfile ? getTaxiSubscriptionOverview(token) : Promise.resolve(null),
       ]);
       setCarBookings(carData);
       setDriverBookings(driverData);
@@ -354,14 +331,10 @@ export default function AppPage({ params }: AppPageProps) {
       setDriverProfile(driverMe);
       setSubscriptionHistory(history);
       setDriverSubscription(driverSub);
-      setKycStatus(kyc);
+      setTaxiSubscription(taxiSub);
       const all = toDashboardBookings(profile, carData, driverData);
       if (!selectedBookingKey && all[0]) {
         setSelectedBookingKey(all[0].key);
-      }
-      const firstChat = all.find((item) => item.chatEligible);
-      if (!selectedChatKey && firstChat) {
-        setSelectedChatKey(firstChat.key);
       }
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'Unable to load dashboard.');
@@ -387,25 +360,6 @@ export default function AppPage({ params }: AppPageProps) {
   }, [profile?.id, isLoaded]);
 
   useEffect(() => {
-    async function loadChat() {
-      if (!selectedChat) {
-        setMessages([]);
-        return;
-      }
-      try {
-        const chatToken = await getToken();
-        if (!chatToken) return;
-        const history = await getBookingMessages(chatToken, selectedChat.bookingType, selectedChat.id);
-        setMessages(history);
-        void markConversationRead(chatToken, selectedChat.bookingType, selectedChat.id);
-      } catch (chatError) {
-        setError(chatError instanceof Error ? chatError.message : 'Unable to load chat history.');
-      }
-    }
-    loadChat();
-  }, [selectedChat]);
-
-  useEffect(() => {
     if (!profile) {
       return;
     }
@@ -417,24 +371,6 @@ export default function AppPage({ params }: AppPageProps) {
       const token = await getToken();
       if (token) {
         await loadDashboardData(token);
-      }
-    };
-    const messageHandler = (payload: unknown) => {
-      if (
-        typeof payload === 'object' &&
-        payload !== null &&
-        'bookingType' in payload &&
-        'bookingId' in payload &&
-        'message' in payload
-      ) {
-        const body = payload as {
-          bookingType: BookingType;
-          bookingId: string;
-          message: ChatMessage;
-        };
-        if (selectedChatKey === `${body.bookingType}:${body.bookingId}`) {
-          setMessages((previous) => [...previous, body.message]);
-        }
       }
     };
     const reviewHandler = (payload: unknown) => {
@@ -490,7 +426,6 @@ export default function AppPage({ params }: AppPageProps) {
     socket.on('booking:declined', bookingDeclinedHandler);
     socket.on('booking:auto_cancelled', bookingAutoCancelledHandler);
     socket.on('booking:mark_complete_received', refreshHandler);
-    socket.on('message:new', messageHandler);
     socket.on('review:prompt', reviewHandler);
     socket.on('trust_score:updated', trustHandler);
     socket.on('subscription:activated', subscriptionActivatedHandler);
@@ -501,67 +436,43 @@ export default function AppPage({ params }: AppPageProps) {
       socket.off('booking:declined', bookingDeclinedHandler);
       socket.off('booking:auto_cancelled', bookingAutoCancelledHandler);
       socket.off('booking:mark_complete_received', refreshHandler);
-      socket.off('message:new', messageHandler);
       socket.off('review:prompt', reviewHandler);
       socket.off('trust_score:updated', trustHandler);
       socket.off('subscription:activated', subscriptionActivatedHandler);
     };
-  }, [bookings, profile, selectedChatKey]);
-
-  // Poll for new messages every 5s when in the messages section
-  useEffect(() => {
-    if (activeSection !== 'messages' || !selectedChat) return;
-    const poll = async () => {
-      try {
-        const token = await getToken();
-        if (!token) return;
-        const history = await getBookingMessages(token, selectedChat.bookingType, selectedChat.id);
-        setMessages(history);
-      } catch { /* ignore */ }
-    };
-    const id = setInterval(poll, 5000);
-    return () => clearInterval(id);
-  }, [activeSection, selectedChat?.key, getToken]);
-
-  // Poll for unread message count every 30s and surface a notification
-  useEffect(() => {
-    if (!profile) return;
-    let prev = 0;
-    const poll = async () => {
-      try {
-        const token = await getToken();
-        if (!token) return;
-        const count = await getUnreadMessageCount(token);
-        if (count > prev && activeSection !== 'messages') {
-          setNotifications((n) => [`You have ${count} unread message${count !== 1 ? 's' : ''}.`, ...n].slice(0, 6));
-        }
-        prev = count;
-      } catch { /* ignore */ }
-    };
-    const id = setInterval(poll, 30000);
-    return () => clearInterval(id);
-  }, [profile?.id, activeSection, getToken]);
+  }, [bookings, profile]);
 
   useEffect(() => {
     if (!profile) {
       return;
     }
 
-    if (sectionFromQuery === 'cars' || sectionFromQuery === 'subscription') {
-      if (profile.roles.includes('car_owner')) {
-        setActiveSection(sectionFromQuery);
-      } else {
-        setActiveSection('bookings');
-      }
+    const isHoster = profile.roles.includes('car_owner');
+    const isDriver = profile.roles.includes('driver');
+
+    if (sectionFromQuery === 'cars' && isHoster) {
+      setActiveSection('cars');
       return;
     }
 
-    if (sectionFromQuery === 'bookings' || sectionFromQuery === 'messages' || sectionFromQuery === 'overview') {
-      setActiveSection(sectionFromQuery);
+    if (sectionFromQuery === 'subscription' && (isHoster || isDriver)) {
+      setActiveSection('subscription');
       return;
     }
 
-    if (profile.roles.includes('car_owner') || profile.roles.includes('driver')) {
+    if (sectionFromQuery === 'bookings') {
+      setActiveSection('bookings');
+      return;
+    }
+
+    if (sectionFromQuery === 'overview' && isDriver) {
+      setActiveSection('overview');
+      return;
+    }
+
+    if (isHoster) {
+      setActiveSection('cars');
+    } else if (isDriver) {
       setActiveSection('overview');
     } else {
       setActiveSection('bookings');
@@ -611,7 +522,7 @@ export default function AppPage({ params }: AppPageProps) {
         phone: user?.primaryPhoneNumber?.phoneNumber,
         fullName,
         profilePhotoUrl: user?.imageUrl,
-        primaryRole: selectedRole,
+        primaryRole: 'renter',
         languagePreference: locale,
       });
 
@@ -634,16 +545,12 @@ export default function AppPage({ params }: AppPageProps) {
     return handler(token);
   }
 
-  async function runBookingAction(action: 'confirm' | 'decline' | 'cancel' | 'complete' | 'flag') {
+  async function runBookingAction(action: 'cancel' | 'complete' | 'flag') {
     if (!selectedBooking) {
       return;
     }
     await withToken(async (token) => {
-      if (action === 'confirm') {
-        await confirmBooking(token, selectedBooking.bookingType, selectedBooking.id);
-      } else if (action === 'decline') {
-        await declineBooking(token, selectedBooking.bookingType, selectedBooking.id);
-      } else if (action === 'cancel') {
+      if (action === 'cancel') {
         const lessThan24Hours = new Date(selectedBooking.startAt).getTime() - Date.now() < 24 * 60 * 60 * 1000;
         const proceed = window.confirm(
           lessThan24Hours
@@ -664,21 +571,6 @@ export default function AppPage({ params }: AppPageProps) {
         await flagBookingIssue(token, selectedBooking.bookingType, selectedBooking.id, reason);
       }
       await loadDashboardData(token);
-    });
-  }
-
-  async function handleSendMessage() {
-    if (!selectedChat || !chatInput.trim()) {
-      return;
-    }
-    await withToken(async (token) => {
-      const message = await sendBookingMessage(token, {
-        bookingType: selectedChat.bookingType,
-        bookingId: selectedChat.id,
-        content: chatInput.trim(),
-      });
-      setMessages((previous) => [...previous, message]);
-      setChatInput('');
     });
   }
 
@@ -707,6 +599,7 @@ export default function AppPage({ params }: AppPageProps) {
         tier: subscriptionTier,
         paymentMethod: subscriptionPaymentMethod,
         mobileNumber: subscriptionPhone,
+        ...(subscriptionPromo.trim() ? { promoCode: subscriptionPromo.trim() } : {}),
       };
       const result =
         mode === 'initiate'
@@ -715,7 +608,10 @@ export default function AppPage({ params }: AppPageProps) {
       if (result.redirectUrl) {
         window.open(result.redirectUrl, '_blank', 'noopener,noreferrer');
       }
-      setNotifications((previous) => ['Subscription payment request sent.', ...previous].slice(0, 6));
+      setNotifications((previous) => [
+        result.status === 'active' ? 'Promo applied. Your plan is live.' : 'Subscription payment request sent.',
+        ...previous,
+      ].slice(0, 6));
       await loadDashboardData(token);
     });
   }
@@ -742,34 +638,6 @@ export default function AppPage({ params }: AppPageProps) {
     });
   }
 
-  async function handleKycSubmit() {
-    if (!kycNationalId.trim() && !kycTin.trim()) {
-      setError('Provide at least a National ID number or TIN number.');
-      return;
-    }
-    setKycSubmitting(true);
-    setError(null);
-    try {
-      await withToken(async (token) => {
-        await submitKyc(token, {
-          nationalIdNumber: kycNationalId.trim() || undefined,
-          tinNumber: kycTin.trim() || undefined,
-          companyName: kycCompanyName.trim() || undefined,
-        });
-        setNotifications((prev) => ['KYC information submitted. Awaiting admin review.', ...prev].slice(0, 6));
-        const updated = await getKycStatus(token);
-        setKycStatus(updated);
-        setKycNationalId('');
-        setKycTin('');
-        setKycCompanyName('');
-      });
-    } catch (kycError) {
-      setError(kycError instanceof Error ? kycError.message : 'Failed to submit KYC.');
-    } finally {
-      setKycSubmitting(false);
-    }
-  }
-
   async function handleListingSubmit(payload: CarListingPayload, publishNow: boolean) {
     await withToken(async (token) => {
       const listing = editingCar
@@ -791,28 +659,16 @@ export default function AppPage({ params }: AppPageProps) {
   if (needsOnboarding) {
     return (
       <main className="mx-auto max-w-3xl p-8">
-        <h1 className="text-3xl font-bold text-gray-900">Complete onboarding</h1>
-        <p className="mt-3 text-gray-600">
-          Choose your primary role to finish account setup before entering the app.
+        <h1 className="text-3xl font-bold text-foreground">Complete onboarding</h1>
+        <p className="mt-3 text-muted-foreground">
+          Finish account setup to enter the app. You can become a hoster, driver, or taxi driver later from the menu.
         </p>
-        <div className="mt-6 grid gap-3">
-          {(['renter', 'car_owner', 'driver'] as const).map((role) => (
-            <button
-              key={role}
-              type="button"
-              onClick={() => setSelectedRole(role)}
-              className={`rounded-md border p-4 text-left ${selectedRole === role ? 'border-teal-500 bg-teal-50 text-teal-900' : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'}`}
-            >
-              <p className="font-semibold">{role.replace('_', ' ')}</p>
-            </button>
-          ))}
-        </div>
         {error ? <p className="mt-4 text-sm text-red-600">{error}</p> : null}
         <button
           type="button"
           onClick={handleCompleteOnboarding}
           disabled={syncingProfile}
-          className="mt-6 rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-60"
+          className="mt-6 rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
         >
           {syncingProfile ? 'Completing...' : 'Continue'}
         </button>
@@ -820,14 +676,14 @@ export default function AppPage({ params }: AppPageProps) {
     );
   }
 
-  const pendingRequests = bookings.filter((item) => item.needsYourResponse);
+  const pendingRequests = bookings.filter((item) => item.status === 'pending' && item.youAre === 'renter');
   const activeBookings = bookings.filter((item) => item.status === 'active');
   const completedBookings = bookings.filter(
     (item) => item.status === 'completed' || item.status === 'auto_completed',
   );
 
   return (
-    <div className="min-h-screen bg-[#f5f0e8]">
+    <div className="min-h-screen bg-background">
       <DashboardHeader
         locale={currentLocale}
         onLocaleChange={(next) => handleLanguageChange(next)}
@@ -839,10 +695,10 @@ export default function AppPage({ params }: AppPageProps) {
         {/* Welcome + Search & Book (VELOCITY reference: button top-right of welcome) */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h1 className="text-2xl font-black tracking-tight text-neutral-900 md:text-3xl">
+            <h1 className="text-2xl font-black tracking-tight text-foreground md:text-3xl">
               {t('app.welcome')}, {profile?.fullName?.split(' ')[0] ?? 'there'}
             </h1>
-            <p className="mt-1 text-sm text-gray-500">
+            <p className="mt-1 text-sm text-muted-foreground">
               {profile?.primaryRole.replace('_', ' ')}
               {profile?.primaryRole === 'renter' || profile?.roles?.includes('renter')
                 ? ` • ${t('app.welcomeSubtitle')}`
@@ -855,22 +711,22 @@ export default function AppPage({ params }: AppPageProps) {
                     {profile.roles
                       .filter((r) => r !== profile.primaryRole)
                       .map((role) => (
-                        <Badge key={role} className="bg-gray-200 text-gray-700 text-xs font-medium">
+                        <Badge key={role} className="bg-gray-200 text-muted-foreground text-xs font-medium">
                           {role.replace('_', ' ')}
                         </Badge>
                       ))}
                   </div>
                   {trustScore !== null ? (
                     <>
-                      <span className="text-gray-500">·</span>
-                      <Badge className="bg-teal-50 text-teal-700 text-xs font-medium">
+                      <span className="text-muted-foreground">·</span>
+                      <Badge className="bg-brand-soft text-brand text-xs font-medium">
                         {t('trust.score')}: {trustScore.toFixed(1)}
                       </Badge>
                     </>
                   ) : null}
                 </>
               ) : trustScore !== null ? (
-                <Badge className="bg-teal-50 text-teal-700 text-xs font-medium">
+                <Badge className="bg-brand-soft text-brand text-xs font-medium">
                   {t('trust.score')}: {trustScore.toFixed(1)}
                 </Badge>
               ) : null}
@@ -878,22 +734,14 @@ export default function AppPage({ params }: AppPageProps) {
           </div>
         </div>
 
-      <div className="-mx-4 flex overflow-x-auto border-b-2 border-neutral-900 bg-white px-4 md:mx-0 md:px-0">
+      <div className="-mx-4 flex overflow-x-auto border-b-2 border-border bg-card px-4 md:mx-0 md:px-0">
         <nav className="flex gap-1 py-2" aria-label="Dashboard navigation">
           {profile?.roles.includes('car_owner') ? (
             <>
               <Link
-                href={`/${currentLocale}/app`}
-                className={`shrink-0 rounded border-2 px-3 py-1.5 text-xs font-black uppercase tracking-wide transition-all ${
-                  activeSection === 'overview' ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-transparent text-neutral-600 hover:border-neutral-300 hover:bg-neutral-100 hover:text-neutral-900'
-                }`}
-              >
-                {t('app.nav.overview')}
-              </Link>
-              <Link
                 href={`/${currentLocale}/app/cars`}
                 className={`shrink-0 rounded border-2 px-3 py-1.5 text-xs font-black uppercase tracking-wide transition-all ${
-                  activeSection === 'cars' ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-transparent text-neutral-600 hover:border-neutral-300 hover:bg-neutral-100 hover:text-neutral-900'
+                  activeSection === 'cars' ? 'border-brand bg-brand text-white' : 'border-transparent text-muted-foreground hover:border-neutral-300 hover:bg-muted hover:text-foreground'
                 }`}
               >
                 {t('app.nav.cars')}
@@ -901,70 +749,128 @@ export default function AppPage({ params }: AppPageProps) {
               <Link
                 href={`/${currentLocale}/app/subscription`}
                 className={`shrink-0 rounded border-2 px-3 py-1.5 text-xs font-black uppercase tracking-wide transition-all ${
-                  activeSection === 'subscription' ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-transparent text-neutral-600 hover:border-neutral-300 hover:bg-neutral-100 hover:text-neutral-900'
+                  activeSection === 'subscription' ? 'border-brand bg-brand text-white' : 'border-transparent text-muted-foreground hover:border-neutral-300 hover:bg-muted hover:text-foreground'
                 }`}
               >
                 {t('app.nav.subscription')}
               </Link>
             </>
           ) : null}
+          {profile?.roles.includes('driver') ? (
+            <>
+              <Link
+                href={`/${currentLocale}/app?section=overview`}
+                className={`shrink-0 rounded border-2 px-3 py-1.5 text-xs font-black uppercase tracking-wide transition-all ${
+                  activeSection === 'overview' ? 'border-brand bg-brand text-white' : 'border-transparent text-muted-foreground hover:border-neutral-300 hover:bg-muted hover:text-foreground'
+                }`}
+              >
+                {t('app.nav.status')}
+              </Link>
+              {!profile.roles.includes('car_owner') ? (
+                <Link
+                  href={`/${currentLocale}/app/subscription`}
+                  className={`shrink-0 rounded border-2 px-3 py-1.5 text-xs font-black uppercase tracking-wide transition-all ${
+                    activeSection === 'subscription' ? 'border-brand bg-brand text-white' : 'border-transparent text-muted-foreground hover:border-neutral-300 hover:bg-muted hover:text-foreground'
+                  }`}
+                >
+                  {t('app.nav.subscription')}
+                </Link>
+              ) : null}
+              <Link
+                href={`/${currentLocale}/app/driver-profile`}
+                className="shrink-0 rounded border-2 border-transparent px-3 py-1.5 text-xs font-black uppercase tracking-wide text-muted-foreground transition-all hover:border-neutral-300 hover:bg-muted hover:text-foreground"
+              >
+                {t('app.nav.availability')}
+              </Link>
+            </>
+          ) : null}
           <Link
             href={`/${currentLocale}/app/bookings`}
             className={`shrink-0 rounded border-2 px-3 py-1.5 text-xs font-black uppercase tracking-wide transition-all ${
-              activeSection === 'bookings' ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-transparent text-neutral-600 hover:border-neutral-300 hover:bg-neutral-100 hover:text-neutral-900'
+              activeSection === 'bookings' ? 'border-brand bg-brand text-white' : 'border-transparent text-muted-foreground hover:border-neutral-300 hover:bg-muted hover:text-foreground'
             }`}
           >
             {t('app.nav.bookings')}
           </Link>
           <Link
-            href={`/${currentLocale}/app/messages`}
-            className={`shrink-0 rounded border-2 px-3 py-1.5 text-xs font-black uppercase tracking-wide transition-all ${
-              activeSection === 'messages' ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-transparent text-neutral-600 hover:border-neutral-300 hover:bg-neutral-100 hover:text-neutral-900'
-            }`}
-          >
-            {t('app.nav.messages')}
-          </Link>
-          <Link
             href={`/${currentLocale}/app/settings`}
-            className={`shrink-0 rounded border-2 px-3 py-1.5 text-xs font-black uppercase tracking-wide transition-all ${
-              activeSection === 'settings' ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-transparent text-neutral-600 hover:border-neutral-300 hover:bg-neutral-100 hover:text-neutral-900'
-            }`}
+            className="shrink-0 rounded border-2 border-transparent px-3 py-1.5 text-xs font-black uppercase tracking-wide text-muted-foreground transition-all hover:border-neutral-300 hover:bg-muted hover:text-foreground"
           >
             {t('app.nav.settings')}
           </Link>
         </nav>
       </div>
 
-      {activeSection === 'overview' ? (
+      {activeSection === 'overview' && profile?.roles.includes('driver') ? (
         <section className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
-          <div className="rounded-md border-2 border-neutral-900 bg-white p-5 shadow-brutal">
-            <p className="text-xs font-black uppercase tracking-widest text-neutral-500">{t('app.stats.pendingRequests')}</p>
-            <p className="mt-2 text-3xl font-black tabular-nums text-neutral-900">{pendingRequests.length}</p>
+          <div className="rounded-2xl border border-border bg-card p-5 shadow-card">
+            <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">{t('app.stats.pendingRequests')}</p>
+            <p className="mt-2 text-3xl font-black tabular-nums text-foreground">{pendingRequests.length}</p>
           </div>
-          <div className="rounded-md border-2 border-neutral-900 bg-white p-5 shadow-brutal">
-            <p className="text-xs font-black uppercase tracking-widest text-neutral-500">{t('app.stats.activeBookings')}</p>
-            <p className="mt-2 text-3xl font-black tabular-nums text-neutral-900">{activeBookings.length}</p>
+          <div className="rounded-2xl border border-border bg-card p-5 shadow-card">
+            <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">{t('app.stats.activeBookings')}</p>
+            <p className="mt-2 text-3xl font-black tabular-nums text-foreground">{activeBookings.length}</p>
           </div>
-          <div className="rounded-md border-2 border-neutral-900 bg-white p-5 shadow-brutal">
-            <p className="text-xs font-black uppercase tracking-widest text-neutral-500">{t('app.stats.completedBookings')}</p>
-            <p className="mt-2 text-3xl font-black tabular-nums text-neutral-900">{completedBookings.length}</p>
+          <div className="rounded-2xl border border-border bg-card p-5 shadow-card">
+            <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">{t('app.stats.completedBookings')}</p>
+            <p className="mt-2 text-3xl font-black tabular-nums text-foreground">{completedBookings.length}</p>
           </div>
-          <div className="rounded-md border-2 border-neutral-900 bg-white p-5 shadow-brutal">
-            <p className="text-xs font-black uppercase tracking-widest text-neutral-500">{t('app.stats.activeListingsJobs')}</p>
-            <p className="mt-2 text-3xl font-black tabular-nums text-neutral-900">
+          <div className="rounded-2xl border border-border bg-card p-5 shadow-card">
+            <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">{t('app.stats.activeListingsJobs')}</p>
+            <p className="mt-2 text-3xl font-black tabular-nums text-foreground">
               {profile?.roles.includes('car_owner')
                 ? cars.filter((car) => car.status === 'active').length
                 : driverProfile?.bookingStats.active ?? 0}
             </p>
           </div>
 
+          {profile?.roles.includes('driver') ? (
+            <>
+              <div className="rounded-2xl border border-border bg-card p-5 shadow-card">
+                <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Live status</p>
+                <p className="mt-2 text-2xl font-black text-foreground">
+                  {driverProfile && driverSubscription?.isActive ? 'Live' : 'Hidden'}
+                </p>
+                <p className="mt-1 text-xs font-medium text-muted-foreground">
+                  {driverProfile && driverSubscription?.isActive
+                    ? 'Visible in driver search.'
+                    : 'Complete your profile and subscribe to appear in search.'}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-border bg-card p-5 shadow-card">
+                <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Subscription</p>
+                <p className="mt-2 text-2xl font-black text-foreground">
+                  {driverSubscription?.isActive ? 'Active' : 'None'}
+                </p>
+                <Link
+                  href={`/${currentLocale}/app/subscription`}
+                  className="mt-2 inline-block text-xs font-black uppercase tracking-wide text-brand"
+                >
+                  Manage plan →
+                </Link>
+              </div>
+              <div className="rounded-2xl border border-border bg-card p-5 shadow-card sm:col-span-2">
+                <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Availability</p>
+                <p className="mt-2 text-sm font-medium text-muted-foreground">
+                  Set when you work and which services you offer.
+                </p>
+                <Link
+                  href={`/${currentLocale}/app/driver-profile`}
+                  className="mt-3 inline-block rounded border-2 border-border bg-card px-3 py-1.5 text-xs font-black uppercase tracking-wide text-foreground shadow-brutal-xs"
+                >
+                  Edit availability
+                </Link>
+              </div>
+            </>
+          ) : null}
+
           {profile?.roles.includes('driver') && driverProfile?.categories?.length ? (
-            <Card className="overflow-hidden border-gray-200 bg-white shadow-sm sm:col-span-2 md:col-span-4">
+            <Card className="overflow-hidden border-border bg-card shadow-sm sm:col-span-2 md:col-span-4">
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle className="text-base">{t('app.driver.categories')}</CardTitle>
                 <a
                   href={`/${locale}/app/driver-profile`}
-                  className="rounded border-2 border-neutral-900 bg-white px-3 py-1 text-xs font-black text-neutral-900 shadow-brutal-xs transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none"
+                  className="rounded border-2 border-border bg-card px-3 py-1 text-xs font-black text-foreground shadow-brutal-xs transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none"
                 >
                   Edit Profile
                 </a>
@@ -979,13 +885,13 @@ export default function AppPage({ params }: AppPageProps) {
             </Card>
           ) : profile?.roles.includes('driver') && !driverProfile ? (
             <div className="overflow-hidden rounded-md border-2 border-amber-500 bg-amber-50 p-5 shadow-brutal-xs sm:col-span-2 md:col-span-4">
-              <p className="font-black text-neutral-900">Complete Your Driver Profile</p>
-              <p className="mt-1 text-sm font-medium text-neutral-600">
+              <p className="font-black text-foreground">Complete Your Driver Profile</p>
+              <p className="mt-1 text-sm font-medium text-muted-foreground">
                 Set up your driver profile to start receiving booking requests from customers.
               </p>
               <a
                 href={`/${locale}/app/driver-profile`}
-                className="mt-3 inline-block rounded border-2 border-teal-800 bg-teal-600 px-4 py-2 text-sm font-black text-white shadow-brutal-teal-sm transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none"
+                className="mt-3 inline-block rounded border-2 border-brand-strong bg-brand px-4 py-2 text-sm font-black text-white shadow-brutal-sky-sm transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none"
               >
                 Set Up Driver Profile →
               </a>
@@ -993,38 +899,16 @@ export default function AppPage({ params }: AppPageProps) {
           ) : null}
 
           {pendingRequests.map((booking) => (
-            <Card key={booking.key} className="overflow-hidden border-gray-200 bg-white shadow-sm md:col-span-2">
+            <Card key={booking.key} className="overflow-hidden border-border bg-card shadow-sm md:col-span-2">
               <CardHeader>
                 <CardTitle className="text-base">{booking.title}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2 text-sm">
-                <p>{t('app.booking.from')}: {booking.counterpartyName}</p>
                 <p>{t('app.booking.status')}: {booking.status.replaceAll('_', ' ')}</p>
-                <p className="text-xs text-gray-500">
-                  {new Date(booking.startAt).toLocaleString()} - {new Date(booking.endAt).toLocaleString()}
+                <p className="text-xs text-muted-foreground">
+                  {new Date(booking.startAt).toLocaleString()} to {new Date(booking.endAt).toLocaleString()}
                 </p>
-                <p>
-                  {t('app.booking.respondWithin')}: <span className="font-semibold">{remainingMinutes(booking.createdAt)} {t('app.booking.minutes')}</span>
-                </p>
-                <div className="flex gap-2">
-                  <Button
-                    onClick={async () => {
-                      setSelectedBookingKey(booking.key);
-                      await runBookingAction('confirm');
-                    }}
-                  >
-                    {t('app.actions.confirm')}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={async () => {
-                      setSelectedBookingKey(booking.key);
-                      await runBookingAction('decline');
-                    }}
-                  >
-                    {t('app.actions.decline')}
-                  </Button>
-                </div>
+                <p className="font-medium text-amber-200">{t('app.booking.deskConfirming')}</p>
               </CardContent>
             </Card>
           ))}
@@ -1048,7 +932,7 @@ export default function AppPage({ params }: AppPageProps) {
               <CardContent className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
                 <div>
                   <p className="font-semibold">{car.title}</p>
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-muted-foreground">
                     {car.brand} {car.model} • {car.locationText}
                   </p>
                   <div className="mt-2 flex gap-2 text-xs">
@@ -1075,7 +959,7 @@ export default function AppPage({ params }: AppPageProps) {
               </CardContent>
             </Card>
           ))}
-          {cars.length === 0 ? <p className="text-sm text-gray-500">{t('app.cars.empty')}</p> : null}
+          {cars.length === 0 ? <p className="text-sm text-muted-foreground">{t('app.cars.empty')}</p> : null}
         </section>
       ) : null}
 
@@ -1091,11 +975,11 @@ export default function AppPage({ params }: AppPageProps) {
                 <CardContent className="space-y-3 pt-4">
                   {subscription?.subscription ? (
                     <>
-                      <div className="flex items-center justify-between rounded-lg bg-teal-50 px-4 py-3">
+                      <div className="flex items-center justify-between rounded-lg bg-brand-soft px-4 py-3">
                         <div>
-                          <p className="text-xs uppercase tracking-wide text-teal-600">Plan</p>
-                          <p className="text-lg font-bold capitalize text-teal-800">
-                            {subscription.subscription.tier}
+                          <p className="text-xs uppercase tracking-wide text-brand">Plan</p>
+                          <p className="text-lg font-bold capitalize text-brand-strong">
+                            {subscription.subscription.tier === 'enterprise' ? 'Extra Premium' : subscription.subscription.tier}
                           </p>
                         </div>
                         <span className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${
@@ -1103,33 +987,41 @@ export default function AppPage({ params }: AppPageProps) {
                             ? 'bg-green-100 text-green-700'
                             : subscription.subscription.status === 'cancelled'
                               ? 'bg-amber-100 text-amber-700'
-                              : 'bg-gray-100 text-gray-600'
+                              : 'bg-gray-100 text-muted-foreground'
                         }`}>
                           {subscription.subscription.status}
                         </span>
                       </div>
                       <div className="grid grid-cols-3 gap-3 text-sm">
                         <div className="rounded-lg border border-gray-100 px-3 py-2 text-center">
-                          <p className="text-xs text-gray-500">Active cars</p>
+                          <p className="text-xs text-muted-foreground">Active cars</p>
                           <p className="font-semibold">{subscription.activeCars}</p>
                         </div>
                         <div className="rounded-lg border border-gray-100 px-3 py-2 text-center">
-                          <p className="text-xs text-gray-500">Limit</p>
+                          <p className="text-xs text-muted-foreground">Limit</p>
                           <p className="font-semibold">{subscription.maxCars ?? '∞'}</p>
                         </div>
                         <div className="rounded-lg border border-gray-100 px-3 py-2 text-center">
-                          <p className="text-xs text-gray-500">Can publish</p>
+                          <p className="text-xs text-muted-foreground">Can publish</p>
                           <p className="font-semibold">{subscription.canPublish ? '✓' : '✗'}</p>
                         </div>
                       </div>
                       {subscription.subscription.renewsAt && (
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-muted-foreground">
                           Renews {new Date(subscription.subscription.renewsAt).toLocaleDateString('en-RW', { dateStyle: 'medium' })}
                         </p>
                       )}
+                      <p className="text-xs text-muted-foreground">
+                        {[
+                          subscription.locationBoost ? 'Location boost' : null,
+                          subscription.verified ? 'Verified badge' : null,
+                          subscription.instantBooking ? 'Instant booking' : null,
+                          subscription.publicContact ? 'Public contact' : 'Contact after confirmation',
+                        ].filter(Boolean).join(' · ')}
+                      </p>
                     </>
                   ) : (
-                    <p className="rounded-lg bg-gray-50 px-4 py-6 text-center text-sm text-gray-500">
+                    <p className="rounded-lg bg-gray-50 px-4 py-6 text-center text-sm text-muted-foreground">
                       No active subscription. Start one to publish your cars.
                     </p>
                   )}
@@ -1141,16 +1033,16 @@ export default function AppPage({ params }: AppPageProps) {
                 </CardHeader>
                 <CardContent className="space-y-3 pt-4">
                   <select
-                    className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+                    className="w-full rounded border border-gray-300 bg-card px-3 py-2 text-sm text-foreground"
                     value={subscriptionTier}
                     onChange={(event) => setSubscriptionTier(event.target.value as 'basic' | 'premium' | 'enterprise')}
                   >
-                    <option value="basic">Basic — 10,000 RWF (1 car)</option>
-                    <option value="premium">Premium — 30,000 RWF (5 cars)</option>
-                    <option value="enterprise">Enterprise — 60,000 RWF (unlimited)</option>
+                    <option value="basic">Basic 10,000 RWF (1 car)</option>
+                    <option value="premium">Premium 25,000 RWF (5 cars + location boost)</option>
+                    <option value="enterprise">Extra Premium 50,000 RWF (unlimited, verified, instant booking, public contact)</option>
                   </select>
                   <select
-                    className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+                    className="w-full rounded border border-gray-300 bg-card px-3 py-2 text-sm text-foreground"
                     value={subscriptionPaymentMethod}
                     onChange={(event) => setSubscriptionPaymentMethod(event.target.value as 'mtn_momo' | 'airtel_money')}
                   >
@@ -1158,14 +1050,20 @@ export default function AppPage({ params }: AppPageProps) {
                     <option value="airtel_money">Airtel Money</option>
                   </select>
                   <input
-                    className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-500"
+                    className="w-full rounded border border-gray-300 bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground"
                     value={subscriptionPhone}
                     onChange={(event) => setSubscriptionPhone(event.target.value)}
                     placeholder={t('app.subscription.mobilePlaceholder')}
                   />
+                  <input
+                    className="w-full rounded border border-gray-300 bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground"
+                    value={subscriptionPromo}
+                    onChange={(event) => setSubscriptionPromo(event.target.value)}
+                    placeholder="Promo code (optional)"
+                  />
                   <div className="flex gap-2">
                     <Button
-                      className="flex-1 bg-teal-600 hover:bg-teal-700"
+                      className="flex-1 bg-brand hover:bg-brand-hover"
                       onClick={() => handleSubscription(subscription?.subscription ? 'upgrade' : 'initiate')}
                     >
                       {subscription?.subscription ? t('app.subscription.upgrade') : t('app.subscription.startPayment')}
@@ -1206,7 +1104,7 @@ export default function AppPage({ params }: AppPageProps) {
                           <div className="flex items-center gap-3">
                             <span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${
                               payment.status === 'active' ? 'bg-green-100 text-green-700'
-                              : payment.status === 'expired' ? 'bg-gray-100 text-gray-500'
+                              : payment.status === 'expired' ? 'bg-gray-100 text-muted-foreground'
                               : 'bg-amber-100 text-amber-600'
                             }`}>{payment.status}</span>
                             <span className="font-semibold text-gray-800">
@@ -1232,25 +1130,25 @@ export default function AppPage({ params }: AppPageProps) {
                 <CardContent className="space-y-3 pt-4">
                   {driverSubscription?.subscription ? (
                     <>
-                      <div className="flex items-center justify-between rounded-lg bg-blue-50 px-4 py-3">
+                      <div className="flex items-center justify-between rounded-lg bg-brand-soft px-4 py-3">
                         <div>
-                          <p className="text-xs uppercase tracking-wide text-blue-600">Driver Plan</p>
-                          <p className="text-lg font-bold text-blue-800">5,000 RWF / month</p>
+                          <p className="text-xs uppercase tracking-wide text-brand">Driver Plan</p>
+          <p className="text-lg font-bold text-brand-strong">{formatCurrencyRwf(driverSubscription.planPriceRwf)} / month</p>
                         </div>
                         <span className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${
-                          driverSubscription.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                          driverSubscription.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-muted-foreground'
                         }`}>
                           {driverSubscription.isActive ? 'Active' : driverSubscription.subscription.status}
                         </span>
                       </div>
                       {driverSubscription.subscription.renewsAt && (
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-muted-foreground">
                           Renews {new Date(driverSubscription.subscription.renewsAt).toLocaleDateString('en-RW', { dateStyle: 'medium' })}
                         </p>
                       )}
                     </>
                   ) : (
-                    <p className="rounded-lg bg-gray-50 px-4 py-6 text-center text-sm text-gray-500">
+                    <p className="rounded-lg bg-gray-50 px-4 py-6 text-center text-sm text-muted-foreground">
                       No active driver subscription. Subscribe to appear in search results.
                     </p>
                   )}
@@ -1261,11 +1159,11 @@ export default function AppPage({ params }: AppPageProps) {
                   <CardTitle className="text-base">Subscribe as Driver</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3 pt-4">
-                  <div className="rounded-lg bg-blue-50 px-4 py-3 text-sm text-blue-800">
-                    <strong>5,000 RWF / month</strong> — be visible to customers searching for drivers.
+                  <div className="rounded-lg bg-brand-soft px-4 py-3 text-sm text-brand-strong">
+                    <strong>{formatCurrencyRwf(driverSubscription?.planPriceRwf ?? 10000)} / month</strong> so customers can find you.
                   </div>
                   <select
-                    className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+                    className="w-full rounded border border-gray-300 bg-card px-3 py-2 text-sm text-foreground"
                     value={driverSubPaymentMethod}
                     onChange={(e) => setDriverSubPaymentMethod(e.target.value as 'mtn_momo' | 'airtel_money')}
                   >
@@ -1273,17 +1171,24 @@ export default function AppPage({ params }: AppPageProps) {
                     <option value="airtel_money">Airtel Money</option>
                   </select>
                   <input
-                    className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-500"
+                    className="w-full rounded border border-gray-300 bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground"
                     value={driverSubPhone}
                     onChange={(e) => setDriverSubPhone(e.target.value)}
                     placeholder="Mobile number (e.g. 07XXXXXXXX)"
                   />
+                  <input
+                    className="w-full rounded border border-gray-300 bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground"
+                    value={driverSubPromo}
+                    onChange={(e) => setDriverSubPromo(e.target.value)}
+                    placeholder="Promo code (optional)"
+                  />
                   <Button
-                    className="w-full bg-blue-600 hover:bg-blue-700"
+                    className="w-full bg-brand hover:bg-brand-hover"
                     onClick={() => withToken(async (token) => {
                       const result = await initiateDriverSubscription(token, {
                         paymentMethod: driverSubPaymentMethod,
                         mobileNumber: driverSubPhone,
+                        ...(driverSubPromo.trim() ? { promoCode: driverSubPromo.trim() } : {}),
                       });
                       if (result.redirectUrl) window.open(result.redirectUrl, '_blank', 'noopener,noreferrer');
                       setNotifications((prev) => ['Driver subscription payment request sent.', ...prev].slice(0, 6));
@@ -1310,83 +1215,111 @@ export default function AppPage({ params }: AppPageProps) {
             </div>
           ) : null}
 
-          {/* KYC / Identity Verification */}
-          {profile?.roles.includes('car_owner') ? (
-            <Card>
-              <CardHeader className="border-b border-gray-100 pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-base">Identity Verification (KYC)</CardTitle>
-                  {kycStatus?.isVerified ? (
-                    <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">✓ Verified</span>
-                  ) : kycStatus?.hasSubmittedKyc ? (
-                    <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">Pending Review</span>
+          {profile?.hasTaxiProfile ? (
+            <div className="grid gap-4 md:grid-cols-[1.3fr_1fr]">
+              <Card>
+                <CardHeader className="border-b border-gray-100 pb-3">
+                  <CardTitle className="text-base">Taxi Subscription</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3 pt-4">
+                  {taxiSubscription?.subscription ? (
+                    <>
+                      <div className="flex items-center justify-between rounded-lg bg-brand-soft px-4 py-3">
+                        <div>
+                          <p className="text-xs uppercase tracking-wide text-brand">Taxi Plan</p>
+                          <p className="text-lg font-bold text-brand-strong">{formatCurrencyRwf(taxiSubscription.planPriceRwf)} / month</p>
+                        </div>
+                        <span className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${
+                          taxiSubscription.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-muted-foreground'
+                        }`}>
+                          {taxiSubscription.isActive ? 'Active' : taxiSubscription.subscription.status}
+                        </span>
+                      </div>
+                      {taxiSubscription.subscription.renewsAt && (
+                        <p className="text-xs text-muted-foreground">
+                          Renews {new Date(taxiSubscription.subscription.renewsAt).toLocaleDateString('en-RW', { dateStyle: 'medium' })}
+                        </p>
+                      )}
+                    </>
                   ) : (
-                    <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-600">Not Submitted</span>
+                    <p className="rounded-lg bg-gray-50 px-4 py-6 text-center text-sm text-muted-foreground">
+                      No active taxi subscription. Subscribe to appear in search. Phone stays public.
+                    </p>
                   )}
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3 pt-4">
-                {kycStatus?.isVerified ? (
-                  <div className="rounded-lg bg-green-50 px-4 py-4 text-sm text-green-800">
-                    <p className="font-semibold">Your identity has been verified.</p>
-                    {kycStatus.verifiedAt && (
-                      <p className="mt-1 text-xs text-green-600">
-                        Verified on {new Date(kycStatus.verifiedAt).toLocaleDateString('en-RW', { dateStyle: 'medium' })}
-                      </p>
-                    )}
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="border-b border-gray-100 pb-3">
+                  <CardTitle className="text-base">Subscribe as Taxi</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3 pt-4">
+                  <div className="rounded-lg bg-brand-soft px-4 py-3 text-sm text-brand-strong">
+                    <strong>{formatCurrencyRwf(taxiSubscription?.planPriceRwf ?? 10000)} / month</strong> to go live. Contacts stay public.
                   </div>
-                ) : kycStatus?.hasSubmittedKyc ? (
-                  <div className="rounded-lg bg-amber-50 px-4 py-4 text-sm text-amber-800">
-                    <p className="font-semibold">Your KYC documents are under review.</p>
-                    <p className="mt-1 text-xs text-amber-600">
-                      {kycStatus.nationalIdSubmitted ? '✓ National ID submitted' : ''}
-                      {kycStatus.tinSubmitted ? (kycStatus.nationalIdSubmitted ? ' · ' : '') + '✓ TIN submitted' : ''}
-                    </p>
-                  </div>
-                ) : (
-                  <>
-                    <p className="text-xs text-gray-500">
-                      Submit your National ID or TIN to get verified and build trust with renters.
-                    </p>
-                    <input
-                      className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-500"
-                      value={kycNationalId}
-                      onChange={(e) => setKycNationalId(e.target.value)}
-                      placeholder="National ID number"
-                    />
-                    <input
-                      className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-500"
-                      value={kycTin}
-                      onChange={(e) => setKycTin(e.target.value)}
-                      placeholder="TIN number (optional)"
-                    />
-                    <input
-                      className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-500"
-                      value={kycCompanyName}
-                      onChange={(e) => setKycCompanyName(e.target.value)}
-                      placeholder="Company name (optional)"
-                    />
+                  <select
+                    className="w-full rounded border border-gray-300 bg-card px-3 py-2 text-sm text-foreground"
+                    value={taxiSubPaymentMethod}
+                    onChange={(e) => setTaxiSubPaymentMethod(e.target.value as 'mtn_momo' | 'airtel_money')}
+                  >
+                    <option value="mtn_momo">MTN MoMo</option>
+                    <option value="airtel_money">Airtel Money</option>
+                  </select>
+                  <input
+                    className="w-full rounded border border-gray-300 bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground"
+                    value={taxiSubPhone}
+                    onChange={(e) => setTaxiSubPhone(e.target.value)}
+                    placeholder="Mobile number (e.g. 07XXXXXXXX)"
+                  />
+                  <input
+                    className="w-full rounded border border-gray-300 bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground"
+                    value={taxiSubPromo}
+                    onChange={(e) => setTaxiSubPromo(e.target.value)}
+                    placeholder="Promo code (optional)"
+                  />
+                  <Button
+                    className="w-full bg-brand hover:bg-brand-hover"
+                    onClick={() => withToken(async (token) => {
+                      const result = await initiateTaxiSubscription(token, {
+                        paymentMethod: taxiSubPaymentMethod,
+                        mobileNumber: taxiSubPhone,
+                        ...(taxiSubPromo.trim() ? { promoCode: taxiSubPromo.trim() } : {}),
+                      });
+                      if (result.redirectUrl) window.open(result.redirectUrl, '_blank', 'noopener,noreferrer');
+                      setNotifications((prev) => [
+                        result.status === 'active' ? 'Taxi promo applied. You are live.' : 'Taxi subscription payment request sent.',
+                        ...prev,
+                      ].slice(0, 6));
+                      await loadDashboardData(token);
+                    })}
+                  >
+                    {taxiSubscription?.isActive ? 'Renew Subscription' : 'Start Subscription'}
+                  </Button>
+                  {taxiSubscription?.isActive ? (
                     <Button
-                      className="w-full bg-teal-600 hover:bg-teal-700"
-                      onClick={handleKycSubmit}
-                      disabled={kycSubmitting}
+                      variant="outline"
+                      className="w-full text-red-600 hover:bg-red-50"
+                      onClick={() => withToken(async (token) => {
+                        await cancelTaxiSubscription(token);
+                        setNotifications((prev) => ['Taxi subscription cancelled.', ...prev].slice(0, 6));
+                        await loadDashboardData(token);
+                      })}
                     >
-                      {kycSubmitting ? 'Submitting...' : 'Submit KYC'}
+                      Cancel Subscription
                     </Button>
-                  </>
-                )}
-              </CardContent>
-            </Card>
+                  ) : null}
+                </CardContent>
+              </Card>
+            </div>
           ) : null}
         </section>
       ) : null}
 
       {activeSection === 'bookings' ? (
         <section className="space-y-3">
-          <h2 className="text-lg font-black text-neutral-900">{t('app.bookings.title')}</h2>
+          <h2 className="text-lg font-black text-foreground">{t('app.bookings.title')}</h2>
           {bookings.length === 0 ? (
-            <div className="rounded-md border-2 border-neutral-200 bg-white py-16 text-center">
-              <p className="text-sm font-medium text-neutral-500">{t('app.bookings.empty')}</p>
+            <div className="rounded-md border-2 border-border bg-card py-16 text-center">
+              <p className="text-sm font-medium text-muted-foreground">{t('app.bookings.empty')}</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -1397,12 +1330,12 @@ export default function AppPage({ params }: AppPageProps) {
                   booking.status === 'cancelled' || booking.status === 'auto_cancelled'
                     ? 'border-red-200 bg-red-50 text-red-700'
                     : booking.status === 'active'
-                      ? 'border-teal-200 bg-teal-50 text-teal-700'
+                      ? 'border-brand/25 bg-brand-soft text-brand'
                       : booking.status === 'confirmed'
-                        ? 'border-blue-200 bg-blue-50 text-blue-700'
+                        ? 'border-brand/20 bg-brand-soft text-brand-strong'
                         : booking.status === 'pending'
                           ? 'border-amber-200 bg-amber-50 text-amber-700'
-                          : 'border-neutral-200 bg-neutral-50 text-neutral-600';
+                          : 'border-border bg-neutral-50 text-muted-foreground';
                 const counterpartyLabel = booking.youAre === 'renter'
                   ? (booking.bookingType === 'driver' ? t('app.bookings.driver') : t('app.bookings.owner'))
                   : t('app.bookings.renter');
@@ -1410,8 +1343,8 @@ export default function AppPage({ params }: AppPageProps) {
                 return (
                   <div
                     key={booking.key}
-                    className={`overflow-hidden rounded-md border-2 bg-white transition-all ${
-                      isExpanded ? 'border-teal-600 shadow-brutal-xs' : 'border-neutral-200 hover:border-neutral-400'
+                    className={`overflow-hidden rounded-md border-2 bg-card transition-all ${
+                      isExpanded ? 'border-brand shadow-brutal-xs' : 'border-border hover:border-neutral-400'
                     }`}
                   >
                     {/* Compact row */}
@@ -1420,27 +1353,27 @@ export default function AppPage({ params }: AppPageProps) {
                       onClick={() => setSelectedBookingKey(isExpanded ? null : booking.key)}
                       className="flex w-full items-center gap-4 p-4 text-left"
                     >
-                      <div className="relative h-16 w-24 shrink-0 overflow-hidden rounded border-2 border-neutral-200 bg-neutral-100">
+                      <div className="relative h-16 w-24 shrink-0 overflow-hidden rounded border-2 border-border bg-muted">
                         <Image src={imgSrc} alt="" fill sizes="96px" className="object-cover" />
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-2">
-                          <p className="truncate font-black text-neutral-900">{booking.title}</p>
+                          <p className="truncate font-black text-foreground">{booking.title}</p>
                           <span className={`shrink-0 rounded border px-2 py-0.5 text-xs font-bold capitalize ${statusColors}`}>
                             {statusLabel}
                           </span>
                         </div>
-                        <p className="mt-0.5 text-xs font-medium text-neutral-500">
+                        <p className="mt-0.5 text-xs font-medium text-muted-foreground">
                           {new Date(booking.startAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })} → {new Date(booking.endAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                         </p>
-                        <p className="mt-0.5 text-xs font-semibold text-neutral-600">
-                          {counterpartyLabel}: <span className="text-neutral-800">{booking.counterpartyName}</span>
+                        <p className="mt-0.5 text-xs font-semibold text-muted-foreground">
+                          {counterpartyLabel}: <span className="text-foreground">{booking.counterpartyName}</span>
                           <span className="mx-2 text-neutral-300">·</span>
-                          <span className="font-black text-teal-700">{formatCurrencyRwf(booking.amountRwf)}</span>
+                          <span className="font-black text-brand">{formatCurrencyRwf(booking.amountRwf)}</span>
                         </p>
                       </div>
                       <div className={`shrink-0 transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
-                        <svg className="h-5 w-5 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <svg className="h-5 w-5 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                         </svg>
                       </div>
@@ -1451,62 +1384,63 @@ export default function AppPage({ params }: AppPageProps) {
                       <div className="border-t-2 border-neutral-100 bg-neutral-50 px-4 py-4">
                         <div className="grid gap-4 sm:grid-cols-2">
                           <div className="space-y-2">
-                            <p className="text-xs font-black uppercase tracking-widest text-neutral-400">Booking Details</p>
+                            <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Booking Details</p>
                             <div className="space-y-1 text-sm">
-                              <p className="font-medium text-neutral-700">
-                                <span className="font-black text-neutral-900">Start:</span>{' '}
+                              <p className="font-medium text-muted-foreground">
+                                <span className="font-black text-foreground">Start:</span>{' '}
                                 {new Date(booking.startAt).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
                               </p>
-                              <p className="font-medium text-neutral-700">
-                                <span className="font-black text-neutral-900">End:</span>{' '}
+                              <p className="font-medium text-muted-foreground">
+                                <span className="font-black text-foreground">End:</span>{' '}
                                 {new Date(booking.endAt).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
                               </p>
-                              <p className="font-medium text-neutral-700">
-                                <span className="font-black text-neutral-900">Amount:</span>{' '}
-                                <span className="text-teal-700">{formatCurrencyRwf(booking.amountRwf)}</span>
+                              <p className="font-medium text-muted-foreground">
+                                <span className="font-black text-foreground">Amount:</span>{' '}
+                                <span className="text-brand">{formatCurrencyRwf(booking.amountRwf)}</span>
                               </p>
                               {booking.status === 'pending' && (
                                 <p className="font-medium text-amber-700">
-                                  <span className="font-black">Expires in:</span>{' '}
-                                  {remainingMinutes(booking.createdAt)} {t('app.booking.minutes')}
+                                  {t('app.booking.deskConfirming')}
+                                </p>
+                              )}
+                              {booking.youAre === 'renter' && booking.counterpartyPhone && (booking.status === 'confirmed' || booking.status === 'active') && (
+                                <p className="font-medium text-muted-foreground">
+                                  <span className="font-black text-foreground">{t('app.booking.providerContact')}:</span>{' '}
+                                  <a href={`tel:${booking.counterpartyPhone.replace(/\s/g, '')}`} className="text-brand">
+                                    {booking.counterpartyName} · {booking.counterpartyPhone}
+                                  </a>
+                                  {booking.counterpartyWhatsapp ? (
+                                    <>
+                                      {' · '}
+                                      <a
+                                        href={`https://wa.me/${booking.counterpartyWhatsapp.replace(/\D/g, '')}`}
+                                        className="text-brand"
+                                        target="_blank"
+                                        rel="noreferrer"
+                                      >
+                                        WhatsApp
+                                      </a>
+                                    </>
+                                  ) : null}
                                 </p>
                               )}
                             </div>
                           </div>
                           <div className="space-y-2">
-                            <p className="text-xs font-black uppercase tracking-widest text-neutral-400">Actions</p>
+                            <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Actions</p>
                             <div className="flex flex-wrap gap-2">
-                              {isLiveChatStatus(booking.status) && (
-                                <button
-                                  type="button"
-                                  onClick={() => { setSelectedChatKey(booking.key); setActiveSection('messages'); }}
-                                  className="rounded border-2 border-teal-800 bg-teal-600 px-3 py-1.5 text-xs font-black text-white hover:bg-teal-700"
-                                >
-                                  {t('app.bookings.manageBooking')}
-                                </button>
-                              )}
-                              {booking.needsYourResponse && (
-                                <>
-                                  <button type="button" onClick={() => runBookingAction('confirm')} className="rounded border-2 border-teal-800 bg-teal-600 px-3 py-1.5 text-xs font-black text-white hover:bg-teal-700">
-                                    {t('app.actions.confirm')}
-                                  </button>
-                                  <button type="button" onClick={() => runBookingAction('decline')} className="rounded border-2 border-neutral-900 bg-white px-3 py-1.5 text-xs font-black text-neutral-900 hover:bg-neutral-100">
-                                    {t('app.actions.decline')}
-                                  </button>
-                                </>
-                              )}
                               {booking.canCancel && (
-                                <button type="button" onClick={() => runBookingAction('cancel')} className="rounded border-2 border-neutral-900 bg-white px-3 py-1.5 text-xs font-black text-neutral-900 hover:bg-neutral-100">
+                                <button type="button" onClick={() => runBookingAction('cancel')} className="rounded border-2 border-border bg-card px-3 py-1.5 text-xs font-black text-foreground hover:bg-muted">
                                   {t('app.actions.cancel')}
                                 </button>
                               )}
                               {booking.canMarkComplete && (
-                                <button type="button" onClick={() => runBookingAction('complete')} className="rounded border-2 border-neutral-900 bg-white px-3 py-1.5 text-xs font-black text-neutral-900 hover:bg-neutral-100">
+                                <button type="button" onClick={() => runBookingAction('complete')} className="rounded border-2 border-border bg-card px-3 py-1.5 text-xs font-black text-foreground hover:bg-muted">
                                   {t('app.actions.markComplete')}
                                 </button>
                               )}
                               {booking.canFlagIssue && (
-                                <button type="button" onClick={() => runBookingAction('flag')} className="rounded border-2 border-neutral-900 bg-white px-3 py-1.5 text-xs font-black text-neutral-900 hover:bg-neutral-100">
+                                <button type="button" onClick={() => runBookingAction('flag')} className="rounded border-2 border-border bg-card px-3 py-1.5 text-xs font-black text-foreground hover:bg-muted">
                                   {t('app.actions.flagIssue')}
                                 </button>
                               )}
@@ -1514,7 +1448,7 @@ export default function AppPage({ params }: AppPageProps) {
                                 <button
                                   type="button"
                                   onClick={() => setReviewTarget({ open: true, bookingType: booking.bookingType, bookingId: booking.id, toUserId: booking.counterpartyId, toName: booking.counterpartyName })}
-                                  className="rounded border-2 border-neutral-900 bg-white px-3 py-1.5 text-xs font-black text-neutral-900 hover:bg-neutral-100"
+                                  className="rounded border-2 border-border bg-card px-3 py-1.5 text-xs font-black text-foreground hover:bg-muted"
                                 >
                                   {t('app.actions.leaveReview')}
                                 </button>
@@ -1535,104 +1469,8 @@ export default function AppPage({ params }: AppPageProps) {
         </section>
       ) : null}
 
-      {activeSection === 'messages' ? (
-        <section className="grid gap-4 md:grid-cols-[320px_1fr]">
-          <Card className="overflow-hidden border-gray-200 bg-white shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base text-gray-900">{t('app.messages.threadsTitle')}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-1 p-0">
-              {chatEligible.map((booking) => (
-                <button
-                  key={booking.key}
-                  type="button"
-                  onClick={() => setSelectedChatKey(booking.key)}
-                    className={`flex w-full flex-col items-start gap-0.5 border-l-2 px-4 py-3 text-left transition ${
-                    selectedChatKey === booking.key
-                      ? 'border-teal-500 bg-teal-50'
-                      : 'border-transparent hover:bg-gray-50'
-                  }`}
-                >
-                  <p className="font-medium">{booking.title}</p>
-                  <p className="text-xs text-gray-500">{booking.counterpartyName}</p>
-                </button>
-              ))}
-              {chatEligible.length === 0 ? (
-                <p className="px-4 py-8 text-center text-sm text-gray-500">{t('app.messages.empty')}</p>
-              ) : null}
-            </CardContent>
-          </Card>
-          <Card className="flex flex-col overflow-hidden border-gray-200 bg-white shadow-sm">
-            <CardHeader className="border-b border-gray-200 py-4">
-              <CardTitle className="text-base text-gray-900">
-                {selectedChat ? (
-                  <span>
-                    {t('app.messages.chatWith')}{' '}
-                    {selectedChat.bookingType === 'car' && selectedChat.listingId ? (
-                      <Link
-                        href={`/${currentLocale}/cars/${selectedChat.listingId}`}
-                        className="text-teal-700 underline hover:text-teal-900"
-                      >
-                        {selectedChat.counterpartyName}
-                      </Link>
-                    ) : (
-                      selectedChat.counterpartyName
-                    )}
-                  </span>
-                ) : t('app.messages.selectThread')}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="flex min-h-[400px] flex-1 flex-col gap-4 p-0">
-              <div className="flex-1 space-y-3 overflow-y-auto p-4">
-                {messages.map((message) => {
-                  const isMe = message.senderId === profile?.id;
-                  return (
-                    <div
-                      key={message.id}
-                      className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
-                    >
-                      <div
-                        className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm ${
-                          isMe ? 'bg-teal-600 text-white' : 'bg-gray-200 text-gray-900'
-                        }`}
-                      >
-                        {!isMe && <p className="mb-0.5 text-xs font-medium opacity-90">{message.sender.fullName}</p>}
-                        <p className="whitespace-pre-wrap break-words">{message.content}</p>
-                        <p className={`mt-1 text-[10px] ${isMe ? 'opacity-80' : 'text-gray-500'}`}>
-                          {new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })}
-                {messages.length === 0 ? (
-                  <p className="py-12 text-center text-sm text-gray-500">{t('app.messages.noMessages')}</p>
-                ) : null}
-              </div>
-              <div className="flex gap-2 border-t p-4">
-                <input
-                  className="min-w-0 flex-1 rounded border-2 border-neutral-900 bg-white px-4 py-2.5 text-sm font-medium text-neutral-900 placeholder:text-neutral-400 focus:outline-none"
-                  value={chatInput}
-                  onChange={(event) => setChatInput(event.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      void handleSendMessage();
-                    }
-                  }}
-                  placeholder={t('app.messages.inputPlaceholder')}
-                />
-                <Button onClick={handleSendMessage} disabled={!selectedChat} className="shrink-0 rounded-xl">
-                  {t('app.actions.send')}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </section>
-      ) : null}
-
       {(error || appBusy) ? (
-        <div className={`flex items-center gap-2 rounded border-2 px-4 py-3 text-sm font-semibold ${error ? 'border-red-600 bg-red-50 text-red-700' : 'border-neutral-300 bg-neutral-100 text-neutral-600'}`}>
+        <div className={`flex items-center gap-2 rounded border-2 px-4 py-3 text-sm font-semibold ${error ? 'border-red-600 bg-red-50 text-red-700' : 'border-neutral-300 bg-muted text-muted-foreground'}`}>
           {appBusy && !error ? <LoadingSpinner className="h-4 w-4 shrink-0" /> : null}
           {error ?? 'Refreshing dashboard...'}
         </div>

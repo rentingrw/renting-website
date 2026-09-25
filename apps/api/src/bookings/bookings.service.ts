@@ -6,7 +6,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { BookingStatus, ListingStatus, Prisma, type CarBooking, type User } from '@prisma/client';
+import { BookingStatus, ListingStatus, Prisma, type User } from '@prisma/client';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 
 import type { AuthenticatedUser } from '../auth/types/authenticated-request.interface';
@@ -16,12 +16,17 @@ import { realtimeEvents } from '../realtime/realtime.events';
 import { TrustScoreService } from '../trust-score/trust-score.service';
 import type { CreateBookingDto } from './dto/create-booking.dto';
 import {
-  bookingRequestEmailHtml,
+  hosterHasInstantBooking,
+  maybeStoreRenterPhone,
+  normalizeBookingPhone,
+  formatContactLine,
+} from './booking-desk.util';
+import {
   bookingSubmittedEmailHtml,
   bookingConfirmedEmailHtml,
   bookingDeclinedEmailHtml,
-  bookingAutoCancelledEmailHtml,
   bookingCompletedEmailHtml,
+  bookingDeskRequestEmailHtml,
 } from '../notifications/email-templates';
 
 const BLOCKING_BOOKING_STATUSES = new Set<BookingStatus>([
@@ -75,6 +80,10 @@ export class BookingsService {
 
     await this.ensureNoOverlapForListing(payload.listingId, payload.startDate, payload.endDate);
 
+    const renterPhone = normalizeBookingPhone(payload.renterPhone);
+    await maybeStoreRenterPhone(renter.id, renterPhone);
+    const isInstant = await hosterHasInstantBooking(listing.ownerId);
+
     const booking = await prisma.carBooking.create({
       data: {
         listingId: payload.listingId,
@@ -86,42 +95,63 @@ export class BookingsService {
         totalAmountRwf: payload.totalAmountRwf,
         paymentMethod: payload.paymentMethod,
         notes: payload.notes,
-        status: BookingStatus.pending,
+        renterPhone,
+        isInstant,
+        status: isInstant ? BookingStatus.confirmed : BookingStatus.pending,
       },
       include: this.bookingInclude(),
     });
 
-    this.notificationsService.emitInAppToUsers([booking.ownerId], realtimeEvents.bookingNewRequest, {
-      booking,
-      bookingType: 'car',
-    });
-    this.notificationsService.queueSmsToUsers(
-      [booking.ownerId],
-      'You have a new Rentingi booking request waiting for confirmation.',
-    );
-    this.notificationsService.queueEmailToUsers(
-      [booking.ownerId],
-      'New booking request — renting.rw',
-      `${booking.renter.fullName} has sent a booking request for ${booking.listing.title}.`,
-      bookingRequestEmailHtml(booking.owner.fullName, booking.renter.fullName, booking.listing.title, booking.startDate, booking.endDate),
+    if (isInstant) {
+      await this.notifyCarConfirmed(booking);
+      return {
+        ...booking,
+        fulfillment: 'instant' as const,
+        providerContact: {
+          name: booking.owner.fullName,
+          phone: booking.owner.phone,
+          whatsapp: booking.owner.whatsapp,
+        },
+      };
+    }
+
+    this.notificationsService.queueAdminDeskAlert(
+      `Booking desk: ${booking.listing.title}`,
+      `${booking.renter.fullName} (${renterPhone}) requested ${booking.listing.title}. Pickup ${booking.pickupAddress}.`,
+      bookingDeskRequestEmailHtml(
+        booking.listing.title,
+        booking.renter.fullName,
+        renterPhone,
+        booking.startDate,
+        booking.endDate,
+        booking.pickupAddress,
+        booking.notes,
+      ),
     );
     this.notificationsService.queueEmailToUsers(
       [booking.renterId],
       'Booking request submitted — renting.rw',
-      `Your booking request for ${booking.listing.title} has been submitted and is waiting for confirmation.`,
+      `Your booking request for ${booking.listing.title} was sent to the renting.rw desk.`,
       bookingSubmittedEmailHtml(booking.renter.fullName, booking.listing.title, booking.startDate, booking.endDate),
     );
+    this.notificationsService.queueSmsToPhones(
+      [renterPhone],
+      'Your renting.rw request was sent. We will confirm and share the provider contact.',
+    );
 
-    return booking;
+    return {
+      ...booking,
+      fulfillment: 'admin_desk' as const,
+      providerContact: null,
+    };
   }
 
-  async confirm(authUser: AuthenticatedUser, bookingId: string) {
-    const caller = await this.requireUser(authUser.clerkUserId);
-    const booking = await this.requireBooking(bookingId);
+  async confirm(_authUser: AuthenticatedUser, _bookingId: string) {
+    throw new ForbiddenException('Standard bookings are confirmed by the renting.rw desk.');
+  }
 
-    if (booking.ownerId !== caller.id) {
-      throw new ForbiddenException('Only the listing owner can confirm this booking.');
-    }
+  async confirmByAdmin(bookingId: string) {
+    const booking = await this.requireBooking(bookingId);
     if (booking.status !== BookingStatus.pending) {
       throw new BadRequestException('Only pending bookings can be confirmed.');
     }
@@ -141,68 +171,37 @@ export class BookingsService {
           startDate: { lt: booking.endDate },
           endDate: { gt: booking.startDate },
         },
-        select: { id: true, renterId: true },
+        select: { id: true, renterId: true, renterPhone: true },
       });
 
       if (overlappingBookings.length > 0) {
         await tx.carBooking.updateMany({
           where: { id: { in: overlappingBookings.map((item) => item.id) } },
-          data: {
-            status: BookingStatus.overlap_declined,
-          },
+          data: { status: BookingStatus.overlap_declined },
         });
       }
 
       return { confirmed, overlappingBookings };
     });
 
-    this.notificationsService.emitInAppToUsers(
-      [updated.confirmed.renterId],
-      realtimeEvents.bookingConfirmed,
-      {
-        booking: updated.confirmed,
-        bookingType: 'car',
-      },
-    );
-    this.notificationsService.queueSmsToUsers(
-      [updated.confirmed.renterId],
-      'Your Rentingi booking request was confirmed.',
-    );
-    this.notificationsService.queueEmailToUsers(
-      [updated.confirmed.renterId],
-      'Booking confirmed — renting.rw',
-      `Your booking for ${updated.confirmed.listing.title} has been confirmed.`,
-      bookingConfirmedEmailHtml(updated.confirmed.renter.fullName, updated.confirmed.listing.title, updated.confirmed.startDate, updated.confirmed.endDate),
-    );
+    await this.notifyCarConfirmed(updated.confirmed);
 
     if (updated.overlappingBookings.length > 0) {
-      this.notificationsService.emitInAppToUsers(
-        updated.overlappingBookings.map((item) => item.renterId),
-        realtimeEvents.bookingOverlapDeclined,
-        {
-          confirmedBookingId: updated.confirmed.id,
-          bookingType: 'car',
-        },
-      );
       this.notificationsService.queueSmsToUsers(
         updated.overlappingBookings.map((item) => item.renterId),
-        'Your Rentingi booking request was declined because the selected slot is no longer available.',
+        'Your renting.rw request was declined because that slot is no longer available.',
       );
     }
 
-    return {
-      ...updated.confirmed,
-      chatEligible: true,
-    };
+    return updated.confirmed;
   }
 
-  async decline(authUser: AuthenticatedUser, bookingId: string) {
-    const caller = await this.requireUser(authUser.clerkUserId);
-    const booking = await this.requireBooking(bookingId);
+  async decline(_authUser: AuthenticatedUser, _bookingId: string) {
+    throw new ForbiddenException('Standard bookings are declined by the renting.rw desk.');
+  }
 
-    if (booking.ownerId !== caller.id) {
-      throw new ForbiddenException('Only the listing owner can decline this booking.');
-    }
+  async rejectByAdmin(bookingId: string) {
+    const booking = await this.requireBooking(bookingId);
     if (booking.status !== BookingStatus.pending) {
       throw new BadRequestException('Only pending bookings can be declined.');
     }
@@ -213,13 +212,9 @@ export class BookingsService {
       include: this.bookingInclude(),
     });
 
-    this.notificationsService.emitInAppToUsers([declined.renterId], realtimeEvents.bookingDeclined, {
-      booking: declined,
-      bookingType: 'car',
-    });
-    this.notificationsService.queueSmsToUsers(
-      [declined.renterId],
-      'Your Rentingi booking request was declined.',
+    this.notificationsService.queueSmsToPhones(
+      [declined.renterPhone].filter(Boolean),
+      'Your renting.rw booking request was declined. You can request another listing.',
     );
     this.notificationsService.queueEmailToUsers(
       [declined.renterId],
@@ -228,7 +223,102 @@ export class BookingsService {
       bookingDeclinedEmailHtml(declined.renter.fullName, declined.listing.title),
     );
 
+    void this.trustScoreService.recordEvent({
+      userId: declined.ownerId,
+      eventType: 'booking_rejected',
+      carBookingId: declined.id,
+      reason: 'Pending booking rejected by the renting.rw desk',
+    });
+
     return declined;
+  }
+
+  async tryNextByAdmin(bookingId: string, nextListingId: string) {
+    const booking = await this.requireBooking(bookingId);
+    if (booking.status !== BookingStatus.pending) {
+      throw new BadRequestException('Only pending bookings can be moved to the next listing.');
+    }
+    if (nextListingId === booking.listingId) {
+      throw new BadRequestException('Pick a different listing.');
+    }
+
+    const nextListing = await prisma.carListing.findUnique({
+      where: { id: nextListingId },
+      select: { id: true, ownerId: true, status: true, title: true },
+    });
+    if (!nextListing || nextListing.status !== ListingStatus.active) {
+      throw new NotFoundException('Next listing not found.');
+    }
+
+    await this.ensureNoOverlapForListing(nextListing.id, booking.startDate, booking.endDate);
+
+    const groupId = booking.tryNextGroupId ?? booking.id;
+    const created = await prisma.$transaction(async (tx) => {
+      await tx.carBooking.update({
+        where: { id: booking.id },
+        data: { status: BookingStatus.declined },
+      });
+      return tx.carBooking.create({
+        data: {
+          listingId: nextListing.id,
+          renterId: booking.renterId,
+          ownerId: nextListing.ownerId,
+          startDate: booking.startDate,
+          endDate: booking.endDate,
+          pickupAddress: booking.pickupAddress,
+          totalAmountRwf: booking.totalAmountRwf,
+          notes: booking.notes,
+          renterPhone: booking.renterPhone,
+          isInstant: false,
+          previousBookingId: booking.id,
+          tryNextGroupId: groupId,
+          status: BookingStatus.pending,
+        },
+        include: this.bookingInclude(),
+      });
+    });
+
+    this.notificationsService.queueAdminDeskAlert(
+      `Try next: ${created.listing.title}`,
+      `Moved ${booking.renter.fullName} (${booking.renterPhone}) from ${booking.listing.title} to ${created.listing.title}.`,
+      bookingDeskRequestEmailHtml(
+        created.listing.title,
+        created.renter.fullName,
+        created.renterPhone,
+        created.startDate,
+        created.endDate,
+        created.pickupAddress,
+        created.notes,
+      ),
+    );
+
+    return created;
+  }
+
+  async listCarAlternatives(bookingId: string) {
+    const booking = await this.requireBooking(bookingId);
+    return prisma.carListing.findMany({
+      where: {
+        status: ListingStatus.active,
+        id: { not: booking.listingId },
+        bookings: {
+          none: {
+            status: { in: Array.from(BLOCKING_BOOKING_STATUSES) },
+            startDate: { lt: booking.endDate },
+            endDate: { gt: booking.startDate },
+          },
+        },
+      },
+      select: {
+        id: true,
+        title: true,
+        locationText: true,
+        vehicleType: true,
+        owner: { select: { id: true, fullName: true, phone: true } },
+      },
+      take: 12,
+      orderBy: { createdAt: 'desc' },
+    });
   }
 
   async cancel(authUser: AuthenticatedUser, bookingId: string) {
@@ -419,10 +509,7 @@ export class BookingsService {
       throw new ForbiddenException('You can only view your own bookings.');
     }
 
-    return {
-      ...booking,
-      chatEligible: this.isChatEligibleStatus(booking.status),
-    };
+    return this.presentBooking(booking);
   }
 
   async getMine(authUser: AuthenticatedUser) {
@@ -439,75 +526,11 @@ export class BookingsService {
       include: this.bookingInclude(),
     });
 
-    return bookings.map((booking) => ({
-      ...booking,
-      chatEligible: this.isChatEligibleStatus(booking.status),
-    }));
+    return bookings.map((booking) => this.presentBooking(booking));
   }
 
-  async autoCancelStalePendingBookings(now: Date = new Date()) {
-    const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
-    const staleBookings = await prisma.carBooking.findMany({
-      where: {
-        status: BookingStatus.pending,
-        createdAt: { lte: oneHourAgo },
-      },
-      select: {
-        id: true,
-        ownerId: true,
-        renterId: true,
-        owner: { select: { fullName: true } },
-        renter: { select: { fullName: true } },
-        listing: { select: { title: true } },
-      },
-    });
-
-    for (const booking of staleBookings) {
-      const updated = await prisma.carBooking.updateMany({
-        where: {
-          id: booking.id,
-          status: BookingStatus.pending,
-        },
-        data: {
-          status: BookingStatus.auto_cancelled,
-        },
-      });
-
-      if (updated.count === 0) {
-        continue;
-      }
-
-      await this.trustScoreService.recordEvent({
-        userId: booking.ownerId,
-        eventType: 'no_response_1h',
-        carBookingId: booking.id,
-      });
-
-      this.notificationsService.emitInAppToUsers(
-        [booking.ownerId, booking.renterId],
-        realtimeEvents.bookingAutoCancelled,
-        {
-          bookingId: booking.id,
-          bookingType: 'car',
-        },
-      );
-      this.notificationsService.queueSmsToUsers(
-        [booking.ownerId, booking.renterId],
-        'A Rentingi booking request was auto-cancelled due to no response within 1 hour.',
-      );
-      this.notificationsService.queueEmailToUsers(
-        [booking.ownerId],
-        'Booking auto-cancelled — renting.rw',
-        `A booking request for ${booking.listing.title} was auto-cancelled because you did not respond within 1 hour.`,
-        bookingAutoCancelledEmailHtml(booking.owner.fullName, booking.listing.title),
-      );
-      this.notificationsService.queueEmailToUsers(
-        [booking.renterId],
-        'Booking auto-cancelled — renting.rw',
-        `Your booking request for ${booking.listing.title} was auto-cancelled due to no response.`,
-        bookingAutoCancelledEmailHtml(booking.renter.fullName, booking.listing.title),
-      );
-    }
+  async autoCancelStalePendingBookings(_now: Date = new Date()) {
+    return;
   }
 
   async autoCompleteExpiredActiveBookings(now: Date = new Date()) {
@@ -669,6 +692,8 @@ export class BookingsService {
           id: true,
           fullName: true,
           avatarUrl: true,
+          phone: true,
+          whatsapp: true,
         },
       },
       renter: {
@@ -676,6 +701,7 @@ export class BookingsService {
           id: true,
           fullName: true,
           avatarUrl: true,
+          phone: true,
         },
       },
       disputes: {
@@ -688,20 +714,59 @@ export class BookingsService {
     } satisfies Prisma.CarBookingInclude;
   }
 
-  private bookingIncludeFull() {
-    return {
-      ...this.bookingInclude(),
-      owner: { select: { id: true, fullName: true, avatarUrl: true } },
-      renter: { select: { id: true, fullName: true, avatarUrl: true } },
-    } satisfies Prisma.CarBookingInclude;
-  }
-
-  private isChatEligibleStatus(status: CarBooking['status']) {
+  private contactRevealed(status: BookingStatus) {
     return (
       status === BookingStatus.confirmed ||
       status === BookingStatus.active ||
       status === BookingStatus.completed ||
-      status === BookingStatus.auto_completed
+      status === BookingStatus.auto_completed ||
+      status === BookingStatus.disputed
+    );
+  }
+
+  private presentBooking(booking: Awaited<ReturnType<BookingsService['requireBooking']>>) {
+    const revealed = this.contactRevealed(booking.status);
+    return {
+      ...booking,
+      chatEligible: false,
+      owner: {
+        ...booking.owner,
+        phone: revealed ? booking.owner.phone : null,
+        whatsapp: revealed ? booking.owner.whatsapp : null,
+      },
+      renter: {
+        ...booking.renter,
+        phone: revealed ? booking.renter.phone : null,
+      },
+    };
+  }
+
+  private async notifyCarConfirmed(booking: Awaited<ReturnType<BookingsService['requireBooking']>>) {
+    const provider = formatContactLine(booking.owner.fullName, booking.owner.phone, booking.owner.whatsapp);
+    this.notificationsService.queueSmsToPhones(
+      [booking.renterPhone, booking.renter.phone].filter((value): value is string => Boolean(value)),
+      `Your renting.rw booking is confirmed. Provider: ${provider}.`,
+    );
+    this.notificationsService.queueEmailToUsers(
+      [booking.renterId],
+      'Booking confirmed — renting.rw',
+      `Your booking for ${booking.listing.title} is confirmed. ${provider}`,
+      bookingConfirmedEmailHtml(
+        booking.renter.fullName,
+        booking.listing.title,
+        booking.startDate,
+        booking.endDate,
+        provider,
+      ),
+    );
+    this.notificationsService.queueSmsToUsers(
+      [booking.ownerId],
+      `A renting.rw booking is confirmed. Client phone: ${booking.renterPhone}.`,
+    );
+    this.notificationsService.queueEmailToUsers(
+      [booking.ownerId],
+      'Booking confirmed — renting.rw',
+      `${booking.renter.fullName} is confirmed for ${booking.listing.title}. Client phone: ${booking.renterPhone}.`,
     );
   }
 

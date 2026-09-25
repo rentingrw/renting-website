@@ -15,7 +15,7 @@ export class SearchController {
   constructor(private readonly searchService: SearchService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Search for available cars and drivers' })
+  @ApiOperation({ summary: 'Search for available cars, drivers, and taxis' })
   @Header('Cache-Control', 'public, max-age=60, stale-while-revalidate=30')
   search(@Query() query: SearchQueryDto, @Req() request: { user?: AuthenticatedUser }) {
     return this.searchService.search(query, request.user);

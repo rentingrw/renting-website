@@ -6,5 +6,5 @@ type MessagesPageProps = {
 
 export default async function MessagesPage({ params }: MessagesPageProps) {
   const { locale } = await params;
-  redirect(`/${locale}/app?section=messages`);
+  redirect(`/${locale}/app/bookings`);
 }

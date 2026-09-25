@@ -1,4 +1,4 @@
-import { IsEnum, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsEnum, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 
 import type { ProductTier } from '../subscription-tier.util';
 
@@ -24,5 +24,10 @@ export class InitiateSubscriptionDto {
   @MinLength(8)
   @MaxLength(20)
   mobileNumber!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  promoCode?: string;
 }
 

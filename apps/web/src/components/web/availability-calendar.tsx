@@ -156,18 +156,18 @@ export function AvailabilityCalendar({ carId, initialBookedRanges, selectedStart
           type="button"
           onClick={prevMonth}
           disabled={!canGoPrev}
-          className="rounded border-2 border-neutral-900 p-1.5 transition-all hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-30"
+          className="rounded border-2 border-border p-1.5 transition-all hover:bg-muted disabled:cursor-not-allowed disabled:opacity-30"
           aria-label="Previous month"
         >
           <ChevronLeft className="h-3.5 w-3.5" />
         </button>
-        <span className="text-sm font-black text-neutral-900">
+        <span className="text-sm font-black text-foreground">
           {MONTH_NAMES[viewMonth]} {viewYear}
         </span>
         <button
           type="button"
           onClick={nextMonth}
-          className="rounded border-2 border-neutral-900 p-1.5 transition-all hover:bg-neutral-100"
+          className="rounded border-2 border-border p-1.5 transition-all hover:bg-muted"
           aria-label="Next month"
         >
           <ChevronRight className="h-3.5 w-3.5" />
@@ -177,7 +177,7 @@ export function AvailabilityCalendar({ carId, initialBookedRanges, selectedStart
       {/* Day-of-week headers */}
       <div className="mb-1 grid grid-cols-7">
         {DAY_LABELS.map(d => (
-          <div key={d} className="py-1 text-center text-[10px] font-black uppercase tracking-wider text-neutral-400">
+          <div key={d} className="py-1 text-center text-[10px] font-black uppercase tracking-wider text-muted-foreground">
             {d}
           </div>
         ))}
@@ -200,18 +200,18 @@ export function AvailabilityCalendar({ carId, initialBookedRanges, selectedStart
           let cls = 'relative flex h-9 w-full items-center justify-center text-xs transition-colors ';
 
           if (isStart || isEnd) {
-            cls += 'bg-teal-600 text-white font-black z-10 ';
+            cls += 'bg-brand text-white font-black z-10 ';
             if (isStart && !selEnd && !hoverDate) cls += 'rounded ';
             else if (isStart) cls += 'rounded-l ';
             else cls += 'rounded-r ';
           } else if (inRange) {
-            cls += 'bg-teal-100 text-teal-900 font-semibold ';
+            cls += 'bg-brand-soft text-brand-strong font-semibold ';
           } else if (booked) {
-            cls += 'cursor-not-allowed bg-red-50 font-medium text-red-300 line-through ';
+            cls += 'cursor-not-allowed bg-red-50 font-medium text-red-400 line-through ';
           } else if (isPast) {
             cls += 'cursor-not-allowed font-medium text-neutral-300 ';
           } else {
-            cls += 'cursor-pointer font-semibold text-neutral-900 hover:rounded hover:bg-teal-50 hover:text-teal-800 ';
+            cls += 'cursor-pointer font-semibold text-foreground hover:rounded-lg hover:bg-brand-soft hover:text-brand-strong ';
           }
 
           return (
@@ -241,35 +241,35 @@ export function AvailabilityCalendar({ carId, initialBookedRanges, selectedStart
       {/* Status message + legend */}
       <div className="mt-2 border-t border-neutral-100 pt-2">
         {!selectedStart && (
-          <p className="mb-1.5 text-xs font-medium text-neutral-500">Click a day to set your pick-up date.</p>
+          <p className="mb-1.5 text-xs font-medium text-muted-foreground">Click a day to set your pick-up date.</p>
         )}
         {selectedStart && !selectedEnd && (
-          <p className="mb-1.5 text-xs font-medium text-teal-700">
+          <p className="mb-1.5 text-xs font-medium text-brand">
             Pick-up: {dayStart(selectedStart).toLocaleDateString('en', { month: 'short', day: 'numeric' })} — now click your return date.
           </p>
         )}
         {selectedStart && selectedEnd && (
-          <p className="mb-1.5 text-xs font-medium text-teal-700">
+          <p className="mb-1.5 text-xs font-medium text-brand">
             {dayStart(selectedStart).toLocaleDateString('en', { month: 'short', day: 'numeric' })}
             {' → '}
             {dayStart(selectedEnd).toLocaleDateString('en', { month: 'short', day: 'numeric' })}
             {' · '}
             {Math.max(1, Math.round((dayStart(selectedEnd).getTime() - dayStart(selectedStart).getTime()) / 86400000))} day(s)
             {' '}
-            <button type="button" onClick={() => onSelect(selectedStart, null)} className="ml-1 font-black text-neutral-500 underline hover:text-red-600">
+            <button type="button" onClick={() => onSelect(selectedStart, null)} className="ml-1 font-black text-muted-foreground underline hover:text-red-600">
               clear
             </button>
           </p>
         )}
-        <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] font-medium text-neutral-500">
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] font-medium text-muted-foreground">
           <span className="flex items-center gap-1">
-            <span className="inline-block h-2.5 w-2.5 rounded-sm bg-teal-600" /> Selected
+            <span className="inline-block h-2.5 w-2.5 rounded-sm bg-brand" /> Selected
           </span>
           <span className="flex items-center gap-1">
             <span className="inline-block h-2.5 w-2.5 rounded-sm border border-red-200 bg-red-50" /> Already booked
           </span>
           <span className="flex items-center gap-1">
-            <span className="inline-block h-2.5 w-2.5 rounded-sm bg-neutral-200" /> Unavailable
+            <span className="inline-block h-2.5 w-2.5 rounded-sm bg-muted" /> Unavailable
           </span>
         </div>
       </div>

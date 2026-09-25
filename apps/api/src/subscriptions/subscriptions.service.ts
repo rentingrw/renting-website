@@ -10,7 +10,11 @@ import {
   ListingStatus,
   PaymentMethod,
   Prisma,
+  SubscriptionKind,
   SubscriptionStatus,
+  SubscriptionTier,
+  TaxiDriverStatus,
+  type PromoCode,
   type User,
 } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
@@ -22,15 +26,25 @@ import { realtimeEvents } from '../realtime/realtime.events';
 import {
   type ProductTier,
   DRIVER_PLAN,
+  HOSTER_PLANS,
+  TAXI_PLAN,
   getTierPlan,
+  liveSubscriptionWhere,
   productTierToStoredTier,
   storedTierToProductTier,
 } from './subscription-tier.util';
+import {
+  applyPromoAmount,
+  assertPromoUsable,
+  incrementPromoRedemption,
+  normalizePromoCode,
+} from './promo-code.util';
 import {
   SubscriptionPaymentMethodDto,
   type InitiateSubscriptionDto,
 } from './dto/initiate-subscription.dto';
 import type { InitiateDriverSubscriptionDto } from './dto/initiate-driver-subscription.dto';
+import type { InitiateTaxiSubscriptionDto } from './dto/initiate-taxi-subscription.dto';
 import type { UpgradeSubscriptionDto } from './dto/upgrade-subscription.dto';
 import { initiateIPayCharge } from './ipay-mopay.adapter';
 import {
@@ -40,50 +54,32 @@ import {
   subscriptionExpiredEmailHtml,
 } from '../notifications/email-templates';
 
-type JsonRecord = Record<string, unknown>;
-
 @Injectable()
 export class SubscriptionsService {
   private readonly logger = new Logger(SubscriptionsService.name);
 
   constructor(private readonly notificationsService: NotificationsService) {}
 
+  getPlans() {
+    return {
+      hoster: HOSTER_PLANS,
+      driver: DRIVER_PLAN,
+      taxi: TAXI_PLAN,
+    };
+  }
+
   async initiate(authUser: AuthenticatedUser, payload: InitiateSubscriptionDto) {
     const owner = await this.requireCarOwner(authUser.clerkUserId);
     const plan = getTierPlan(payload.tier);
-    const reference = randomUUID();
-    const paymentMethod = this.mapDtoMethod(payload.paymentMethod);
-
-    const created = await prisma.subscription.create({
-      data: {
-        userId: owner.id,
-        tier: productTierToStoredTier(payload.tier),
-        status: SubscriptionStatus.unpaid,
-        amountRwf: plan.priceRwf,
-        paymentMethod,
-        externalRef: reference,
-        startsAt: new Date(),
-      },
+    return this.startProviderSubscription({
+      user: owner,
+      kind: SubscriptionKind.hoster,
+      storedTier: productTierToStoredTier(payload.tier),
+      listPriceRwf: plan.priceRwf,
+      payload,
+      message: `Renting.rw ${plan.label} subscription`,
+      extra: { tier: payload.tier },
     });
-
-    const callbackUrl = this.buildCallbackUrl();
-    const gatewayResponse = await initiateIPayCharge({
-      phoneNumber: payload.mobileNumber,
-      amount: plan.priceRwf,
-      txRef: reference,
-      message: `Renting.rw ${payload.tier} subscription`,
-      callbackUrl,
-    });
-
-    return {
-      subscriptionId: created.id,
-      reference,
-      status: 'pending_payment',
-      tier: payload.tier,
-      amountRwf: plan.priceRwf,
-      paymentMethod: payload.paymentMethod,
-      providerTransactionId: gatewayResponse.transactionId,
-    };
   }
 
   async handleIPayCallback(transactionId: string, status: number) {
@@ -103,7 +99,7 @@ export class SubscriptionsService {
     const [effectivePublishSubscription, latestSubscription, activeListingCount] = await Promise.all([
       this.findEffectivePublishSubscription(owner.id, now),
       prisma.subscription.findFirst({
-        where: { userId: owner.id, tier: { not: 'free' } },
+        where: { userId: owner.id, kind: SubscriptionKind.hoster },
         orderBy: { createdAt: 'desc' },
       }),
       prisma.carListing.count({
@@ -121,6 +117,10 @@ export class SubscriptionsService {
         activeCars: activeListingCount,
         maxCars: 0,
         canPublish: false,
+        locationBoost: false,
+        verified: false,
+        instantBooking: false,
+        publicContact: false,
       };
     }
 
@@ -138,6 +138,7 @@ export class SubscriptionsService {
         id: selected.id,
         status: this.mapStatusForClient(selected.status),
         tier,
+        kind: selected.kind,
         renewsAt: selected.renewsAt,
         amountRwf: selected.amountRwf,
         paymentMethod: selected.paymentMethod,
@@ -145,6 +146,10 @@ export class SubscriptionsService {
       activeCars: activeListingCount,
       maxCars: plan.maxCars,
       canPublish,
+      locationBoost: plan.locationBoost,
+      verified: plan.verified,
+      instantBooking: plan.instantBooking,
+      publicContact: plan.publicContact,
     };
   }
 
@@ -154,7 +159,7 @@ export class SubscriptionsService {
     const existing = await prisma.subscription.findFirst({
       where: {
         userId: owner.id,
-        status: SubscriptionStatus.active,
+        ...liveSubscriptionWhere(SubscriptionKind.hoster),
       },
       orderBy: { startsAt: 'desc' },
     });
@@ -173,6 +178,7 @@ export class SubscriptionsService {
         const activatedSubscription = await tx.subscription.create({
           data: {
             userId: owner.id,
+            kind: SubscriptionKind.hoster,
             tier: productTierToStoredTier(payload.tier),
             status: SubscriptionStatus.active,
             amountRwf: amountToCharge,
@@ -186,7 +192,8 @@ export class SubscriptionsService {
         await tx.subscription.updateMany({
           where: {
             userId: owner.id,
-            status: SubscriptionStatus.active,
+            kind: SubscriptionKind.hoster,
+            status: { in: [SubscriptionStatus.active, SubscriptionStatus.cancelled] },
             id: { not: activatedSubscription.id },
           },
           data: {
@@ -196,6 +203,7 @@ export class SubscriptionsService {
         });
 
         await this.pauseExcessListingsForTier(tx, owner.id, payload.tier);
+        await this.syncVerifiedBadge(tx, owner.id);
         return activatedSubscription;
       });
 
@@ -221,22 +229,46 @@ export class SubscriptionsService {
 
     const reference = randomUUID();
     const paymentMethod = this.mapDtoMethod(payload.paymentMethod);
+    const promo = await this.resolvePromo(payload.promoCode, SubscriptionKind.hoster);
+    const priced = applyPromoAmount(amountToCharge, promo);
     const created = await prisma.subscription.create({
       data: {
         userId: owner.id,
+        kind: SubscriptionKind.hoster,
         tier: productTierToStoredTier(payload.tier),
-        status: SubscriptionStatus.unpaid,
-        amountRwf: amountToCharge,
+        status: priced.waived ? SubscriptionStatus.active : SubscriptionStatus.pending_payment,
+        amountRwf: priced.amountRwf,
         paymentMethod,
         externalRef: reference,
+        promoCodeId: promo?.id,
         startsAt: new Date(),
+        renewsAt: priced.waived ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) : undefined,
       },
     });
+
+    if (priced.waived) {
+      await prisma.$transaction(async (tx) => {
+        if (promo) await incrementPromoRedemption(tx, promo.id);
+        await this.expireSameKind(tx, owner.id, SubscriptionKind.hoster, created.id);
+        await this.pauseExcessListingsForTier(tx, owner.id, payload.tier);
+        await this.syncVerifiedBadge(tx, owner.id);
+      });
+      return {
+        paymentRequired: false,
+        activated: true,
+        subscriptionId: created.id,
+        reference,
+        status: 'active',
+        tier: payload.tier,
+        amountRwf: 0,
+        promoCode: promo?.code,
+      };
+    }
 
     const callbackUrl = this.buildCallbackUrl();
     const gatewayResponse = await initiateIPayCharge({
       phoneNumber: payload.mobileNumber,
-      amount: amountToCharge,
+      amount: priced.amountRwf,
       txRef: reference,
       message: `Renting.rw ${payload.tier} subscription`,
       callbackUrl,
@@ -247,8 +279,9 @@ export class SubscriptionsService {
       reference,
       status: 'pending_payment',
       tier: payload.tier,
-      amountRwf: amountToCharge,
+      amountRwf: priced.amountRwf,
       paymentMethod: payload.paymentMethod,
+      promoCode: promo?.code,
       providerTransactionId: gatewayResponse.transactionId,
     };
   }
@@ -258,6 +291,7 @@ export class SubscriptionsService {
     const active = await prisma.subscription.findFirst({
       where: {
         userId: owner.id,
+        kind: SubscriptionKind.hoster,
         status: SubscriptionStatus.active,
       },
       orderBy: { startsAt: 'desc' },
@@ -290,34 +324,60 @@ export class SubscriptionsService {
   }
 
   @Cron(CronExpression.EVERY_HOUR)
-  async expireStaleDriverSubscriptionsCron() {
+  async expireStaleSubscriptionsCron() {
     const now = new Date();
     const stale = await prisma.subscription.findMany({
       where: {
-        tier: 'free',
-        status: SubscriptionStatus.active,
+        status: { in: [SubscriptionStatus.active, SubscriptionStatus.cancelled] },
         renewsAt: { not: null, lt: now },
       },
-      select: { id: true, userId: true, user: { select: { fullName: true } } },
+      select: {
+        id: true,
+        userId: true,
+        kind: true,
+        tier: true,
+        user: { select: { fullName: true } },
+      },
     });
 
     if (stale.length === 0) return;
 
-    await prisma.subscription.updateMany({
-      where: { id: { in: stale.map((s) => s.id) } },
-      data: { status: SubscriptionStatus.expired, endsAt: now },
-    });
-
     for (const sub of stale) {
+      await prisma.$transaction(async (tx) => {
+        await tx.subscription.update({
+          where: { id: sub.id },
+          data: { status: SubscriptionStatus.expired, endsAt: now },
+        });
+        if (sub.kind === SubscriptionKind.hoster) {
+          const stillLive = await tx.subscription.findFirst({
+            where: { userId: sub.userId, ...liveSubscriptionWhere(SubscriptionKind.hoster, now) },
+            select: { id: true },
+          });
+          if (!stillLive) {
+            await tx.carListing.updateMany({
+              where: { ownerId: sub.userId, status: ListingStatus.active },
+              data: { status: ListingStatus.paused },
+            });
+          }
+          await this.syncVerifiedBadge(tx, sub.userId);
+        }
+      });
+
+      const label =
+        sub.kind === SubscriptionKind.driver
+          ? 'driver'
+          : sub.kind === SubscriptionKind.taxi
+            ? 'taxi'
+            : storedTierToProductTier(sub.tier);
       this.notificationsService.queueEmailToUsers(
         [sub.userId],
-        'Your driver listing has expired — renting.rw',
-        'Your monthly driver subscription has expired. Renew to stay visible to customers.',
-        subscriptionExpiredEmailHtml(sub.user.fullName, 'driver'),
+        'Your listing has expired — renting.rw',
+        'Your monthly subscription has expired. Renew to stay visible to customers.',
+        subscriptionExpiredEmailHtml(sub.user.fullName, String(label)),
       );
     }
 
-    this.logger.log(`Expired ${stale.length} stale driver subscription(s).`);
+    this.logger.log(`Expired ${stale.length} stale subscription(s).`);
   }
 
   @Cron(CronExpression.EVERY_DAY_AT_8AM)
@@ -328,6 +388,7 @@ export class SubscriptionsService {
   async enforceCancelledRenewals(now: Date = new Date()) {
     const dueSubscriptions = await prisma.subscription.findMany({
       where: {
+        kind: SubscriptionKind.hoster,
         status: SubscriptionStatus.cancelled,
         renewsAt: { lte: now },
       },
@@ -435,20 +496,13 @@ export class SubscriptionsService {
         },
       });
 
-      await tx.subscription.updateMany({
-        where: {
-          userId: subscription.userId,
-          tier: subscription.tier,
-          status: SubscriptionStatus.active,
-          id: { not: subscription.id },
-        },
-        data: {
-          status: SubscriptionStatus.expired,
-          endsAt: now,
-        },
-      });
+      if (subscription.promoCodeId) {
+        await incrementPromoRedemption(tx, subscription.promoCodeId);
+      }
 
-      if (subscription.tier !== 'free') {
+      await this.expireSameKind(tx, subscription.userId, subscription.kind, subscription.id);
+
+      if (subscription.kind === SubscriptionKind.hoster) {
         await tx.carListing.updateMany({
           where: {
             ownerId: subscription.userId,
@@ -464,6 +518,13 @@ export class SubscriptionsService {
           subscription.userId,
           storedTierToProductTier(subscription.tier),
         );
+        await this.syncVerifiedBadge(tx, subscription.userId);
+      }
+      if (subscription.kind === SubscriptionKind.taxi) {
+        await tx.taxiDriver.updateMany({
+          where: { userId: subscription.userId },
+          data: { status: TaxiDriverStatus.approved },
+        });
       }
       return updated;
     });
@@ -514,7 +575,7 @@ export class SubscriptionsService {
   async getPaymentHistory(authUser: AuthenticatedUser) {
     const owner = await this.requireCarOwner(authUser.clerkUserId);
     const history = await prisma.subscription.findMany({
-      where: { userId: owner.id, tier: { not: 'free' } },
+      where: { userId: owner.id, kind: SubscriptionKind.hoster },
       orderBy: { createdAt: 'desc' },
       take: 24,
     });
@@ -534,7 +595,7 @@ export class SubscriptionsService {
   async getDriverPaymentHistory(authUser: AuthenticatedUser) {
     const driver = await this.requireDriver(authUser.clerkUserId);
     const history = await prisma.subscription.findMany({
-      where: { userId: driver.id, tier: 'free' },
+      where: { userId: driver.id, kind: SubscriptionKind.driver },
       orderBy: { createdAt: 'desc' },
       take: 24,
     });
@@ -552,38 +613,14 @@ export class SubscriptionsService {
 
   async initiateDriver(authUser: AuthenticatedUser, payload: InitiateDriverSubscriptionDto) {
     const driver = await this.requireDriver(authUser.clerkUserId);
-    const reference = randomUUID();
-    const paymentMethod = this.mapDtoMethod(payload.paymentMethod);
-
-    const created = await prisma.subscription.create({
-      data: {
-        userId: driver.id,
-        tier: 'free',
-        status: SubscriptionStatus.unpaid,
-        amountRwf: DRIVER_PLAN.priceRwf,
-        paymentMethod,
-        externalRef: reference,
-        startsAt: new Date(),
-      },
-    });
-
-    const callbackUrl = this.buildCallbackUrl();
-    const gatewayResponse = await initiateIPayCharge({
-      phoneNumber: payload.mobileNumber,
-      amount: DRIVER_PLAN.priceRwf,
-      txRef: reference,
+    return this.startProviderSubscription({
+      user: driver,
+      kind: SubscriptionKind.driver,
+      storedTier: SubscriptionTier.standard,
+      listPriceRwf: DRIVER_PLAN.priceRwf,
+      payload,
       message: 'Renting.rw driver subscription',
-      callbackUrl,
     });
-
-    return {
-      subscriptionId: created.id,
-      reference,
-      status: 'pending_payment',
-      amountRwf: DRIVER_PLAN.priceRwf,
-      paymentMethod: payload.paymentMethod,
-      providerTransactionId: gatewayResponse.transactionId,
-    };
   }
 
   async getDriverSubscriptionMine(authUser: AuthenticatedUser) {
@@ -593,14 +630,13 @@ export class SubscriptionsService {
     const effective = await prisma.subscription.findFirst({
       where: {
         userId: driver.id,
-        tier: 'free',
-        OR: [{ status: SubscriptionStatus.active }, { status: SubscriptionStatus.cancelled, renewsAt: { gt: now } }],
+        ...liveSubscriptionWhere(SubscriptionKind.driver, now),
       },
       orderBy: { startsAt: 'desc' },
     });
 
     const latest = effective ?? await prisma.subscription.findFirst({
-      where: { userId: driver.id, tier: 'free' },
+      where: { userId: driver.id, kind: SubscriptionKind.driver },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -624,7 +660,7 @@ export class SubscriptionsService {
     const active = await prisma.subscription.findFirst({
       where: {
         userId: driver.id,
-        tier: 'free',
+        kind: SubscriptionKind.driver,
         status: SubscriptionStatus.active,
       },
       orderBy: { startsAt: 'desc' },
@@ -650,6 +686,87 @@ export class SubscriptionsService {
     };
   }
 
+  async initiateTaxi(authUser: AuthenticatedUser, payload: InitiateTaxiSubscriptionDto) {
+    const taxiUser = await this.requireTaxi(authUser.clerkUserId);
+    return this.startProviderSubscription({
+      user: taxiUser,
+      kind: SubscriptionKind.taxi,
+      storedTier: SubscriptionTier.standard,
+      listPriceRwf: TAXI_PLAN.priceRwf,
+      payload,
+      message: 'Renting.rw taxi subscription',
+    });
+  }
+
+  async getTaxiSubscriptionMine(authUser: AuthenticatedUser) {
+    const taxiUser = await this.requireTaxi(authUser.clerkUserId);
+    const now = new Date();
+    const effective = await prisma.subscription.findFirst({
+      where: {
+        userId: taxiUser.id,
+        ...liveSubscriptionWhere(SubscriptionKind.taxi, now),
+      },
+      orderBy: { startsAt: 'desc' },
+    });
+    const latest = effective ?? await prisma.subscription.findFirst({
+      where: { userId: taxiUser.id, kind: SubscriptionKind.taxi },
+      orderBy: { createdAt: 'desc' },
+    });
+    return {
+      subscription: latest
+        ? {
+            id: latest.id,
+            status: this.mapStatusForClient(latest.status),
+            renewsAt: latest.renewsAt,
+            amountRwf: latest.amountRwf,
+            paymentMethod: latest.paymentMethod,
+          }
+        : null,
+      isActive: effective !== null,
+      planPriceRwf: TAXI_PLAN.priceRwf,
+    };
+  }
+
+  async cancelTaxiSubscription(authUser: AuthenticatedUser) {
+    const taxiUser = await this.requireTaxi(authUser.clerkUserId);
+    const active = await prisma.subscription.findFirst({
+      where: {
+        userId: taxiUser.id,
+        kind: SubscriptionKind.taxi,
+        status: SubscriptionStatus.active,
+      },
+      orderBy: { startsAt: 'desc' },
+    });
+    if (!active) {
+      throw new BadRequestException('No active taxi subscription found to cancel.');
+    }
+    const pauseAt = active.renewsAt ?? new Date();
+    const cancelled = await prisma.subscription.update({
+      where: { id: active.id },
+      data: { status: SubscriptionStatus.cancelled, endsAt: pauseAt },
+    });
+    return { id: cancelled.id, status: 'cancelled', expiresAt: pauseAt };
+  }
+
+  async getTaxiPaymentHistory(authUser: AuthenticatedUser) {
+    const taxiUser = await this.requireTaxi(authUser.clerkUserId);
+    const history = await prisma.subscription.findMany({
+      where: { userId: taxiUser.id, kind: SubscriptionKind.taxi },
+      orderBy: { createdAt: 'desc' },
+      take: 24,
+    });
+    return history.map((s) => ({
+      id: s.id,
+      status: this.mapStatusForClient(s.status),
+      amountRwf: s.amountRwf,
+      paymentMethod: s.paymentMethod,
+      startsAt: s.startsAt,
+      renewsAt: s.renewsAt,
+      endsAt: s.endsAt,
+      createdAt: s.createdAt,
+    }));
+  }
+
   private buildCallbackUrl(): string {
     const base = (process.env.PUBLIC_API_URL || 'http://localhost:3001').replace(/\/$/, '');
     return `${base}/subscriptions/callback/ipay`;
@@ -659,8 +776,7 @@ export class SubscriptionsService {
     return prisma.subscription.findFirst({
       where: {
         userId,
-        tier: { not: 'free' },
-        OR: [{ status: SubscriptionStatus.active }, { status: SubscriptionStatus.cancelled, renewsAt: { gt: now } }],
+        ...liveSubscriptionWhere(SubscriptionKind.hoster, now),
       },
       orderBy: { startsAt: 'desc' },
     });
@@ -714,9 +830,172 @@ export class SubscriptionsService {
     switch (status) {
       case SubscriptionStatus.unpaid:
       case SubscriptionStatus.past_due:
+      case SubscriptionStatus.draft:
+      case SubscriptionStatus.pending_payment:
         return 'pending_payment';
+      case SubscriptionStatus.cancelled:
+        return 'cancelled';
+      case SubscriptionStatus.suspended:
+        return 'suspended';
       default:
         return status;
+    }
+  }
+
+  private async requireTaxi(clerkUserId: string): Promise<User> {
+    const user = await prisma.user.findUnique({
+      where: { clerkId: clerkUserId },
+      include: { taxiDriver: { select: { id: true } } },
+    });
+    if (!user) {
+      throw new UnauthorizedException('User not found. Sync your account first.');
+    }
+    if (user.deletedAt) {
+      throw new ForbiddenException('This account has been deactivated.');
+    }
+    if (!user.taxiDriver) {
+      throw new ForbiddenException('Register as a taxi driver before subscribing.');
+    }
+    return user;
+  }
+
+  private async startProviderSubscription(params: {
+    user: User;
+    kind: SubscriptionKind;
+    storedTier: SubscriptionTier;
+    listPriceRwf: number;
+    payload: { paymentMethod: SubscriptionPaymentMethodDto; mobileNumber: string; promoCode?: string };
+    message: string;
+    extra?: Record<string, unknown>;
+  }) {
+    const promo = await this.resolvePromo(params.payload.promoCode, params.kind);
+    const priced = applyPromoAmount(params.listPriceRwf, promo);
+    const reference = randomUUID();
+    const paymentMethod = this.mapDtoMethod(params.payload.paymentMethod);
+    const now = new Date();
+    const renewsAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+    const created = await prisma.subscription.create({
+      data: {
+        userId: params.user.id,
+        kind: params.kind,
+        tier: params.storedTier,
+        status: priced.waived ? SubscriptionStatus.active : SubscriptionStatus.pending_payment,
+        amountRwf: priced.amountRwf,
+        paymentMethod,
+        externalRef: reference,
+        promoCodeId: promo?.id,
+        startsAt: now,
+        renewsAt: priced.waived ? renewsAt : undefined,
+      },
+    });
+
+    if (priced.waived) {
+      await prisma.$transaction(async (tx) => {
+        if (promo) await incrementPromoRedemption(tx, promo.id);
+        await this.expireSameKind(tx, params.user.id, params.kind, created.id);
+        if (params.kind === SubscriptionKind.hoster) {
+          await this.pauseExcessListingsForTier(
+            tx,
+            params.user.id,
+            storedTierToProductTier(params.storedTier),
+          );
+          await this.syncVerifiedBadge(tx, params.user.id);
+        }
+        if (params.kind === SubscriptionKind.taxi) {
+          await tx.taxiDriver.updateMany({
+            where: { userId: params.user.id },
+            data: { status: TaxiDriverStatus.approved },
+          });
+        }
+      });
+      this.notificationsService.queueEmailToUsers(
+        [params.user.id],
+        'Subscription activated on Renting.rw',
+        'Your promo code activated the plan. You are live.',
+        subscriptionActivatedEmailHtml(params.user.fullName, storedTierToProductTier(params.storedTier), renewsAt),
+      );
+      return {
+        paymentRequired: false,
+        activated: true,
+        subscriptionId: created.id,
+        reference,
+        status: 'active',
+        amountRwf: 0,
+        promoCode: promo?.code,
+        paymentMethod: params.payload.paymentMethod,
+        ...params.extra,
+      };
+    }
+
+    const gatewayResponse = await initiateIPayCharge({
+      phoneNumber: params.payload.mobileNumber,
+      amount: priced.amountRwf,
+      txRef: reference,
+      message: params.message,
+      callbackUrl: this.buildCallbackUrl(),
+    });
+
+    return {
+      subscriptionId: created.id,
+      reference,
+      status: 'pending_payment',
+      amountRwf: priced.amountRwf,
+      paymentMethod: params.payload.paymentMethod,
+      promoCode: promo?.code,
+      providerTransactionId: gatewayResponse.transactionId,
+      ...params.extra,
+    };
+  }
+
+  private async resolvePromo(code: string | undefined, kind: SubscriptionKind): Promise<PromoCode | null> {
+    if (!code?.trim()) return null;
+    const promo = await prisma.promoCode.findUnique({
+      where: { code: normalizePromoCode(code) },
+    });
+    if (!promo) {
+      throw new BadRequestException('Promo code not found.');
+    }
+    assertPromoUsable(promo, kind);
+    return promo;
+  }
+
+  private async expireSameKind(
+    tx: Prisma.TransactionClient,
+    userId: string,
+    kind: SubscriptionKind,
+    keepId: string,
+  ) {
+    const now = new Date();
+    await tx.subscription.updateMany({
+      where: {
+        userId,
+        kind,
+        status: { in: [SubscriptionStatus.active, SubscriptionStatus.cancelled, SubscriptionStatus.pending_payment] },
+        id: { not: keepId },
+      },
+      data: { status: SubscriptionStatus.expired, endsAt: now },
+    });
+  }
+
+  private async syncVerifiedBadge(tx: Prisma.TransactionClient, userId: string) {
+    const extraPremium = await tx.subscription.findFirst({
+      where: {
+        userId,
+        tier: SubscriptionTier.business,
+        ...liveSubscriptionWhere(SubscriptionKind.hoster),
+      },
+      select: { id: true },
+    });
+    await tx.user.update({
+      where: { id: userId },
+      data: { isVerified: extraPremium !== null },
+    });
+    if (extraPremium) {
+      await tx.carOwnerProfile.updateMany({
+        where: { userId, verifiedAt: null },
+        data: { verifiedAt: new Date() },
+      });
     }
   }
 
@@ -770,14 +1049,6 @@ export class SubscriptionsService {
     }
 
     return user;
-  }
-
-  private getRecord(value: unknown): JsonRecord | undefined {
-    return typeof value === 'object' && value !== null ? (value as JsonRecord) : undefined;
-  }
-
-  private getString(value: unknown): string | undefined {
-    return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
   }
 }
 

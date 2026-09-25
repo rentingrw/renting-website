@@ -5,11 +5,11 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { BookingStatus, Prisma, SubscriptionStatus, SubscriptionTier, PaymentMethod, type User } from '@prisma/client';
-import { randomUUID } from 'node:crypto';
+import { BookingStatus, Prisma, type User } from '@prisma/client';
 
 import type { AuthenticatedUser } from '../auth/types/authenticated-request.interface';
 import { prisma } from '../database/prisma';
+import { driverIsBookedNow } from '../bookings/booking-desk.util';
 import { CreateDriverProfileDto, UpdateDriverProfileDto } from './dto/upsert-driver-profile.dto';
 
 type DriverProfileWithUser = Prisma.DriverProfileGetPayload<{
@@ -67,29 +67,23 @@ export class DriversService {
           vehicleTypes: payload.vehicleTypes,
           certifications: payload.certifications,
           serviceAreas: payload.serviceAreas,
+          licenseCategories: payload.licenseCategories ?? [],
+          transmission: payload.transmission,
+          addressText: payload.addressText ?? payload.primaryCity.trim(),
+          idDocumentUrl: payload.idDocumentUrl,
+          licenseDocumentUrl: payload.licenseDocumentUrl,
           availabilityCalendar: payload.availabilityCalendar as unknown as Prisma.JsonArray,
         },
       });
 
       await this.setPrimaryCityLocation(profile.id, coordinates.latitude, coordinates.longitude, tx);
 
-      // Give the driver an active free subscription so they appear in search immediately
-      const hasActiveFree = await tx.subscription.findFirst({
-        where: { userId: user.id, tier: SubscriptionTier.free, status: SubscriptionStatus.active },
-        select: { id: true },
-      });
-      if (!hasActiveFree) {
-        const now = new Date();
-        await tx.subscription.create({
+      if (payload.phone || payload.profilePhotoUrl) {
+        await tx.user.update({
+          where: { id: user.id },
           data: {
-            userId: user.id,
-            tier: SubscriptionTier.free,
-            status: SubscriptionStatus.active,
-            amountRwf: 0,
-            paymentMethod: PaymentMethod.momo,
-            externalRef: `auto-free-${randomUUID()}`,
-            startsAt: now,
-            renewsAt: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
+            ...(payload.phone ? { phone: payload.phone } : {}),
+            ...(payload.profilePhotoUrl ? { avatarUrl: payload.profilePhotoUrl } : {}),
           },
         });
       }
@@ -155,6 +149,11 @@ export class DriversService {
     if (payload.vehicleTypes !== undefined) updateData.vehicleTypes = payload.vehicleTypes;
     if (payload.certifications !== undefined) updateData.certifications = payload.certifications;
     if (payload.serviceAreas !== undefined) updateData.serviceAreas = payload.serviceAreas;
+    if (payload.licenseCategories !== undefined) updateData.licenseCategories = payload.licenseCategories;
+    if (payload.transmission !== undefined) updateData.transmission = payload.transmission;
+    if (payload.addressText !== undefined) updateData.addressText = payload.addressText;
+    if (payload.idDocumentUrl !== undefined) updateData.idDocumentUrl = payload.idDocumentUrl;
+    if (payload.licenseDocumentUrl !== undefined) updateData.licenseDocumentUrl = payload.licenseDocumentUrl;
     if (payload.availabilityCalendar !== undefined) {
       updateData.availabilityCalendar = payload.availabilityCalendar as unknown as Prisma.JsonArray;
     }
@@ -172,6 +171,16 @@ export class DriversService {
 
       if (coordinates) {
         await this.setPrimaryCityLocation(profile.id, coordinates.latitude, coordinates.longitude, tx);
+      }
+
+      if (payload.phone || payload.profilePhotoUrl) {
+        await tx.user.update({
+          where: { id: user.id },
+          data: {
+            ...(payload.phone ? { phone: payload.phone } : {}),
+            ...(payload.profilePhotoUrl ? { avatarUrl: payload.profilePhotoUrl } : {}),
+          },
+        });
       }
 
       return tx.driverProfile.findUnique({
@@ -269,7 +278,26 @@ export class DriversService {
       throw new NotFoundException('Driver profile not found.');
     }
 
-    return this.mapProfile(profile, Boolean(authUser));
+    const caller = authUser
+      ? await prisma.user.findUnique({ where: { clerkId: authUser.clerkUserId }, select: { id: true } })
+      : null;
+    const isSelf = caller?.id === profile.userId;
+    let bookingConfirmed = false;
+    if (caller && !isSelf) {
+      const confirmed = await prisma.driverBooking.findFirst({
+        where: {
+          driverId: profile.userId,
+          renterId: caller.id,
+          status: { in: [BookingStatus.confirmed, BookingStatus.active, BookingStatus.completed, BookingStatus.auto_completed] },
+        },
+        select: { id: true },
+      });
+      bookingConfirmed = confirmed !== null;
+    }
+    return this.mapProfile(profile, Boolean(authUser), {
+      showContact: isSelf || bookingConfirmed,
+      isBookedNow: await driverIsBookedNow(profile.userId),
+    });
   }
 
   private async requireDriver(clerkUserId: string): Promise<User> {
@@ -296,16 +324,22 @@ export class DriversService {
     return user;
   }
 
-  private mapProfile(profile: DriverProfileWithUser, includeExactRates: boolean) {
+  private mapProfile(
+    profile: DriverProfileWithUser,
+    includeExactRates: boolean,
+    extras?: { showContact?: boolean; isBookedNow?: boolean },
+  ) {
     const dailyRate = Number(profile.dailyRateRwf);
     const hourlyRate = profile.hourlyRateRwf ? Number(profile.hourlyRateRwf) : null;
     const weeklyRate = profile.weeklyRateRwf ? Number(profile.weeklyRateRwf) : null;
+    const showContact = extras?.showContact ?? includeExactRates;
 
     return {
       id: profile.id,
       userId: profile.userId,
       fullName: profile.user.fullName,
-      phone: profile.user.phone ?? null,
+      phone: showContact ? profile.user.phone ?? null : null,
+      isBookedNow: extras?.isBookedNow ?? false,
       profilePhotoUrl: profile.user.avatarUrl,
       trustScore: Number(profile.user.trustScore),
       driverCategory: profile.driverCategory,
@@ -317,6 +351,11 @@ export class DriversService {
       vehicleTypes: profile.vehicleTypes,
       certifications: profile.certifications,
       serviceAreas: profile.serviceAreas,
+      licenseCategories: profile.licenseCategories,
+      transmission: profile.transmission,
+      addressText: profile.addressText,
+      idDocumentUrl: extras?.showContact ? profile.idDocumentUrl : null,
+      licenseDocumentUrl: extras?.showContact ? profile.licenseDocumentUrl : null,
       availabilityCalendar: profile.availabilityCalendar,
       rating: profile.rating ? Number(profile.rating) : null,
       completedTrips: profile.completedTrips,

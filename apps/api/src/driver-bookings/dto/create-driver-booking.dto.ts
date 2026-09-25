@@ -45,4 +45,8 @@ export class CreateDriverBookingDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @IsString()
+  @IsNotEmpty()
+  renterPhone!: string;
 }

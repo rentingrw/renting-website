@@ -9,7 +9,6 @@ import {
   reinstateUser,
   revokeAdminRole,
   suspendUser,
-  verifyUserKyc,
   verifyUserPhone,
   type AdminUserListItem,
   type ListUsersFilters,
@@ -77,7 +76,7 @@ export default function AdminUsersPage() {
   useEffect(() => { void loadUsers(); }, [loadUsers]);
 
   const onUserAction = async (
-    action: 'suspend' | 'reinstate' | 'verify' | 'verify-kyc' | 'trust' | 'grant-admin' | 'revoke-admin',
+    action: 'suspend' | 'reinstate' | 'verify' | 'trust' | 'grant-admin' | 'revoke-admin',
     userId: string,
   ) => {
     setActingId(userId);
@@ -92,8 +91,6 @@ export default function AdminUsersPage() {
         await reinstateUser(token, userId, window.prompt('Reinstate reason (optional):') ?? undefined);
       } else if (action === 'verify') {
         await verifyUserPhone(token, userId);
-      } else if (action === 'verify-kyc') {
-        await verifyUserKyc(token, userId);
       } else if (action === 'grant-admin') {
         if (!window.confirm('Grant admin role to this user? They will have full admin access.')) return;
         await grantAdminRole(token, userId);
@@ -127,7 +124,7 @@ export default function AdminUsersPage() {
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-black tracking-tight text-neutral-900">Users</h1>
-          <p className="text-sm font-medium text-neutral-500">Manage account status, verification, and trust score adjustments.</p>
+          <p className="text-sm font-medium text-neutral-500">Manage account status, phone verification, and trust score adjustments.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <input
@@ -220,7 +217,6 @@ export default function AdminUsersPage() {
                         {[
                           { key: 'trust' as const, label: 'Trust ±' },
                           { key: 'verify' as const, label: 'Verify phone' },
-                          { key: 'verify-kyc' as const, label: 'KYC' },
                           { key: 'reinstate' as const, label: 'Reinstate' },
                           { key: 'suspend' as const, label: 'Suspend' },
                           { key: 'grant-admin' as const, label: 'Grant admin' },

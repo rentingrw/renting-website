@@ -1,9 +1,11 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { ListingStatus, Prisma } from '@prisma/client';
+import { ListingStatus, Prisma, SubscriptionKind, TaxiDriverStatus } from '@prisma/client';
 
 import type { AuthenticatedUser } from '../auth/types/authenticated-request.interface';
 import { prisma } from '../database/prisma';
-import { SearchType, type SearchQueryDto } from './dto/search-query.dto';
+import { liveSubscriptionWhere } from '../subscriptions/subscription-tier.util';
+import { SearchSort, SearchType, type SearchQueryDto } from './dto/search-query.dto';
+import { coordsForRwandaCity, distanceMeters } from './rwanda-city-coords';
 
 interface SearchCarRow {
   id: string;
@@ -30,6 +32,9 @@ interface SearchCarRow {
   pickupLatitude: number | null;
   pickupLongitude: number | null;
   searchRank: number;
+  ownerTrustScore: number | null;
+  isBookedNow: boolean;
+  verified: boolean;
 }
 
 interface SearchDriverRow {
@@ -59,6 +64,7 @@ interface SearchDriverRow {
   primaryCityLatitude: number | null;
   primaryCityLongitude: number | null;
   searchRank: number;
+  isBookedNow: boolean;
 }
 
 @Injectable()
@@ -69,26 +75,31 @@ export class SearchService {
     this.validateCoordinates(coordinates.latitude, coordinates.longitude);
     this.validateDateRange(query.from, query.to);
     this.validateSeats(query.seatsMin, query.seatsMax);
+    this.validatePrice(query.priceMin, query.priceMax);
     const includeExactRates = Boolean(user);
-    const shouldSearchCars = type !== SearchType.drivers;
-    const shouldSearchDrivers = type !== SearchType.cars;
+    const shouldSearchCars = type === SearchType.all || type === SearchType.cars;
+    const shouldSearchDrivers = type === SearchType.all || type === SearchType.drivers;
+    const shouldSearchTaxis = type === SearchType.all || type === SearchType.taxis;
     const limit = query.limit ?? 20;
     const offset = query.offset ?? 0;
 
-    const [cars, drivers] = await Promise.all([
+    const [cars, drivers, taxis] = await Promise.all([
       shouldSearchCars ? this.searchCars(query, coordinates, includeExactRates) : Promise.resolve([]),
       shouldSearchDrivers ? this.searchDrivers(query, coordinates, includeExactRates) : Promise.resolve([]),
+      shouldSearchTaxis ? this.searchTaxis(query, coordinates) : Promise.resolve([]),
     ]);
 
     return {
       type,
       cars,
       drivers,
+      taxis,
       pagination: {
         limit,
         offset,
         hasMoreCars: shouldSearchCars ? cars.length === limit : false,
         hasMoreDrivers: shouldSearchDrivers ? drivers.length === limit : false,
+        hasMoreTaxis: shouldSearchTaxis ? taxis.length === limit : false,
       },
     };
   }
@@ -150,6 +161,15 @@ export class SearchService {
     if (query.model) {
       conditions.push(Prisma.sql`lower(cl.model) = lower(${query.model})`);
     }
+    if (query.priceMin !== undefined) {
+      conditions.push(Prisma.sql`cl.daily_rate_kigali_rwf >= ${query.priceMin}`);
+    }
+    if (query.priceMax !== undefined) {
+      conditions.push(Prisma.sql`cl.daily_rate_kigali_rwf <= ${query.priceMax}`);
+    }
+    if (query.yearMin !== undefined) {
+      conditions.push(Prisma.sql`cl.year >= ${query.yearMin}`);
+    }
 
     if (query.from && query.to) {
       conditions.push(Prisma.sql`
@@ -160,6 +180,19 @@ export class SearchService {
             AND cb.status IN ('confirmed', 'active')
             AND cb.start_date < ${new Date(query.to)}
             AND cb.end_date > ${new Date(query.from)}
+        )
+      `);
+    }
+
+    if (query.availableNow) {
+      conditions.push(Prisma.sql`
+        NOT EXISTS (
+          SELECT 1
+          FROM car_bookings cb_now
+          WHERE cb_now.listing_id = cl.id
+            AND cb_now.status IN ('confirmed', 'active', 'disputed')
+            AND cb_now.start_date <= NOW()
+            AND cb_now.end_date > NOW()
         )
       `);
     }
@@ -201,10 +234,36 @@ export class SearchService {
           hasQuery
             ? Prisma.sql`ts_rank_cd(${searchVector}, plainto_tsquery('simple', ${query.query!.trim()}))`
             : Prisma.sql`0`
-        } AS "searchRank"
+        } AS "searchRank",
+        (SELECT u.trust_score::float8 FROM users u WHERE u.id = cl.owner_id) AS "ownerTrustScore",
+        EXISTS (
+          SELECT 1 FROM car_bookings cb_now
+          WHERE cb_now.listing_id = cl.id
+            AND cb_now.status IN ('confirmed', 'active', 'disputed')
+            AND cb_now.start_date <= NOW()
+            AND cb_now.end_date > NOW()
+        ) AS "isBookedNow",
+        (live_sub.tier = 'business'::"SubscriptionTier") AS "verified"
       FROM car_listings cl
+      INNER JOIN LATERAL (
+        SELECT s.tier
+        FROM subscriptions s
+        WHERE s.user_id = cl.owner_id
+          AND s.kind = 'hoster'::"SubscriptionKind"
+          AND s.status IN ('active'::"SubscriptionStatus", 'cancelled'::"SubscriptionStatus")
+          AND (s.renews_at IS NULL OR s.renews_at > NOW())
+        ORDER BY s.starts_at DESC
+        LIMIT 1
+      ) live_sub ON TRUE
       WHERE ${whereClause}
       ORDER BY
+        ${this.orderByPriceOrFallback(
+          query.sort,
+          Prisma.sql`cl.daily_rate_kigali_rwf`,
+          query.sort === SearchSort.score || query.sort === SearchSort.rating
+            ? Prisma.sql`"ownerTrustScore" DESC NULLS LAST,`
+            : Prisma.sql`CASE WHEN live_sub.tier IN ('premium'::"SubscriptionTier", 'business'::"SubscriptionTier") THEN 0 ELSE 1 END,`,
+        )}
         ${hasQuery ? Prisma.sql`"searchRank" DESC,` : Prisma.empty}
         ${hasGeo ? Prisma.sql`"distanceMeters" ASC,` : Prisma.empty}
         cl.created_at DESC
@@ -234,6 +293,9 @@ export class SearchService {
       distanceMeters: row.distanceMeters,
       pickupLatitude: row.pickupLatitude,
       pickupLongitude: row.pickupLongitude,
+      ownerTrustScore: row.ownerTrustScore,
+      isBookedNow: Boolean(row.isBookedNow),
+      verified: Boolean(row.verified),
       ...(includeExactRates
         ? {
             dailyRateKigaliRwf: row.dailyRateKigaliRwf,
@@ -306,6 +368,28 @@ export class SearchService {
       const certValue = `License: ${query.driverLicenseCategory}`;
       conditions.push(Prisma.sql`${certValue} = ANY(dp.certifications)`);
     }
+    if (query.priceMin !== undefined) {
+      conditions.push(Prisma.sql`dp.daily_rate_rwf >= ${query.priceMin}`);
+    }
+    if (query.priceMax !== undefined) {
+      conditions.push(Prisma.sql`dp.daily_rate_rwf <= ${query.priceMax}`);
+    }
+    if (query.experienceMin !== undefined) {
+      conditions.push(Prisma.sql`dp.years_experience >= ${query.experienceMin}`);
+    }
+
+    if (query.availableNow) {
+      conditions.push(Prisma.sql`
+        NOT EXISTS (
+          SELECT 1
+          FROM driver_bookings db_now
+          WHERE db_now.driver_id = dp.user_id
+            AND db_now.status IN ('confirmed', 'active', 'disputed')
+            AND db_now.start_at <= NOW()
+            AND db_now.end_at > NOW()
+        )
+      `);
+    }
 
     const whereClause = conditions.length > 0 ? Prisma.join(conditions, ' AND ') : Prisma.sql`TRUE`;
     const rows = await prisma.$queryRaw<SearchDriverRow[]>(Prisma.sql`
@@ -346,16 +430,32 @@ export class SearchService {
           hasQuery
             ? Prisma.sql`ts_rank_cd(${searchVector}, plainto_tsquery('simple', ${query.query!.trim()}))`
             : Prisma.sql`0`
-        } AS "searchRank"
+        } AS "searchRank",
+        EXISTS (
+          SELECT 1 FROM driver_bookings db_now
+          WHERE db_now.driver_id = dp.user_id
+            AND db_now.status IN ('confirmed', 'active', 'disputed')
+            AND db_now.start_at <= NOW()
+            AND db_now.end_at > NOW()
+        ) AS "isBookedNow"
       FROM driver_profiles dp
       INNER JOIN users u ON u.id = dp.user_id
       INNER JOIN subscriptions s
         ON s.user_id = dp.user_id
-        AND s.tier = 'free'::"SubscriptionTier"
-        AND s.status = 'active'::"SubscriptionStatus"
+        AND s.kind = 'driver'::"SubscriptionKind"
+        AND s.status IN ('active'::"SubscriptionStatus", 'cancelled'::"SubscriptionStatus")
         AND (s.renews_at IS NULL OR s.renews_at > NOW())
       WHERE ${whereClause}
       ORDER BY
+        ${this.orderByPriceOrFallback(
+          query.sort,
+          Prisma.sql`dp.daily_rate_rwf`,
+          query.sort === SearchSort.score
+            ? Prisma.sql`u.trust_score DESC,`
+            : query.sort === SearchSort.rating
+              ? Prisma.sql`dp.rating DESC NULLS LAST,`
+              : Prisma.empty,
+        )}
         ${hasQuery ? Prisma.sql`"searchRank" DESC,` : Prisma.empty}
         ${hasGeo ? Prisma.sql`"distanceMeters" ASC,` : Prisma.empty}
         dp.created_at DESC
@@ -386,6 +486,7 @@ export class SearchService {
       distanceMeters: row.distanceMeters,
       primaryCityLatitude: row.primaryCityLatitude,
       primaryCityLongitude: row.primaryCityLongitude,
+      isBookedNow: Boolean(row.isBookedNow),
       ...(includeExactRates
         ? {
             dailyRateRwf: row.dailyRateRwf,
@@ -400,6 +501,88 @@ export class SearchService {
             },
           }),
     }));
+  }
+
+  private async searchTaxis(
+    query: SearchQueryDto,
+    coordinates: { latitude?: number; longitude?: number },
+  ) {
+    const limit = query.limit ?? 20;
+    const offset = query.offset ?? 0;
+    const now = new Date();
+    const liveTaxiSubs = await prisma.subscription.findMany({
+      where: liveSubscriptionWhere(SubscriptionKind.taxi, now),
+      select: { userId: true },
+    });
+    const liveUserIds = liveTaxiSubs.map((s) => s.userId);
+    const needle = query.query?.trim().toLowerCase();
+    const locationNeedle = query.location?.trim().toLowerCase();
+    const hasGeo = coordinates.latitude !== undefined && coordinates.longitude !== undefined;
+    const radiusMeters = Math.round((query.radiusKm ?? 25) * 1000);
+
+    const rows = await prisma.taxiDriver.findMany({
+      where: {
+        status: TaxiDriverStatus.approved,
+        OR: [{ userId: null }, { userId: { in: liveUserIds } }],
+      },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        fullName: true,
+        phone: true,
+        city: true,
+        seats: true,
+        details: true,
+        carModel: true,
+        vehicleType: true,
+        photos: true,
+        photoUrl: true,
+        profilePhotoUrl: true,
+      },
+    });
+
+    const mapped = rows
+      .map((row) => {
+        const coords = coordsForRwandaCity(row.city);
+        const distance =
+          hasGeo && coords
+            ? distanceMeters(
+                { latitude: coordinates.latitude!, longitude: coordinates.longitude! },
+                coords,
+              )
+            : null;
+        return {
+          ...row,
+          distanceMeters: distance,
+          cityLatitude: coords?.latitude ?? null,
+          cityLongitude: coords?.longitude ?? null,
+        };
+      })
+      .filter((row) => {
+        if (needle) {
+          const haystack = [row.fullName, row.city, row.carModel, row.vehicleType, row.details]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase();
+          if (!haystack.includes(needle)) return false;
+        }
+        if (locationNeedle && !hasGeo && !row.city.toLowerCase().includes(locationNeedle)) {
+          return false;
+        }
+        if (hasGeo) {
+          if (row.distanceMeters == null) return false;
+          return row.distanceMeters <= radiusMeters;
+        }
+        return true;
+      })
+      .sort((a, b) => {
+        if (a.distanceMeters != null && b.distanceMeters != null) {
+          return a.distanceMeters - b.distanceMeters;
+        }
+        return 0;
+      });
+
+    return mapped.slice(offset, offset + limit);
   }
 
   private getApproximatePriceRange(rate: number) {
@@ -474,5 +657,17 @@ export class SearchService {
     if (seatsMin !== undefined && seatsMax !== undefined && seatsMin > seatsMax) {
       throw new BadRequestException('seatsMin cannot be greater than seatsMax.');
     }
+  }
+
+  private validatePrice(priceMin?: number, priceMax?: number) {
+    if (priceMin !== undefined && priceMax !== undefined && priceMin > priceMax) {
+      throw new BadRequestException('priceMin cannot be greater than priceMax.');
+    }
+  }
+
+  private orderByPriceOrFallback(sort: SearchSort | undefined, priceColumn: Prisma.Sql, fallback: Prisma.Sql) {
+    if (sort === SearchSort.price_asc) return Prisma.sql`${priceColumn} ASC,`;
+    if (sort === SearchSort.price_desc) return Prisma.sql`${priceColumn} DESC,`;
+    return fallback;
   }
 }

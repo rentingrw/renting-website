@@ -187,6 +187,7 @@ async function main() {
       data: {
         userId: ownerOne.id,
         carOwnerProfileId: ownerOneProfile.id,
+        kind: 'hoster',
         tier: 'premium',
         status: 'active',
         amountRwf: 15000,

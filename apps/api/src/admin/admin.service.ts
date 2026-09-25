@@ -16,6 +16,8 @@ import { createClerkClient } from '@clerk/backend';
 import { randomUUID } from 'node:crypto';
 
 import { prisma } from '../database/prisma';
+import { BookingsService } from '../bookings/bookings.service';
+import { DriverBookingsService } from '../driver-bookings/driver-bookings.service';
 import { DisputesService } from '../disputes/disputes.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { realtimeEvents } from '../realtime/realtime.events';
@@ -35,7 +37,8 @@ import {
   listingRejectedEmailHtml,
   subscriptionExpiredEmailHtml,
 } from '../notifications/email-templates';
-import { DRIVER_PLAN } from '../subscriptions/subscription-tier.util';
+import { normalizePromoCode } from '../subscriptions/promo-code.util';
+import type { CreatePromoCodeDto, UpdatePromoCodeDto } from './dto/promo-code.dto';
 import type { ListDriversQueryDto } from './dto/list-drivers.query.dto';
 import type { AdminCreateCarDto } from './dto/admin-create-car.dto';
 import type { AdminCreateDriverDto } from './dto/admin-create-driver.dto';
@@ -64,6 +67,8 @@ export class AdminService {
     private readonly trustScoreService: TrustScoreService,
     private readonly disputesService: DisputesService,
     private readonly notificationsService: NotificationsService,
+    private readonly bookingsService: BookingsService,
+    private readonly driverBookingsService: DriverBookingsService,
   ) {}
 
   async getOverview() {
@@ -420,6 +425,9 @@ export class AdminService {
     if (query.tier) {
       where.tier = query.tier;
     }
+    if (query.kind) {
+      where.kind = query.kind;
+    }
 
     const [total, subscriptions] = await Promise.all([
       prisma.subscription.count({ where }),
@@ -488,6 +496,7 @@ export class AdminService {
       await tx.subscription.updateMany({
         where: {
           userId: subscription.userId,
+          kind: subscription.kind,
           status: SubscriptionStatus.active,
           id: { not: subscription.id },
         },
@@ -536,18 +545,20 @@ export class AdminService {
       const updated = await tx.subscription.update({
         where: { id: subscriptionId },
         data: {
-          status: SubscriptionStatus.cancelled,
+          status: SubscriptionStatus.suspended,
           endsAt: now,
         },
       });
 
-      await tx.carListing.updateMany({
-        where: {
-          ownerId: subscription.userId,
-          status: 'active',
-        },
-        data: { status: 'paused' },
-      });
+      if (subscription.kind === 'hoster') {
+        await tx.carListing.updateMany({
+          where: {
+            ownerId: subscription.userId,
+            status: 'active',
+          },
+          data: { status: 'paused' },
+        });
+      }
 
       await tx.trustScoreEvent.create({
         data: {
@@ -714,8 +725,8 @@ export class AdminService {
             where: carWhere,
             include: {
               listing: { select: { id: true, title: true } },
-              owner: { select: { id: true, fullName: true } },
-              renter: { select: { id: true, fullName: true } },
+              owner: { select: { id: true, fullName: true, phone: true, whatsapp: true } },
+              renter: { select: { id: true, fullName: true, phone: true } },
             },
             orderBy: { createdAt: 'desc' },
             take: 500,
@@ -725,8 +736,8 @@ export class AdminService {
         : prisma.driverBooking.findMany({
             where: driverWhere,
             include: {
-              driver: { select: { id: true, fullName: true } },
-              renter: { select: { id: true, fullName: true } },
+              driver: { select: { id: true, fullName: true, phone: true, whatsapp: true } },
+              renter: { select: { id: true, fullName: true, phone: true } },
             },
             orderBy: { createdAt: 'desc' },
             take: 500,
@@ -742,9 +753,15 @@ export class AdminService {
         startsAt: booking.startDate,
         endsAt: booking.endDate,
         createdAt: booking.createdAt,
+        pickupAddress: booking.pickupAddress,
+        notes: booking.notes,
+        renterPhone: booking.renterPhone || booking.renter.phone,
+        isInstant: booking.isInstant,
+        fulfillment: booking.isInstant ? 'instant' : 'standard',
         ownerOrDriver: booking.owner,
         renter: booking.renter,
         summary: booking.listing.title,
+        service: booking.listing.title,
       })),
       ...driverBookings.map((booking) => ({
         bookingType: 'driver' as const,
@@ -754,9 +771,15 @@ export class AdminService {
         startsAt: booking.startAt,
         endsAt: booking.endAt,
         createdAt: booking.createdAt,
+        pickupAddress: booking.pickupAddress,
+        notes: booking.notes,
+        renterPhone: booking.renterPhone || booking.renter.phone,
+        isInstant: booking.isInstant,
+        fulfillment: booking.isInstant ? 'instant' : 'standard',
         ownerOrDriver: booking.driver,
         renter: booking.renter,
         summary: booking.serviceType,
+        service: booking.serviceType,
       })),
     ].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
@@ -883,6 +906,30 @@ export class AdminService {
     );
 
     return updated;
+  }
+
+  async confirmDeskBooking(type: 'car' | 'driver', bookingId: string) {
+    if (type === 'car') return this.bookingsService.confirmByAdmin(bookingId);
+    return this.driverBookingsService.confirmByAdmin(bookingId);
+  }
+
+  async rejectDeskBooking(type: 'car' | 'driver', bookingId: string) {
+    if (type === 'car') return this.bookingsService.rejectByAdmin(bookingId);
+    return this.driverBookingsService.rejectByAdmin(bookingId);
+  }
+
+  async tryNextDeskBooking(type: 'car' | 'driver', bookingId: string, payload: { listingId?: string; driverId?: string }) {
+    if (type === 'car') {
+      if (!payload.listingId) throw new BadRequestException('listingId is required.');
+      return this.bookingsService.tryNextByAdmin(bookingId, payload.listingId);
+    }
+    if (!payload.driverId) throw new BadRequestException('driverId is required.');
+    return this.driverBookingsService.tryNextByAdmin(bookingId, payload.driverId);
+  }
+
+  async listDeskAlternatives(type: 'car' | 'driver', bookingId: string) {
+    if (type === 'car') return this.bookingsService.listCarAlternatives(bookingId);
+    return this.driverBookingsService.listDriverAlternatives(bookingId);
   }
 
   async getAnalytics() {
@@ -1192,9 +1239,6 @@ export class AdminService {
       },
     });
 
-    // Auto-activate a free subscription so the driver appears in search immediately
-    await this.activateDriverSubscription(profile.userId);
-
     return profile;
   }
 
@@ -1212,14 +1256,15 @@ export class AdminService {
     const renewsAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
     await prisma.subscription.updateMany({
-      where: { userId, tier: 'free', status: SubscriptionStatus.active },
+      where: { userId, kind: 'driver', status: SubscriptionStatus.active },
       data: { status: SubscriptionStatus.expired, endsAt: now },
     });
 
     const sub = await prisma.subscription.create({
       data: {
         userId,
-        tier: 'free',
+        kind: 'driver',
+        tier: 'standard',
         status: SubscriptionStatus.active,
         amountRwf: 0,
         paymentMethod: PaymentMethod.momo,
@@ -1419,6 +1464,52 @@ export class AdminService {
     }
 
     return distribution;
+  }
+
+  async listPromoCodes() {
+    return prisma.promoCode.findMany({ orderBy: { createdAt: 'desc' } });
+  }
+
+  async createPromoCode(payload: CreatePromoCodeDto) {
+    if (payload.discountPercent == null && payload.discountRwf == null) {
+      throw new BadRequestException('Set a percent discount or a RWF discount.');
+    }
+    return prisma.promoCode.create({
+      data: {
+        code: normalizePromoCode(payload.code),
+        kind: payload.kind,
+        discountPercent: payload.discountPercent,
+        discountRwf: payload.discountRwf,
+        maxRedemptions: payload.maxRedemptions,
+        startsAt: payload.startsAt ? new Date(payload.startsAt) : undefined,
+        endsAt: payload.endsAt ? new Date(payload.endsAt) : undefined,
+        isActive: payload.isActive ?? true,
+      },
+    });
+  }
+
+  async updatePromoCode(id: string, payload: UpdatePromoCodeDto) {
+    const existing = await prisma.promoCode.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Promo code not found.');
+    return prisma.promoCode.update({
+      where: { id },
+      data: {
+        kind: payload.kind === undefined ? undefined : payload.kind,
+        discountPercent: payload.discountPercent === undefined ? undefined : payload.discountPercent,
+        discountRwf: payload.discountRwf === undefined ? undefined : payload.discountRwf,
+        maxRedemptions: payload.maxRedemptions === undefined ? undefined : payload.maxRedemptions,
+        startsAt: payload.startsAt === undefined ? undefined : payload.startsAt ? new Date(payload.startsAt) : null,
+        endsAt: payload.endsAt === undefined ? undefined : payload.endsAt ? new Date(payload.endsAt) : null,
+        isActive: payload.isActive,
+      },
+    });
+  }
+
+  async deletePromoCode(id: string) {
+    const existing = await prisma.promoCode.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Promo code not found.');
+    await prisma.promoCode.delete({ where: { id } });
+    return { success: true };
   }
 
   // ── Site Banners ────────────────────────────────────────────────────────────

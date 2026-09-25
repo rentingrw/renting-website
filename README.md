@@ -47,9 +47,15 @@ packages/
 - `REDIS_URL`
 
 ### Clerk (Authentication)
-- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
-- `CLERK_SECRET_KEY`
-- `CLERK_WEBHOOK_SECRET`
+- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` — production must be `pk_live_...`
+- `CLERK_SECRET_KEY` — production must be `sk_live_...`
+- `CLERK_WEBHOOK_SECRET` — signing secret from Clerk Dashboard → Webhooks
+  - Endpoint: `POST {API_URL}/webhooks/clerk` (production: `https://api.renting.rw/webhooks/clerk`)
+  - Events: `user.created`, `user.updated`
+  - `pk_test_` keys show Clerk's Development mode badge; live keys remove it. The web app also sets `unsafe_disableDevelopmentModeWarnings`.
+
+### Payments
+- `IPAY_API_KEY` — iPay/MoPay (live payments)
 
 ### Cloudinary
 - `CLOUDINARY_CLOUD_NAME`

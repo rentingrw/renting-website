@@ -20,37 +20,37 @@ export default function DriveWithUsPage({ params }: { params: Promise<{ locale: 
   }, [params]);
 
   return (
-    <main className="flex min-h-screen flex-col bg-[#f5f0e8]">
+    <main className="flex min-h-screen flex-col bg-background">
       <AppHeader locale={locale} />
 
       {/* Hero */}
-      <section className="border-b-2 border-neutral-900 bg-teal-600 px-4 py-12 text-white">
+      <section className="bg-background px-4 py-12 text-foreground">
         <div className="mx-auto flex max-w-5xl flex-col items-center gap-8 md:flex-row md:justify-between">
           <div className="text-center md:text-left">
             <div className="mb-4 flex justify-center md:justify-start">
-              <span className="flex h-14 w-14 items-center justify-center rounded-md border-2 border-white/30 bg-white/10">
-                <UserRound className="h-8 w-8 text-teal-100" />
+              <span className="flex h-14 w-14 items-center justify-center rounded-md border-2 border-border bg-muted">
+                <UserRound className="h-8 w-8 text-foreground/70" />
               </span>
             </div>
             <h1 className="text-4xl font-black sm:text-5xl">Drive With renting.rw</h1>
-            <p className="mt-4 max-w-lg text-lg font-medium text-teal-50">
+            <p className="mt-4 max-w-lg text-lg font-medium text-muted-foreground">
               Set your own hours, choose your service categories, and connect with clients who need a
               professional driver across Rwanda.
             </p>
             <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row md:justify-start sm:justify-center">
               {isSignedIn ? (
                 <Link
-                  href={`/${locale}/app/settings`}
-                  className="rounded border-2 border-neutral-900 bg-white px-8 py-3 font-black uppercase tracking-wide text-neutral-900 shadow-brutal-xs transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none"
+                  href={`/${locale}/onboard/driver`}
+                  className="rounded border-2 border-border bg-card px-8 py-3 font-black uppercase tracking-wide text-foreground shadow-brutal-xs transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none"
                 >
                   Complete Driver Profile
                 </Link>
               ) : (
                 <Link
-                  href={`/${locale}/app`}
-                  className="rounded border-2 border-neutral-900 bg-white px-8 py-3 font-black uppercase tracking-wide text-neutral-900 shadow-brutal-xs transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none"
+                  href={`/${locale}/onboard/driver`}
+                  className="rounded border-2 border-border bg-card px-8 py-3 font-black uppercase tracking-wide text-foreground shadow-brutal-xs transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none"
                 >
-                  Apply to Drive — Free
+                  Apply to Drive
                 </Link>
               )}
             </div>
@@ -61,44 +61,44 @@ export default function DriveWithUsPage({ params }: { params: Promise<{ locale: 
 
       {/* Benefits */}
       <section className="mx-auto max-w-5xl px-4 py-16 sm:px-6">
-        <h2 className="mb-10 text-center text-2xl font-black text-neutral-900">Why Drive With Us?</h2>
+        <h2 className="mb-10 text-center text-2xl font-black text-foreground">Why Drive With Us?</h2>
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {[
             {
-              icon: <DollarSign className="h-8 w-8 text-teal-600" />,
+              icon: <DollarSign className="h-8 w-8 text-brand" />,
               title: 'Competitive Earnings',
               desc: 'Set your own hourly, daily, and weekly rates. Earn more for specialized services.',
             },
             {
-              icon: <CalendarDays className="h-8 w-8 text-teal-600" />,
+              icon: <CalendarDays className="h-8 w-8 text-brand" />,
               title: 'Flexible Schedule',
               desc: 'Choose when you work. Accept bookings that fit your availability, not the other way around.',
             },
             {
-              icon: <BadgeCheck className="h-8 w-8 text-teal-600" />,
-              title: 'Verified Clients',
-              desc: 'All clients are registered and verified. Our trust system protects you from problem bookings.',
+              icon: <BadgeCheck className="h-8 w-8 text-brand" />,
+              title: 'Registered clients',
+              desc: 'Clients sign in to book. Our trust system protects you from problem bookings.',
             },
             {
-              icon: <Clock className="h-8 w-8 text-teal-600" />,
+              icon: <Clock className="h-8 w-8 text-brand" />,
               title: 'Grow Your Reputation',
               desc: 'Collect reviews, build your trust score, and get featured to attract more clients.',
             },
           ].map((item) => (
-            <div key={item.title} className="rounded-md border-2 border-neutral-900 bg-white p-5 shadow-brutal">
+            <div key={item.title} className="rounded-2xl border border-border bg-card p-5 shadow-card">
               <div className="mb-3">{item.icon}</div>
-              <h3 className="mb-2 font-black text-neutral-900">{item.title}</h3>
-              <p className="text-sm font-medium text-neutral-600">{item.desc}</p>
+              <h3 className="mb-2 font-black text-foreground">{item.title}</h3>
+              <p className="text-sm font-medium text-muted-foreground">{item.desc}</p>
             </div>
           ))}
         </div>
       </section>
 
       {/* Service categories */}
-      <section className="border-t-2 border-b-2 border-neutral-900 bg-white px-4 py-14 sm:px-6">
+      <section className="border-t-2 border-b-2 border-border bg-card px-4 py-14 sm:px-6">
         <div className="mx-auto max-w-3xl">
-          <h2 className="mb-3 text-center text-2xl font-black text-neutral-900">Service Categories</h2>
-          <p className="mb-8 text-center text-sm font-medium text-neutral-600">
+          <h2 className="mb-3 text-center text-2xl font-black text-foreground">Service Categories</h2>
+          <p className="mb-8 text-center text-sm font-medium text-muted-foreground">
             Add the services you offer and clients looking for those specific services will find you.
           </p>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -115,7 +115,7 @@ export default function DriveWithUsPage({ params }: { params: Promise<{ locale: 
             ].map((cat) => (
               <div
                 key={cat}
-                className="rounded-md border-2 border-teal-600 bg-teal-50 px-4 py-3 text-center text-sm font-black text-teal-700 shadow-brutal-xs"
+                className="rounded-md border-2 border-brand bg-brand-soft px-4 py-3 text-center text-sm font-black text-brand shadow-brutal-xs"
               >
                 {cat}
               </div>
@@ -126,22 +126,21 @@ export default function DriveWithUsPage({ params }: { params: Promise<{ locale: 
 
       {/* Steps */}
       <section className="mx-auto max-w-3xl px-4 py-14 sm:px-6">
-        <h2 className="mb-8 text-center text-2xl font-black text-neutral-900">How to Join as a Driver</h2>
+        <h2 className="mb-8 text-center text-2xl font-black text-foreground">How to Join as a Driver</h2>
         <ol className="space-y-5">
           {[
             { step: '1', title: 'Sign up', desc: 'Create a free account with your name and email.' },
-            { step: '2', title: 'Add the driver role', desc: 'Go to Settings → Roles & Access and add the driver role to your profile.' },
-            { step: '3', title: 'Complete KYC', desc: "Upload your driver's license and national ID for verification. Verified drivers earn more." },
-            { step: '4', title: 'Set your rates', desc: 'Add your hourly, daily, and weekly rates plus your service categories.' },
-            { step: '5', title: 'Publish and get booked', desc: 'Go live and start receiving booking requests from clients near you.' },
+            { step: '2', title: 'Set up your driver profile', desc: 'Add your photo, rates, license categories, and when you are available.' },
+            { step: '3', title: 'Subscribe to go live', desc: 'Pay the monthly driver plan (or use a promo) so customers can find you in search.' },
+            { step: '4', title: 'Get booked', desc: 'Go live and start receiving booking requests from clients near you.' },
           ].map((s) => (
             <li key={s.step} className="flex gap-4">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border-2 border-neutral-900 bg-neutral-900 font-black text-white shadow-brutal-xs">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border-2 border-border bg-brand font-black text-white shadow-brutal-xs">
                 {s.step}
               </span>
               <div className="pt-1.5">
-                <p className="font-black text-neutral-900">{s.title}</p>
-                <p className="mt-0.5 text-sm font-medium text-neutral-600">{s.desc}</p>
+                <p className="font-black text-foreground">{s.title}</p>
+                <p className="mt-0.5 text-sm font-medium text-muted-foreground">{s.desc}</p>
               </div>
             </li>
           ))}
@@ -149,14 +148,14 @@ export default function DriveWithUsPage({ params }: { params: Promise<{ locale: 
       </section>
 
       {/* CTA */}
-      <section className="border-t-2 border-neutral-900 bg-neutral-900 px-4 py-14 text-center text-white sm:px-6">
+      <section className="bg-background px-4 py-14 text-center text-foreground sm:px-6">
         <h2 className="mb-3 text-2xl font-black">Start Driving on Your Terms</h2>
-        <p className="mb-6 font-medium text-neutral-400">
+        <p className="mb-6 font-medium text-foreground/80">
           Join professional drivers across Rwanda already earning with renting.rw.
         </p>
         <Link
-          href={isSignedIn ? `/${locale}/app/settings` : `/${locale}/app`}
-          className="inline-block rounded border-2 border-teal-800 bg-teal-600 px-10 py-3 font-black uppercase tracking-wide text-white shadow-brutal-teal-sm transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none"
+          href={`/${locale}/onboard/driver`}
+          className="inline-block rounded-md bg-card px-10 py-3 font-black uppercase tracking-wide text-brand-strong transition hover:bg-brand-soft"
         >
           {isSignedIn ? 'Set Up Driver Profile' : 'Join as a Driver'}
         </Link>

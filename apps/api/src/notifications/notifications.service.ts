@@ -35,6 +35,27 @@ export class NotificationsService {
     });
   }
 
+  queueEmailToAddresses(emails: string[], subject: string, text: string, html?: string) {
+    void this.sendEmailToAddresses(emails, subject, text, html).catch((error: unknown) => {
+      this.logger.warn(
+        `Email dispatch failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+    });
+  }
+
+  queueSmsToPhones(phones: string[], message: string) {
+    void this.sendSmsToPhones(phones, message).catch((error: unknown) => {
+      this.logger.warn(
+        `SMS dispatch failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+    });
+  }
+
+  queueAdminDeskAlert(subject: string, text: string, html?: string) {
+    const adminEmail = process.env.ADMIN_ALERT_EMAIL ?? 'renting.rw@gmail.com';
+    this.queueEmailToAddresses([adminEmail], subject, text, html);
+  }
+
   async queueWelcomeEmail(userId: string) {
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -63,7 +84,12 @@ export class NotificationsService {
     });
 
     const phones = users.map((user) => user.phone).filter((phone): phone is string => Boolean(phone));
-    if (phones.length === 0) {
+    await this.sendSmsToPhones(phones, message);
+  }
+
+  private async sendSmsToPhones(phones: string[], message: string) {
+    const unique = Array.from(new Set(phones.map((item) => item.trim()).filter(Boolean)));
+    if (unique.length === 0 || message.trim().length === 0) {
       return;
     }
 
@@ -76,7 +102,7 @@ export class NotificationsService {
 
     const body = new URLSearchParams({
       username,
-      to: phones.join(','),
+      to: unique.join(','),
       message,
     });
 
@@ -106,6 +132,11 @@ export class NotificationsService {
       select: { id: true, email: true },
     });
     const recipients = users.map((user) => user.email).filter((email): email is string => Boolean(email));
+    await this.sendEmailToAddresses(recipients, subject, text, html);
+  }
+
+  private async sendEmailToAddresses(emails: string[], subject: string, text: string, html?: string) {
+    const recipients = Array.from(new Set(emails.map((item) => item.trim()).filter(Boolean)));
     if (recipients.length === 0) {
       return;
     }

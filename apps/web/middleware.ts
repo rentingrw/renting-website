@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 
 const SUPPORTED_LOCALES = ['en', 'rw', 'fr'] as const;
 const PUBLIC_EXACT = new Set(['/', '/search', '/cars', '/drivers', '/taxi-drivers', '/stays', '/about', '/how-it-works', '/list-your-car', '/drive-with-us', '/careers', '/faq', '/privacy', '/terms', '/safety', '/corporate']);
-const PUBLIC_PREFIX = ['/cars/', '/drivers/', '/taxi-drivers/'];
+const PUBLIC_PREFIX = ['/cars/', '/drivers/', '/taxi-drivers/', '/onboard/'];
 
 function stripLocalePrefix(pathname: string): string {
   for (const locale of SUPPORTED_LOCALES) {

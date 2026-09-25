@@ -17,9 +17,15 @@ const TRUST_EVENT_DELTAS: Record<TrustDeltaEventType, number> = {
   late_pickup: -5,
   not_as_described: -8,
   damage: -10,
-  no_response_1h: -2,
+  no_response_1h: -5,
   cancel_lt_24h: -2,
+  booking_rejected: -10,
 };
+
+const DAILY_POSITIVE_CAP = 5;
+const WEEKLY_POSITIVE_CAP = 15;
+const SCORE_MIN = 0;
+const SCORE_MAX = 100;
 
 @Injectable()
 export class TrustScoreService {
@@ -33,20 +39,30 @@ export class TrustScoreService {
         select: { id: true, trustScore: true },
       });
 
-      const nextScore = new Prisma.Decimal(user.trustScore).plus(resolved.delta);
+      const appliedDelta = await this.capPositiveDelta(tx, input.userId, resolved.delta);
+      if (appliedDelta === 0 && resolved.delta > 0) {
+        return {
+          skipped: true as const,
+          user: { id: user.id, trustScore: Number(user.trustScore), status: undefined },
+          event: null,
+        };
+      }
+
+      const nextScore = this.clampScore(new Prisma.Decimal(user.trustScore).plus(appliedDelta));
       const shouldSuspend = nextScore.lessThan(TRUST_SCORE_SUSPEND_THRESHOLD);
 
       const event = await tx.trustScoreEvent.create({
         data: {
           userId: input.userId,
           type: resolved.type,
-          delta: resolved.delta,
+          delta: appliedDelta,
           reason: resolved.reason,
           carBookingId: input.carBookingId,
           driverBookingId: input.driverBookingId,
           metadata: {
             eventType: input.eventType,
             rawDelta: resolved.delta,
+            appliedDelta,
             ...(input.metadata ?? {}),
           },
         },
@@ -66,6 +82,7 @@ export class TrustScoreService {
       });
 
       return {
+        skipped: false as const,
         event,
         user: {
           ...updatedUser,
@@ -73,6 +90,10 @@ export class TrustScoreService {
         },
       };
     });
+
+    if (result.skipped || !result.event) {
+      return result;
+    }
 
     this.notificationsService.emitInAppToUsers([input.userId], realtimeEvents.trustScoreUpdated, {
       userId: result.user.id,
@@ -99,7 +120,7 @@ export class TrustScoreService {
         select: { id: true, trustScore: true },
       });
 
-      const nextScore = new Prisma.Decimal(user.trustScore).plus(input.delta);
+      const nextScore = this.clampScore(new Prisma.Decimal(user.trustScore).plus(input.delta));
       const shouldSuspend = nextScore.lessThan(TRUST_SCORE_SUSPEND_THRESHOLD);
 
       const event = await tx.trustScoreEvent.create({
@@ -160,6 +181,59 @@ export class TrustScoreService {
       ...event,
       metadata: event.metadata ?? undefined,
     }));
+  }
+
+  async getPublicEvents(userId: string, limit = 12) {
+    const events = await prisma.trustScoreEvent.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      select: {
+        id: true,
+        type: true,
+        delta: true,
+        createdAt: true,
+      },
+    });
+    return events.map((event) => ({
+      id: event.id,
+      type: event.type,
+      delta: Number(event.delta),
+      createdAt: event.createdAt,
+    }));
+  }
+
+  private clampScore(value: Prisma.Decimal) {
+    if (value.lessThan(SCORE_MIN)) return new Prisma.Decimal(SCORE_MIN);
+    if (value.greaterThan(SCORE_MAX)) return new Prisma.Decimal(SCORE_MAX);
+    return value;
+  }
+
+  private async capPositiveDelta(
+    tx: Prisma.TransactionClient,
+    userId: string,
+    delta: number,
+  ): Promise<number> {
+    if (delta <= 0) return delta;
+    const now = new Date();
+    const dayStart = new Date(now);
+    dayStart.setHours(0, 0, 0, 0);
+    const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    const [daySum, weekSum] = await Promise.all([
+      tx.trustScoreEvent.aggregate({
+        where: { userId, delta: { gt: 0 }, createdAt: { gte: dayStart } },
+        _sum: { delta: true },
+      }),
+      tx.trustScoreEvent.aggregate({
+        where: { userId, delta: { gt: 0 }, createdAt: { gte: weekStart } },
+        _sum: { delta: true },
+      }),
+    ]);
+
+    const remainingDay = DAILY_POSITIVE_CAP - Number(daySum._sum.delta ?? 0);
+    const remainingWeek = WEEKLY_POSITIVE_CAP - Number(weekSum._sum.delta ?? 0);
+    return Math.max(0, Math.min(delta, remainingDay, remainingWeek));
   }
 
   private resolveEvent(eventType: TrustDeltaEventType, overrideReason?: string): ResolvedTrustEvent {

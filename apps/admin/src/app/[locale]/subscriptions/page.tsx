@@ -14,7 +14,7 @@ import { TableRowSkeleton } from '@/components/ui/skeleton';
 
 const AUTH_ERROR_MSG = 'Session not ready. Please refresh the page or sign out and sign in again.';
 
-const STATUSES = ['active', 'cancelled', 'expired', 'unpaid', 'past_due', 'trialing'] as const;
+const STATUSES = ['draft', 'pending_payment', 'active', 'expired', 'suspended', 'cancelled', 'unpaid'] as const;
 const TIERS = ['free', 'standard', 'premium', 'business'] as const;
 const PAGE_SIZE = 20;
 

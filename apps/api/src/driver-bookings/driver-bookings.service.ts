@@ -6,23 +6,27 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { BookingStatus, Prisma, type DriverBooking, type User } from '@prisma/client';
+import { BookingStatus, Prisma, type User } from '@prisma/client';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 
 import type { AuthenticatedUser } from '../auth/types/authenticated-request.interface';
 import { prisma } from '../database/prisma';
 import { NotificationsService } from '../notifications/notifications.service';
 import {
-  bookingRequestEmailHtml,
   bookingSubmittedEmailHtml,
   bookingConfirmedEmailHtml,
   bookingDeclinedEmailHtml,
-  bookingAutoCancelledEmailHtml,
   bookingCompletedEmailHtml,
+  bookingDeskRequestEmailHtml,
 } from '../notifications/email-templates';
 import { realtimeEvents } from '../realtime/realtime.events';
 import { TrustScoreService } from '../trust-score/trust-score.service';
 import type { CreateDriverBookingDto } from './dto/create-driver-booking.dto';
+import {
+  maybeStoreRenterPhone,
+  normalizeBookingPhone,
+  formatContactLine,
+} from '../bookings/booking-desk.util';
 
 const BLOCKING_DRIVER_BOOKING_STATUSES = new Set<BookingStatus>([
   BookingStatus.confirmed,
@@ -81,6 +85,9 @@ export class DriverBookingsService {
 
     await this.ensureNoOverlapForDriver(payload.driverId, payload.startAt, payload.endAt);
 
+    const renterPhone = normalizeBookingPhone(payload.renterPhone);
+    await maybeStoreRenterPhone(renter.id, renterPhone);
+
     const booking = await prisma.driverBooking.create({
       data: {
         driverId: payload.driverId,
@@ -93,42 +100,51 @@ export class DriverBookingsService {
         totalAmountRwf: payload.totalAmountRwf,
         paymentMethod: payload.paymentMethod,
         notes: payload.notes,
+        renterPhone,
+        isInstant: false,
         status: BookingStatus.pending,
       },
       include: this.bookingInclude(),
     });
 
-    this.notificationsService.emitInAppToUsers([booking.driverId], realtimeEvents.bookingNewRequest, {
-      booking,
-      bookingType: 'driver',
-    });
-    this.notificationsService.queueSmsToUsers(
-      [booking.driverId],
-      'You have a new Rentingi driver booking request waiting for confirmation.',
-    );
-    this.notificationsService.queueEmailToUsers(
-      [booking.driverId],
-      'New booking request — renting.rw',
-      `${booking.renter.fullName} has sent you a driver booking request.`,
-      bookingRequestEmailHtml(booking.driver.fullName, booking.renter.fullName, `Driver service (${booking.serviceType})`, booking.startAt, booking.endAt),
+    const title = `Driver service (${booking.serviceType})`;
+    this.notificationsService.queueAdminDeskAlert(
+      `Booking desk: ${title}`,
+      `${booking.renter.fullName} (${renterPhone}) requested ${title}. Pickup ${booking.pickupAddress}.`,
+      bookingDeskRequestEmailHtml(
+        title,
+        booking.renter.fullName,
+        renterPhone,
+        booking.startAt,
+        booking.endAt,
+        booking.pickupAddress,
+        booking.notes,
+      ),
     );
     this.notificationsService.queueEmailToUsers(
       [booking.renterId],
       'Booking request submitted — renting.rw',
-      `Your driver booking request has been submitted and is waiting for confirmation.`,
-      bookingSubmittedEmailHtml(booking.renter.fullName, `Driver service (${booking.serviceType})`, booking.startAt, booking.endAt),
+      `Your driver booking request was sent to the renting.rw desk.`,
+      bookingSubmittedEmailHtml(booking.renter.fullName, title, booking.startAt, booking.endAt),
+    );
+    this.notificationsService.queueSmsToPhones(
+      [renterPhone],
+      'Your renting.rw driver request was sent. We will confirm and share the driver contact.',
     );
 
-    return booking;
+    return {
+      ...booking,
+      fulfillment: 'admin_desk' as const,
+      providerContact: null,
+    };
   }
 
-  async confirm(authUser: AuthenticatedUser, bookingId: string) {
-    const caller = await this.requireUser(authUser.clerkUserId);
-    const booking = await this.requireBooking(bookingId);
+  async confirm(_authUser: AuthenticatedUser, _bookingId: string) {
+    throw new ForbiddenException('Driver bookings are confirmed by the renting.rw desk.');
+  }
 
-    if (booking.driverId !== caller.id) {
-      throw new ForbiddenException('Only the driver can confirm this booking.');
-    }
+  async confirmByAdmin(bookingId: string) {
+    const booking = await this.requireBooking(bookingId);
     if (booking.status !== BookingStatus.pending) {
       throw new BadRequestException('Only pending bookings can be confirmed.');
     }
@@ -154,62 +170,23 @@ export class DriverBookingsService {
       if (overlappingBookings.length > 0) {
         await tx.driverBooking.updateMany({
           where: { id: { in: overlappingBookings.map((item) => item.id) } },
-          data: {
-            status: BookingStatus.overlap_declined,
-          },
+          data: { status: BookingStatus.overlap_declined },
         });
       }
 
       return { confirmed, overlappingBookings };
     });
 
-    this.notificationsService.emitInAppToUsers(
-      [updated.confirmed.renterId],
-      realtimeEvents.bookingConfirmed,
-      {
-        booking: updated.confirmed,
-        bookingType: 'driver',
-      },
-    );
-    this.notificationsService.queueSmsToUsers(
-      [updated.confirmed.renterId],
-      'Your Rentingi driver booking request was confirmed.',
-    );
-    this.notificationsService.queueEmailToUsers(
-      [updated.confirmed.renterId],
-      'Booking confirmed — renting.rw',
-      `Your driver booking with ${updated.confirmed.driver.fullName} has been confirmed.`,
-      bookingConfirmedEmailHtml(updated.confirmed.renter.fullName, `Driver: ${updated.confirmed.driver.fullName}`, updated.confirmed.startAt, updated.confirmed.endAt),
-    );
-
-    if (updated.overlappingBookings.length > 0) {
-      this.notificationsService.emitInAppToUsers(
-        updated.overlappingBookings.map((item) => item.renterId),
-        realtimeEvents.bookingOverlapDeclined,
-        {
-          confirmedBookingId: updated.confirmed.id,
-          bookingType: 'driver',
-        },
-      );
-      this.notificationsService.queueSmsToUsers(
-        updated.overlappingBookings.map((item) => item.renterId),
-        'Your Rentingi driver booking request was declined because the selected slot is no longer available.',
-      );
-    }
-
-    return {
-      ...updated.confirmed,
-      chatEligible: true,
-    };
+    await this.notifyDriverConfirmed(updated.confirmed);
+    return updated.confirmed;
   }
 
-  async decline(authUser: AuthenticatedUser, bookingId: string) {
-    const caller = await this.requireUser(authUser.clerkUserId);
-    const booking = await this.requireBooking(bookingId);
+  async decline(_authUser: AuthenticatedUser, _bookingId: string) {
+    throw new ForbiddenException('Driver bookings are declined by the renting.rw desk.');
+  }
 
-    if (booking.driverId !== caller.id) {
-      throw new ForbiddenException('Only the driver can decline this booking.');
-    }
+  async rejectByAdmin(bookingId: string) {
+    const booking = await this.requireBooking(bookingId);
     if (booking.status !== BookingStatus.pending) {
       throw new BadRequestException('Only pending bookings can be declined.');
     }
@@ -220,13 +197,9 @@ export class DriverBookingsService {
       include: this.bookingInclude(),
     });
 
-    this.notificationsService.emitInAppToUsers([declined.renterId], realtimeEvents.bookingDeclined, {
-      booking: declined,
-      bookingType: 'driver',
-    });
-    this.notificationsService.queueSmsToUsers(
-      [declined.renterId],
-      'Your Rentingi driver booking request was declined.',
+    this.notificationsService.queueSmsToPhones(
+      [declined.renterPhone].filter(Boolean),
+      'Your renting.rw driver request was declined. You can request another driver.',
     );
     this.notificationsService.queueEmailToUsers(
       [declined.renterId],
@@ -235,7 +208,104 @@ export class DriverBookingsService {
       bookingDeclinedEmailHtml(declined.renter.fullName, `Driver: ${declined.driver.fullName}`),
     );
 
+    void this.trustScoreService.recordEvent({
+      userId: declined.driverId,
+      eventType: 'booking_rejected',
+      driverBookingId: declined.id,
+      reason: 'Pending driver booking rejected by the renting.rw desk',
+    });
+
     return declined;
+  }
+
+  async tryNextByAdmin(bookingId: string, nextDriverId: string) {
+    const booking = await this.requireBooking(bookingId);
+    if (booking.status !== BookingStatus.pending) {
+      throw new BadRequestException('Only pending bookings can be moved to the next driver.');
+    }
+    if (nextDriverId === booking.driverId) {
+      throw new BadRequestException('Pick a different driver.');
+    }
+
+    const nextDriver = await prisma.user.findUnique({
+      where: { id: nextDriverId },
+      select: { id: true, fullName: true, primaryRole: true, roles: { select: { role: true } } },
+    });
+    if (!nextDriver) throw new NotFoundException('Next driver not found.');
+    const hasDriverRole = nextDriver.primaryRole === 'driver' || nextDriver.roles.some((item) => item.role === 'driver');
+    if (!hasDriverRole) throw new BadRequestException('Target user is not a driver.');
+
+    await this.ensureNoOverlapForDriver(nextDriver.id, booking.startAt, booking.endAt);
+
+    const groupId = booking.tryNextGroupId ?? booking.id;
+    const created = await prisma.$transaction(async (tx) => {
+      await tx.driverBooking.update({
+        where: { id: booking.id },
+        data: { status: BookingStatus.declined },
+      });
+      return tx.driverBooking.create({
+        data: {
+          driverId: nextDriver.id,
+          renterId: booking.renterId,
+          serviceType: booking.serviceType,
+          startAt: booking.startAt,
+          endAt: booking.endAt,
+          pickupAddress: booking.pickupAddress,
+          dropoffAddress: booking.dropoffAddress,
+          totalAmountRwf: booking.totalAmountRwf,
+          notes: booking.notes,
+          renterPhone: booking.renterPhone,
+          isInstant: false,
+          previousBookingId: booking.id,
+          tryNextGroupId: groupId,
+          status: BookingStatus.pending,
+        },
+        include: this.bookingInclude(),
+      });
+    });
+
+    const title = `Driver service (${created.serviceType})`;
+    this.notificationsService.queueAdminDeskAlert(
+      `Try next: ${title}`,
+      `Moved ${booking.renter.fullName} (${booking.renterPhone}) to ${created.driver.fullName}.`,
+      bookingDeskRequestEmailHtml(
+        title,
+        created.renter.fullName,
+        created.renterPhone,
+        created.startAt,
+        created.endAt,
+        created.pickupAddress,
+        created.notes,
+      ),
+    );
+
+    return created;
+  }
+
+  async listDriverAlternatives(bookingId: string) {
+    const booking = await this.requireBooking(bookingId);
+    return prisma.driverProfile.findMany({
+      where: {
+        userId: { not: booking.driverId },
+        user: {
+          driverBookingsAsDriver: {
+            none: {
+              status: { in: Array.from(BLOCKING_DRIVER_BOOKING_STATUSES) },
+              startAt: { lt: booking.endAt },
+              endAt: { gt: booking.startAt },
+            },
+          },
+        },
+      },
+      select: {
+        id: true,
+        userId: true,
+        primaryCity: true,
+        user: { select: { id: true, fullName: true, phone: true } },
+      },
+      take: 12,
+      orderBy: { createdAt: 'desc' },
+    });
   }
 
   async cancel(authUser: AuthenticatedUser, bookingId: string) {
@@ -413,10 +483,7 @@ export class DriverBookingsService {
       throw new ForbiddenException('You can only view your own bookings.');
     }
 
-    return {
-      ...booking,
-      chatEligible: this.isChatEligibleStatus(booking.status),
-    };
+    return this.presentBooking(booking);
   }
 
   async getMine(authUser: AuthenticatedUser) {
@@ -433,69 +500,11 @@ export class DriverBookingsService {
       include: this.bookingInclude(),
     });
 
-    return bookings.map((booking) => ({
-      ...booking,
-      chatEligible: this.isChatEligibleStatus(booking.status),
-    }));
+    return bookings.map((booking) => this.presentBooking(booking));
   }
 
-  async autoCancelStalePendingBookings(now: Date = new Date()) {
-    const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
-    const staleBookings = await prisma.driverBooking.findMany({
-      where: {
-        status: BookingStatus.pending,
-        createdAt: { lte: oneHourAgo },
-      },
-      select: {
-        id: true,
-        driverId: true,
-        renterId: true,
-        serviceType: true,
-        driver: { select: { fullName: true } },
-        renter: { select: { fullName: true } },
-      },
-    });
-
-    for (const booking of staleBookings) {
-      const updated = await prisma.driverBooking.updateMany({
-        where: {
-          id: booking.id,
-          status: BookingStatus.pending,
-        },
-        data: {
-          status: BookingStatus.auto_cancelled,
-        },
-      });
-
-      if (updated.count === 0) {
-        continue;
-      }
-
-      await this.trustScoreService.recordEvent({
-        userId: booking.driverId,
-        eventType: 'no_response_1h',
-        driverBookingId: booking.id,
-      });
-
-      this.notificationsService.emitInAppToUsers(
-        [booking.driverId, booking.renterId],
-        realtimeEvents.bookingAutoCancelled,
-        {
-          bookingId: booking.id,
-          bookingType: 'driver',
-        },
-      );
-      this.notificationsService.queueSmsToUsers(
-        [booking.driverId, booking.renterId],
-        'A Rentingi driver booking request was auto-cancelled due to no response within 1 hour.',
-      );
-      this.notificationsService.queueEmailToUsers(
-        [booking.driverId, booking.renterId],
-        'Booking auto-cancelled — renting.rw',
-        'A driver booking request was auto-cancelled due to no response within 1 hour.',
-        bookingAutoCancelledEmailHtml(booking.renter.fullName, `Driver: ${booking.driver.fullName}`),
-      );
-    }
+  async autoCancelStalePendingBookings(_now: Date = new Date()) {
+    return;
   }
 
   async autoCompleteExpiredActiveBookings(now: Date = new Date()) {
@@ -643,6 +652,8 @@ export class DriverBookingsService {
           id: true,
           fullName: true,
           avatarUrl: true,
+          phone: true,
+          whatsapp: true,
         },
       },
       renter: {
@@ -650,6 +661,7 @@ export class DriverBookingsService {
           id: true,
           fullName: true,
           avatarUrl: true,
+          phone: true,
         },
       },
       disputes: {
@@ -662,12 +674,62 @@ export class DriverBookingsService {
     } satisfies Prisma.DriverBookingInclude;
   }
 
-  private isChatEligibleStatus(status: DriverBooking['status']) {
+  private contactRevealed(status: BookingStatus) {
     return (
       status === BookingStatus.confirmed ||
       status === BookingStatus.active ||
       status === BookingStatus.completed ||
-      status === BookingStatus.auto_completed
+      status === BookingStatus.auto_completed ||
+      status === BookingStatus.disputed
+    );
+  }
+
+  private presentBooking(booking: Awaited<ReturnType<DriverBookingsService['requireBooking']>>) {
+    const revealed = this.contactRevealed(booking.status);
+    return {
+      ...booking,
+      chatEligible: false,
+      driver: {
+        ...booking.driver,
+        phone: revealed ? booking.driver.phone : null,
+        whatsapp: revealed ? booking.driver.whatsapp : null,
+      },
+      renter: {
+        ...booking.renter,
+        phone: revealed ? booking.renter.phone : null,
+      },
+    };
+  }
+
+  private async notifyDriverConfirmed(booking: {
+    renterId: string;
+    driverId: string;
+    renterPhone: string;
+    startAt: Date;
+    endAt: Date;
+    renter: { fullName: string; phone: string | null };
+    driver: { fullName: string; phone: string | null; whatsapp: string | null };
+  }) {
+    const provider = formatContactLine(booking.driver.fullName, booking.driver.phone, booking.driver.whatsapp);
+    this.notificationsService.queueSmsToPhones(
+      [booking.renterPhone, booking.renter.phone].filter((value): value is string => Boolean(value)),
+      `Your renting.rw driver booking is confirmed. Driver: ${provider}.`,
+    );
+    this.notificationsService.queueEmailToUsers(
+      [booking.renterId],
+      'Booking confirmed — renting.rw',
+      `Your driver booking is confirmed. ${provider}`,
+      bookingConfirmedEmailHtml(
+        booking.renter.fullName,
+        `Driver: ${booking.driver.fullName}`,
+        booking.startAt,
+        booking.endAt,
+        provider,
+      ),
+    );
+    this.notificationsService.queueSmsToUsers(
+      [booking.driverId],
+      `A renting.rw booking is confirmed. Client phone: ${booking.renterPhone}.`,
     );
   }
 

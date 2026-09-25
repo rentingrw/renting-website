@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { SubscriptionStatus, SubscriptionTier } from '@prisma/client';
+import { SubscriptionKind, SubscriptionStatus, SubscriptionTier } from '@prisma/client';
 import { IsEnum, IsInt, IsOptional, Max, Min } from 'class-validator';
 
 export class ListSubscriptionsQueryDto {
@@ -10,6 +10,10 @@ export class ListSubscriptionsQueryDto {
   @IsOptional()
   @IsEnum(SubscriptionTier)
   tier?: SubscriptionTier;
+
+  @IsOptional()
+  @IsEnum(SubscriptionKind)
+  kind?: SubscriptionKind;
 
   @IsOptional()
   @Type(() => Number)

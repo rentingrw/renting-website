@@ -16,7 +16,16 @@ import {
 export enum SearchType {
   cars = 'cars',
   drivers = 'drivers',
+  taxis = 'taxis',
   all = 'all',
+}
+
+export enum SearchSort {
+  relevance = 'relevance',
+  score = 'score',
+  rating = 'rating',
+  price_asc = 'price_asc',
+  price_desc = 'price_desc',
 }
 
 function toNumber(value: unknown): number | undefined {
@@ -141,6 +150,38 @@ export class SearchQueryDto {
   @Max(60)
   seatsMax?: number;
 
+  @ApiPropertyOptional({ description: 'Minimum daily rate in RWF (cars: Kigali rate, drivers: daily rate).' })
+  @IsOptional()
+  @Transform(({ value }) => toNumber(value))
+  @IsInt()
+  @Min(0)
+  @Max(5_000_000)
+  priceMin?: number;
+
+  @ApiPropertyOptional({ description: 'Maximum daily rate in RWF.' })
+  @IsOptional()
+  @Transform(({ value }) => toNumber(value))
+  @IsInt()
+  @Min(0)
+  @Max(5_000_000)
+  priceMax?: number;
+
+  @ApiPropertyOptional({ description: 'Minimum vehicle year.' })
+  @IsOptional()
+  @Transform(({ value }) => toNumber(value))
+  @IsInt()
+  @Min(1990)
+  @Max(2035)
+  yearMin?: number;
+
+  @ApiPropertyOptional({ description: 'Minimum driver years of experience.' })
+  @IsOptional()
+  @Transform(({ value }) => toNumber(value))
+  @IsInt()
+  @Min(0)
+  @Max(50)
+  experienceMin?: number;
+
   @IsOptional()
   @IsString()
   @MaxLength(32)
@@ -175,4 +216,18 @@ export class SearchQueryDto {
   @Min(0)
   @Max(10000)
   offset?: number;
+
+  @ApiPropertyOptional({ enum: SearchSort, description: 'Sort order. Defaults to relevance.' })
+  @IsOptional()
+  @IsEnum(SearchSort)
+  sort?: SearchSort;
+
+  @ApiPropertyOptional({ description: 'Only listings/drivers that are not currently booked.' })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (value === 'true' || value === true) return true;
+    if (value === 'false' || value === false) return false;
+    return undefined;
+  })
+  availableNow?: boolean;
 }

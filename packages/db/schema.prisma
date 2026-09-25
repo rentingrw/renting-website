@@ -56,6 +56,12 @@ enum SubscriptionTier {
   business
 }
 
+enum SubscriptionKind {
+  hoster
+  driver
+  taxi
+}
+
 enum SubscriptionStatus {
   trialing
   active
@@ -63,6 +69,9 @@ enum SubscriptionStatus {
   expired
   past_due
   unpaid
+  draft
+  pending_payment
+  suspended
 }
 
 enum PaymentMethod {
@@ -134,6 +143,7 @@ model User {
   phone                  String?           @unique
   fullName               String            @map("full_name")
   avatarUrl              String?           @map("avatar_url")
+  whatsapp               String?
   status                 UserStatus        @default(active)
   primaryRole            RoleType          @default(renter) @map("primary_role")
   trustScore             Decimal           @default(100.0) @map("trust_score") @db.Decimal(5, 2)
@@ -154,6 +164,7 @@ model User {
   reviewsGiven           Review[]          @relation("ReviewAuthor")
   reviewsReceived        Review[]          @relation("ReviewSubject")
   subscriptions          Subscription[]
+  taxiDriver             TaxiDriver?
   messagesSent           Message[]         @relation("MessageSender")
   messagesReceived       Message[]         @relation("MessageReceiver")
   disputesOpened         Dispute[]         @relation("DisputeOpenedBy")
@@ -182,6 +193,8 @@ model CarOwnerProfile {
   companyName      String?        @map("company_name")
   nationalIdNumber String?        @map("national_id_number")
   tinNumber        String?        @map("tin_number")
+  workAddress      String?        @map("work_address")
+  contactPhone     String?        @map("contact_phone")
   verifiedAt       DateTime?      @map("verified_at")
   createdAt        DateTime       @default(now()) @map("created_at")
   updatedAt        DateTime       @updatedAt @map("updated_at")
@@ -207,6 +220,11 @@ model DriverProfile {
   vehicleTypes         VehicleType[]    @map("vehicle_types")
   certifications       String[]         @default([])
   serviceAreas         String[]         @map("service_areas")
+  licenseCategories    String[]         @default([]) @map("license_categories")
+  transmission         String?
+  addressText          String?          @map("address_text")
+  idDocumentUrl        String?          @map("id_document_url")
+  licenseDocumentUrl   String?          @map("license_document_url")
   availabilityCalendar Json             @map("availability_calendar")
   rating               Decimal?         @db.Decimal(3, 2)
   completedTrips       Int              @default(0) @map("completed_trips")
@@ -266,6 +284,10 @@ model CarBooking {
   renterMarkedComplete Boolean                                @default(false) @map("renter_marked_complete")
   ownerMarkedComplete  Boolean                                @default(false) @map("owner_marked_complete")
   notes                String?
+  renterPhone          String                                 @default("") @map("renter_phone")
+  isInstant            Boolean                                @default(false) @map("is_instant")
+  previousBookingId    String?                                @map("previous_booking_id") @db.Uuid
+  tryNextGroupId       String?                                @map("try_next_group_id") @db.Uuid
   completedAt          DateTime?                              @map("completed_at")
   createdAt            DateTime                               @default(now()) @map("created_at")
   updatedAt            DateTime                               @updatedAt @map("updated_at")
@@ -297,6 +319,10 @@ model DriverBooking {
   driverMarkedComplete Boolean                                @default(false) @map("driver_marked_complete")
   clientMarkedComplete Boolean                                @default(false) @map("client_marked_complete")
   notes                String?
+  renterPhone          String                                 @default("") @map("renter_phone")
+  isInstant            Boolean                                @default(false) @map("is_instant")
+  previousBookingId    String?                                @map("previous_booking_id") @db.Uuid
+  tryNextGroupId       String?                                @map("try_next_group_id") @db.Uuid
   completedAt          DateTime?                              @map("completed_at")
   createdAt            DateTime                               @default(now()) @map("created_at")
   updatedAt            DateTime                               @updatedAt @map("updated_at")
@@ -346,15 +372,35 @@ model Review {
   @@map("reviews")
 }
 
+model PromoCode {
+  id              String            @id @default(uuid()) @db.Uuid
+  code            String            @unique
+  kind            SubscriptionKind?
+  discountPercent Int?              @map("discount_percent")
+  discountRwf     Int?              @map("discount_rwf")
+  maxRedemptions  Int?              @map("max_redemptions")
+  redemptionCount Int               @default(0) @map("redemption_count")
+  startsAt        DateTime?         @map("starts_at")
+  endsAt          DateTime?         @map("ends_at")
+  isActive        Boolean           @default(true) @map("is_active")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+  subscriptions   Subscription[]
+
+  @@map("promo_codes")
+}
+
 model Subscription {
   id                String             @id @default(uuid()) @db.Uuid
   userId            String             @map("user_id") @db.Uuid
   carOwnerProfileId String?            @map("car_owner_profile_id") @db.Uuid
+  kind              SubscriptionKind   @default(hoster)
   tier              SubscriptionTier
   status            SubscriptionStatus
   amountRwf         Int                @map("amount_rwf")
   paymentMethod     PaymentMethod?     @map("payment_method")
   externalRef       String?            @map("external_ref")
+  promoCodeId       String?            @map("promo_code_id") @db.Uuid
   startsAt          DateTime           @map("starts_at")
   renewsAt          DateTime?          @map("renews_at")
   endsAt            DateTime?          @map("ends_at")
@@ -362,8 +408,10 @@ model Subscription {
   updatedAt         DateTime           @updatedAt @map("updated_at")
   user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   carOwnerProfile   CarOwnerProfile?   @relation(fields: [carOwnerProfileId], references: [id], onDelete: SetNull)
+  promoCode         PromoCode?         @relation(fields: [promoCodeId], references: [id], onDelete: SetNull)
 
   @@index([renewsAt])
+  @@index([kind, status])
   @@map("subscriptions")
 }
 
@@ -440,17 +488,25 @@ enum TaxiDriverStatus {
 
 model TaxiDriver {
   id              String           @id @default(uuid()) @db.Uuid
+  userId          String?          @unique @map("user_id") @db.Uuid
   fullName        String           @map("full_name")
   phone           String
+  whatsapp        String?
   email           String?
   city            String
   seats           Int
   details         String?
+  carModel        String?          @map("car_model")
+  plate           String?
+  vehicleType     String?          @map("vehicle_type")
+  features        String[]         @default([])
+  photos          String[]         @default([])
   photoUrl        String?          @map("photo_url")
   profilePhotoUrl String?          @map("profile_photo_url")
   status          TaxiDriverStatus @default(pending)
   createdAt       DateTime         @default(now()) @map("created_at")
   updatedAt       DateTime         @updatedAt @map("updated_at")
+  user            User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@map("taxi_drivers")
 }

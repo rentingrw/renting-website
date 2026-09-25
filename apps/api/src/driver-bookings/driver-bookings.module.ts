@@ -9,5 +9,6 @@ import { DriverBookingsService } from './driver-bookings.service';
   imports: [TrustScoreModule, NotificationsModule],
   controllers: [DriverBookingsController],
   providers: [DriverBookingsService],
+  exports: [DriverBookingsService],
 })
 export class DriverBookingsModule {}

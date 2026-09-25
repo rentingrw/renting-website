@@ -3,6 +3,7 @@
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle } from '@rentingi/ui';
 import { LoadingSpinner } from '@/components/web/loading-states';
 import { AddressInput } from '@/components/web/address-input';
+import { ImageCropDialog } from '@/components/web/image-crop-dialog';
 import { useTranslations } from 'next-intl';
 import { useEffect, useRef, useState } from 'react';
 import { Camera, Check, ChevronLeft, ChevronRight, MapPin, Minus, Plus, Upload } from 'lucide-react';
@@ -90,7 +91,7 @@ function emptyState(): ListingFormState {
     weeklyRateRwf: '',
     monthlyRateRwf: '',
     priceNegotiable: false,
-    locationText: 'Kigali',
+    locationText: '',
     latitude: '',
     longitude: '',
     photos: [],
@@ -129,7 +130,7 @@ function formatRwf(n: number) {
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="mb-2 text-xs font-black uppercase tracking-widest text-neutral-500">{children}</p>
+    <p className="mb-2 text-xs font-black uppercase tracking-widest text-muted-foreground">{children}</p>
   );
 }
 
@@ -148,13 +149,19 @@ export function OwnerListingWizard({
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const photoQueueRef = useRef<File[]>([]);
+  const [pendingPhoto, setPendingPhoto] = useState<File | null>(null);
   const [customFeature, setCustomFeature] = useState('');
   const [state, setState] = useState<ListingFormState>(emptyState());
 
   const isEditing = Boolean(initialCar);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      photoQueueRef.current = [];
+      setPendingPhoto(null);
+      return;
+    }
     setStep(0);
     setError(null);
     setPublishNow(false);
@@ -182,37 +189,46 @@ export function OwnerListingWizard({
     setCustomFeature('');
   }
 
-  async function handlePhotoUpload(files: FileList | null) {
-    if (!files?.length) return;
+  function queuePhotos(files: FileList | null) {
+    const images = Array.from(files ?? []).filter((file) => file.type.startsWith('image/'));
+    if (!images.length) return;
+    if (pendingPhoto) {
+      photoQueueRef.current.push(...images);
+      return;
+    }
+    const [first, ...rest] = images;
+    photoQueueRef.current.push(...rest);
+    setPendingPhoto(first);
+  }
+
+  async function uploadCroppedPhoto(file: File) {
     const token = await getToken();
-    if (!token) { setError('Please sign in to upload photos.'); return; }
+    if (!token) {
+      setError('Please sign in to upload photos.');
+      return;
+    }
     setUploading(true);
     setError(null);
     try {
       const { uploadUrl, fields } = await getCarUploadUrl(token);
-      const urls: string[] = [];
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        if (!file.type.startsWith('image/')) continue;
-        const formData = new FormData();
-        // Cloudinary requires all fields before the file
-        Object.entries(fields).forEach(([k, v]) => formData.append(k, String(v)));
-        formData.append('file', file);
-        const res = await fetch(uploadUrl, { method: 'POST', body: formData });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error((err as { error?: { message?: string } })?.error?.message ?? `Upload failed: ${res.status}`);
-        }
-        const data = (await res.json()) as { secure_url?: string };
-        if (data.secure_url) urls.push(data.secure_url);
+      const formData = new FormData();
+      Object.entries(fields).forEach(([k, v]) => formData.append(k, String(v)));
+      formData.append('file', file);
+      const res = await fetch(uploadUrl, { method: 'POST', body: formData });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as { error?: { message?: string } })?.error?.message ?? `Upload failed: ${res.status}`);
       }
-      if (urls.length) {
-        update('photos', [...state.photos, ...urls]);
+      const data = (await res.json()) as { secure_url?: string };
+      if (data.secure_url) {
+        setState((prev) => ({ ...prev, photos: [...prev.photos, data.secure_url!] }));
       }
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : 'Photo upload failed.');
     } finally {
       setUploading(false);
+      const next = photoQueueRef.current.shift() ?? null;
+      setPendingPhoto(next);
     }
   }
 
@@ -254,13 +270,13 @@ export function OwnerListingWizard({
     }
   }
 
-  const inputClass = 'w-full rounded border-2 border-neutral-900 bg-white px-4 py-2.5 text-sm font-semibold text-neutral-900 placeholder:font-normal placeholder:text-neutral-400 focus:outline-none focus:border-teal-600';
+  const inputClass = 'w-full rounded-xl border border-border bg-white px-4 py-2.5 text-sm font-medium text-foreground placeholder:font-normal placeholder:text-muted-foreground focus:outline-none focus:border-brand';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle className="text-lg font-black text-neutral-900">
+          <DialogTitle className="text-lg font-black text-foreground">
             {isEditing ? t('app.listingWizard.editTitle') : t('app.listingWizard.createTitle')}
           </DialogTitle>
         </DialogHeader>
@@ -272,13 +288,13 @@ export function OwnerListingWizard({
               <div
                 key={label}
                 className={`h-1.5 flex-1 rounded-full transition-colors ${
-                  i <= step ? 'bg-teal-600' : 'bg-neutral-200'
+                  i <= step ? 'bg-brand' : 'bg-muted'
                 }`}
               />
             ))}
           </div>
-          <p className="text-xs font-black uppercase tracking-widest text-neutral-500">
-            Step {step + 1} of {STEPS.length} — {STEPS[step]}
+          <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">
+            Step {step + 1} of {STEPS.length}: {STEPS[step]}
           </p>
         </div>
 
@@ -315,12 +331,12 @@ export function OwnerListingWizard({
                     onClick={() => update('vehicleType', value)}
                     className={`flex flex-col items-center gap-1 rounded border-2 py-3 text-center transition-all ${
                       state.vehicleType === value
-                        ? 'border-teal-600 bg-teal-50 shadow-[2px_2px_0px_0px_rgba(13,148,136,0.4)]'
-                        : 'border-neutral-300 bg-white hover:border-neutral-900'
+                        ? 'border-brand bg-brand-soft shadow-[2px_2px_0px_0px_rgba(14,165,233,0.35)]'
+                        : 'border-neutral-300 bg-card hover:border-border'
                     }`}
                   >
                     <span className="text-2xl">{emoji}</span>
-                    <span className="text-xs font-black text-neutral-900">{label}</span>
+                    <span className="text-xs font-black text-foreground">{label}</span>
                   </button>
                 ))}
               </div>
@@ -336,12 +352,12 @@ export function OwnerListingWizard({
                     onClick={() => update('serviceType', value)}
                     className={`rounded border-2 p-3 text-left transition-all ${
                       state.serviceType === value
-                        ? 'border-teal-600 bg-teal-50'
-                        : 'border-neutral-300 bg-white hover:border-neutral-900'
+                        ? 'border-brand bg-brand-soft'
+                        : 'border-neutral-300 bg-card hover:border-border'
                     }`}
                   >
-                    <p className="text-sm font-black text-neutral-900">{label}</p>
-                    <p className="text-xs font-medium text-neutral-500">{desc}</p>
+                    <p className="text-sm font-black text-foreground">{label}</p>
+                    <p className="text-xs font-medium text-muted-foreground">{desc}</p>
                   </button>
                 ))}
               </div>
@@ -377,17 +393,17 @@ export function OwnerListingWizard({
                   <button
                     type="button"
                     onClick={() => update('seats', Math.max(2, state.seats - 1))}
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded border-2 border-neutral-900 bg-white hover:bg-neutral-100"
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded border-2 border-border bg-card hover:bg-muted"
                   >
                     <Minus className="h-4 w-4" />
                   </button>
-                  <div className="flex-1 rounded border-2 border-neutral-900 py-2 text-center text-sm font-black text-neutral-900">
+                  <div className="flex-1 rounded border-2 border-border py-2 text-center text-sm font-black text-foreground">
                     {state.seats}
                   </div>
                   <button
                     type="button"
                     onClick={() => update('seats', Math.min(14, state.seats + 1))}
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded border-2 border-neutral-900 bg-white hover:bg-neutral-100"
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded border-2 border-border bg-card hover:bg-muted"
                   >
                     <Plus className="h-4 w-4" />
                   </button>
@@ -406,8 +422,8 @@ export function OwnerListingWizard({
                       onClick={() => update('transmission', opt)}
                       className={`flex-1 rounded border-2 py-2 text-xs font-black transition-all ${
                         state.transmission === opt
-                          ? 'border-teal-600 bg-teal-600 text-white'
-                          : 'border-neutral-300 bg-white text-neutral-700 hover:border-neutral-900'
+                          ? 'border-brand bg-brand text-white'
+                          : 'border-neutral-300 bg-card text-muted-foreground hover:border-border'
                       }`}
                     >
                       {opt}
@@ -441,8 +457,8 @@ export function OwnerListingWizard({
                       onClick={() => toggleFeature(feature)}
                       className={`flex items-center gap-1.5 rounded border-2 px-3 py-1.5 text-xs font-bold transition-all ${
                         selected
-                          ? 'border-teal-600 bg-teal-600 text-white'
-                          : 'border-neutral-300 bg-white text-neutral-700 hover:border-neutral-900'
+                          ? 'border-brand bg-brand text-white'
+                          : 'border-neutral-300 bg-card text-muted-foreground hover:border-border'
                       }`}
                     >
                       {selected && <Check className="h-3 w-3" />}
@@ -454,7 +470,7 @@ export function OwnerListingWizard({
               {/* Custom feature input */}
               <div className="mt-3 flex gap-2">
                 <input
-                  className="flex-1 rounded border-2 border-neutral-300 px-3 py-2 text-xs font-semibold text-neutral-900 placeholder:text-neutral-400 focus:border-teal-600 focus:outline-none"
+                  className="flex-1 rounded border-2 border-neutral-300 px-3 py-2 text-xs font-semibold text-foreground placeholder:text-muted-foreground focus:border-brand focus:outline-none"
                   placeholder="Add custom feature..."
                   value={customFeature}
                   onChange={(e) => setCustomFeature(e.target.value)}
@@ -463,13 +479,13 @@ export function OwnerListingWizard({
                 <button
                   type="button"
                   onClick={addCustomFeature}
-                  className="rounded border-2 border-neutral-900 bg-white px-3 py-2 text-xs font-black hover:bg-neutral-100"
+                  className="rounded border-2 border-border bg-card px-3 py-2 text-xs font-black hover:bg-muted"
                 >
                   Add
                 </button>
               </div>
               {state.features.length > 0 && (
-                <p className="mt-2 text-xs font-medium text-teal-700">{state.features.length} feature{state.features.length !== 1 ? 's' : ''} selected</p>
+                <p className="mt-2 text-xs font-medium text-brand">{state.features.length} feature{state.features.length !== 1 ? 's' : ''} selected</p>
               )}
             </div>
           </div>
@@ -488,25 +504,25 @@ export function OwnerListingWizard({
                 multiple
                 className="absolute opacity-0 w-px h-px pointer-events-none"
                 disabled={uploading}
-                onChange={(e) => { handlePhotoUpload(e.target.files); e.target.value = ''; }}
+                onChange={(e) => { queuePhotos(e.target.files); e.target.value = ''; }}
               />
               <button
                 type="button"
                 disabled={uploading}
                 onClick={() => fileInputRef.current?.click()}
-                className="flex w-full cursor-pointer flex-col items-center gap-3 rounded border-2 border-dashed border-neutral-400 bg-neutral-50 px-6 py-10 transition hover:border-teal-600 hover:bg-teal-50 disabled:cursor-not-allowed disabled:opacity-60"
+                className="flex w-full cursor-pointer flex-col items-center gap-3 rounded border-2 border-dashed border-neutral-400 bg-neutral-50 px-6 py-10 transition hover:border-brand hover:bg-brand-soft disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {uploading ? (
-                  <span className="flex items-center gap-2 text-sm font-semibold text-neutral-600">
+                  <span className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
                     <LoadingSpinner className="h-5 w-5" />
                     Uploading photos...
                   </span>
                 ) : (
                   <>
-                    <Upload className="h-8 w-8 text-neutral-400" />
+                    <Upload className="h-8 w-8 text-muted-foreground" />
                     <div className="text-center">
-                      <p className="text-sm font-black text-neutral-900">Click to upload photos</p>
-                      <p className="text-xs font-medium text-neutral-500">JPG, PNG up to 10MB each. Multiple files allowed.</p>
+                      <p className="text-sm font-black text-foreground">Click to upload photos</p>
+                      <p className="text-xs font-medium text-muted-foreground">JPG or PNG. Crop each photo before it uploads.</p>
                     </div>
                   </>
                 )}
@@ -518,7 +534,7 @@ export function OwnerListingWizard({
                 <FieldLabel>{state.photos.length} photo{state.photos.length !== 1 ? 's' : ''} added</FieldLabel>
                 <div className="grid grid-cols-3 gap-2">
                   {state.photos.map((url, i) => (
-                    <div key={url} className="group relative aspect-square overflow-hidden rounded border-2 border-neutral-900 bg-neutral-100">
+                    <div key={url} className="group relative aspect-square overflow-hidden rounded border-2 border-border bg-muted">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={url} alt="" className="h-full w-full object-cover" />
                       <button
@@ -542,6 +558,18 @@ export function OwnerListingWizard({
                 </p>
               </div>
             )}
+            {pendingPhoto ? (
+              <ImageCropDialog
+                file={pendingPhoto}
+                aspect={4 / 3}
+                title="Crop car photo"
+                onCancel={() => {
+                  const next = photoQueueRef.current.shift() ?? null;
+                  setPendingPhoto(next);
+                }}
+                onCropped={(file) => void uploadCroppedPhoto(file)}
+              />
+            ) : null}
           </div>
         )}
 
@@ -561,12 +589,12 @@ export function OwnerListingWizard({
                 />
               </div>
               <div className="mt-2 flex items-center justify-between">
-                <span className="text-xs font-medium text-neutral-500">Displayed to renters:</span>
-                <span className="text-sm font-black text-teal-700">{formatRwf(state.dailyRateKigaliRwf)}/day</span>
+                <span className="text-xs font-medium text-muted-foreground">Displayed to renters:</span>
+                <span className="text-sm font-black text-brand">{formatRwf(state.dailyRateKigaliRwf)}/day</span>
               </div>
               {/* Quick presets */}
               <div className="mt-3 flex flex-wrap gap-2">
-                <p className="w-full text-xs font-semibold text-neutral-400">Quick presets:</p>
+                <p className="w-full text-xs font-semibold text-muted-foreground">Quick presets:</p>
                 {[15000, 25000, 40000, 60000, 80000, 120000].map((preset) => (
                   <button
                     key={preset}
@@ -574,8 +602,8 @@ export function OwnerListingWizard({
                     onClick={() => update('dailyRateKigaliRwf', preset)}
                     className={`rounded border-2 px-2.5 py-1 text-xs font-bold transition-all ${
                       state.dailyRateKigaliRwf === preset
-                        ? 'border-teal-600 bg-teal-600 text-white'
-                        : 'border-neutral-300 bg-white text-neutral-700 hover:border-neutral-900'
+                        ? 'border-brand bg-brand text-white'
+                        : 'border-neutral-300 bg-card text-muted-foreground hover:border-border'
                     }`}
                   >
                     {formatRwf(preset)}
@@ -595,8 +623,8 @@ export function OwnerListingWizard({
                 onChange={(e) => update('dailyRateCountrysideRwf', Number(e.target.value))}
               />
               <div className="mt-2 flex items-center justify-between">
-                <span className="text-xs font-medium text-neutral-500">Displayed to renters:</span>
-                <span className="text-sm font-black text-teal-700">{formatRwf(state.dailyRateCountrysideRwf)}/day</span>
+                <span className="text-xs font-medium text-muted-foreground">Displayed to renters:</span>
+                <span className="text-sm font-black text-brand">{formatRwf(state.dailyRateCountrysideRwf)}/day</span>
               </div>
             </div>
 
@@ -612,7 +640,7 @@ export function OwnerListingWizard({
                 onChange={(e) => update('weeklyRateRwf', e.target.value)}
                 placeholder="e.g. 150000"
               />
-              <p className="mt-1 text-xs font-medium text-neutral-500">
+              <p className="mt-1 text-xs font-medium text-muted-foreground">
                 Discount for 7+ day bookings. Leave blank to not offer.
               </p>
             </div>
@@ -629,26 +657,26 @@ export function OwnerListingWizard({
                 onChange={(e) => update('monthlyRateRwf', e.target.value)}
                 placeholder="e.g. 500000"
               />
-              <p className="mt-1 text-xs font-medium text-neutral-500">
+              <p className="mt-1 text-xs font-medium text-muted-foreground">
                 Discount for 30+ day bookings. Leave blank to not offer.
               </p>
             </div>
 
             {/* Negotiable toggle */}
-            <div className="flex items-center justify-between rounded border-2 border-neutral-900 bg-neutral-50 p-4">
+            <div className="flex items-center justify-between rounded border-2 border-border bg-neutral-50 p-4">
               <div>
-                <p className="text-sm font-black text-neutral-900">Price is negotiable</p>
-                <p className="text-xs font-medium text-neutral-500">Show a "Negotiable" badge on your listing</p>
+                <p className="text-sm font-black text-foreground">Price is negotiable</p>
+                <p className="text-xs font-medium text-muted-foreground">Show a "Negotiable" badge on your listing</p>
               </div>
               <button
                 type="button"
                 onClick={() => update('priceNegotiable', !state.priceNegotiable)}
-                className={`relative h-6 w-11 rounded-full border-2 border-neutral-900 transition-colors ${
-                  state.priceNegotiable ? 'bg-teal-600' : 'bg-neutral-200'
+                className={`relative h-6 w-11 rounded-full border-2 border-border transition-colors ${
+                  state.priceNegotiable ? 'bg-brand' : 'bg-muted'
                 }`}
               >
                 <span
-                  className={`absolute top-0.5 h-4 w-4 rounded-full border-2 border-neutral-900 bg-white transition-transform ${
+                  className={`absolute top-0.5 h-4 w-4 rounded-full border-2 border-border bg-card transition-transform ${
                     state.priceNegotiable ? 'translate-x-5' : 'translate-x-0.5'
                   }`}
                 />
@@ -656,17 +684,17 @@ export function OwnerListingWizard({
             </div>
 
             {/* Earnings estimate */}
-            <div className="rounded border-2 border-neutral-900 bg-neutral-50 p-4 shadow-brutal-xs">
-              <p className="text-xs font-black uppercase tracking-widest text-neutral-500">Potential Monthly Earnings</p>
+            <div className="rounded border-2 border-border bg-neutral-50 p-4 shadow-brutal-xs">
+              <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Potential Monthly Earnings</p>
               <div className="mt-3 grid grid-cols-3 gap-3 text-center">
                 {[
                   { label: '10 days/month', value: state.dailyRateKigaliRwf * 10 },
                   { label: '20 days/month', value: state.dailyRateKigaliRwf * 20 },
                   { label: '30 days/month', value: state.dailyRateKigaliRwf * 30 },
                 ].map(({ label, value }) => (
-                  <div key={label} className="rounded border-2 border-neutral-200 bg-white px-2 py-2">
-                    <p className="text-xs font-semibold text-neutral-500">{label}</p>
-                    <p className="text-sm font-black text-teal-700">{formatRwf(value)}</p>
+                  <div key={label} className="rounded border-2 border-border bg-card px-2 py-2">
+                    <p className="text-xs font-semibold text-muted-foreground">{label}</p>
+                    <p className="text-sm font-black text-brand">{formatRwf(value)}</p>
                   </div>
                 ))}
               </div>
@@ -680,7 +708,7 @@ export function OwnerListingWizard({
             <div>
               <FieldLabel>Pickup Location</FieldLabel>
               <div className="relative">
-                <MapPin className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
+                <MapPin className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <AddressInput
                   value={state.locationText}
                   onChange={(v) => update('locationText', v)}
@@ -689,23 +717,13 @@ export function OwnerListingWizard({
                     update('latitude', String(p.latitude));
                     update('longitude', String(p.longitude));
                   }}
-                  className="w-full rounded border-2 border-neutral-900 bg-white py-2.5 pl-10 pr-4 text-sm font-semibold text-neutral-900 placeholder:font-normal placeholder:text-neutral-400 focus:border-teal-600 focus:outline-none"
+                  className="w-full rounded border-2 border-border bg-card py-2.5 pl-10 pr-4 text-sm font-semibold text-foreground placeholder:font-normal placeholder:text-muted-foreground focus:border-brand focus:outline-none"
                   placeholder="Start typing your location..."
                 />
               </div>
               {state.latitude && state.longitude && (
-                <p className="mt-1.5 text-xs font-medium text-teal-700">
+                <p className="mt-1.5 text-xs font-medium text-brand">
                   ✓ Precise location set — renters can find you on the map
-                </p>
-              )}
-            </div>
-
-            <div className="rounded border-2 border-neutral-200 bg-neutral-50 p-4">
-              <p className="text-xs font-black uppercase tracking-widest text-neutral-500">Location Preview</p>
-              <p className="mt-2 text-sm font-semibold text-neutral-900">{state.locationText || 'No location set'}</p>
-              {state.latitude && state.longitude && (
-                <p className="mt-1 text-xs font-medium text-neutral-400">
-                  Coordinates: {Number(state.latitude).toFixed(4)}, {Number(state.longitude).toFixed(4)}
                 </p>
               )}
             </div>
@@ -722,36 +740,36 @@ export function OwnerListingWizard({
         {step === 4 && (
           <div className="space-y-5">
             {/* Summary */}
-            <div className="rounded border-2 border-neutral-900 bg-white p-4 shadow-brutal-xs">
-              <p className="text-xs font-black uppercase tracking-widest text-neutral-500">Listing Summary</p>
+            <div className="rounded-2xl border border-border bg-card p-4 shadow-soft-sm">
+              <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Listing Summary</p>
               <div className="mt-3 space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="font-medium text-neutral-600">Title</span>
-                  <span className="font-bold text-neutral-900">{state.title || '—'}</span>
+                  <span className="font-medium text-muted-foreground">Title</span>
+                  <span className="font-bold text-foreground">{state.title || '—'}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="font-medium text-neutral-600">Vehicle</span>
-                  <span className="font-bold text-neutral-900">{state.year} {state.brand} {state.model}</span>
+                  <span className="font-medium text-muted-foreground">Vehicle</span>
+                  <span className="font-bold text-foreground">{state.year} {state.brand} {state.model}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="font-medium text-neutral-600">Type</span>
-                  <span className="font-bold text-neutral-900 capitalize">{state.vehicleType} · {state.transmission}</span>
+                  <span className="font-medium text-muted-foreground">Type</span>
+                  <span className="font-bold text-foreground capitalize">{state.vehicleType} · {state.transmission}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="font-medium text-neutral-600">Seats</span>
-                  <span className="font-bold text-neutral-900">{state.seats}</span>
+                  <span className="font-medium text-muted-foreground">Seats</span>
+                  <span className="font-bold text-foreground">{state.seats}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="font-medium text-neutral-600">Kigali rate</span>
-                  <span className="font-black text-teal-700">{formatRwf(state.dailyRateKigaliRwf)}/day</span>
+                  <span className="font-medium text-muted-foreground">Kigali rate</span>
+                  <span className="font-black text-brand">{formatRwf(state.dailyRateKigaliRwf)}/day</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="font-medium text-neutral-600">Photos</span>
-                  <span className="font-bold text-neutral-900">{state.photos.length} added</span>
+                  <span className="font-medium text-muted-foreground">Photos</span>
+                  <span className="font-bold text-foreground">{state.photos.length} added</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="font-medium text-neutral-600">Features</span>
-                  <span className="font-bold text-neutral-900">{state.features.length} selected</span>
+                  <span className="font-medium text-muted-foreground">Features</span>
+                  <span className="font-bold text-foreground">{state.features.length} selected</span>
                 </div>
               </div>
             </div>
@@ -763,21 +781,21 @@ export function OwnerListingWizard({
               disabled={!canPublish}
               className={`w-full rounded border-2 p-4 text-left transition-all ${
                 !canPublish
-                  ? 'cursor-not-allowed border-neutral-200 bg-neutral-50 opacity-60'
+                  ? 'cursor-not-allowed border-border bg-neutral-50 opacity-60'
                   : publishNow
-                    ? 'border-teal-600 bg-teal-50 shadow-[2px_2px_0px_0px_rgba(13,148,136,0.4)]'
-                    : 'border-neutral-300 bg-white hover:border-neutral-900'
+                    ? 'border-brand bg-brand-soft shadow-[2px_2px_0px_0px_rgba(14,165,233,0.35)]'
+                    : 'border-neutral-300 bg-card hover:border-border'
               }`}
             >
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-black text-neutral-900">Publish immediately</p>
-                  <p className="text-xs font-medium text-neutral-500">Make this listing live right after saving</p>
+                  <p className="text-sm font-black text-foreground">Publish immediately</p>
+                  <p className="text-xs font-medium text-muted-foreground">Make this listing live right after saving</p>
                 </div>
                 <div className={`h-6 w-6 rounded-full border-2 flex items-center justify-center transition-all ${
-                  publishNow ? 'border-teal-600 bg-teal-600' : 'border-neutral-300 bg-white'
+                  publishNow ? 'border-brand bg-brand' : 'border-neutral-300 bg-card'
                 }`}>
-                  {publishNow && <Check className="h-3.5 w-3.5 text-white" />}
+                  {publishNow && <Check className="h-3.5 w-3.5 text-foreground" />}
                 </div>
               </div>
             </button>
@@ -791,8 +809,8 @@ export function OwnerListingWizard({
             )}
 
             {!publishNow && (
-              <div className="rounded border-2 border-neutral-200 bg-neutral-50 p-3">
-                <p className="text-xs font-semibold text-neutral-600">
+              <div className="rounded border-2 border-border bg-neutral-50 p-3">
+                <p className="text-xs font-semibold text-muted-foreground">
                   Saving as draft. You can publish anytime from your dashboard.
                 </p>
               </div>
@@ -810,7 +828,7 @@ export function OwnerListingWizard({
             type="button"
             onClick={() => setStep((s) => Math.max(0, s - 1))}
             disabled={step === 0 || busy}
-            className="flex items-center gap-1 rounded border-2 border-neutral-900 bg-white px-4 py-2 text-sm font-black text-neutral-900 shadow-brutal-xs transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none disabled:opacity-40"
+            className="flex items-center gap-1 rounded border-2 border-border bg-card px-4 py-2 text-sm font-black text-foreground shadow-brutal-xs transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none disabled:opacity-40"
           >
             <ChevronLeft className="h-4 w-4" />
             {t('app.listingWizard.back')}
@@ -821,7 +839,7 @@ export function OwnerListingWizard({
               type="button"
               onClick={() => setStep((s) => Math.min(4, s + 1))}
               disabled={busy}
-              className="flex items-center gap-1 rounded border-2 border-teal-800 bg-teal-600 px-4 py-2 text-sm font-black text-white shadow-brutal-teal-sm transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none"
+              className="flex items-center gap-1 rounded border-2 border-brand-strong bg-brand px-4 py-2 text-sm font-black text-white shadow-brutal-sky-sm transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none"
             >
               {t('app.listingWizard.next')}
               <ChevronRight className="h-4 w-4" />
@@ -831,7 +849,7 @@ export function OwnerListingWizard({
               type="button"
               onClick={handleSubmit}
               disabled={busy}
-              className="rounded border-2 border-teal-800 bg-teal-600 px-5 py-2 text-sm font-black text-white shadow-brutal-teal-sm transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none"
+              className="rounded border-2 border-brand-strong bg-brand px-5 py-2 text-sm font-black text-white shadow-brutal-sky-sm transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none"
             >
               {busy ? (
                 <span className="flex items-center gap-2"><LoadingSpinner className="h-4 w-4" />{t('app.listingWizard.saving')}</span>

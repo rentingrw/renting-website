@@ -83,9 +83,30 @@ export type AdminBookingItem = {
   startsAt: string;
   endsAt: string;
   createdAt: string;
-  ownerOrDriver: { id: string; fullName: string };
-  renter: { id: string; fullName: string };
+  pickupAddress?: string | null;
+  notes?: string | null;
+  renterPhone?: string | null;
+  isInstant?: boolean;
+  fulfillment?: 'instant' | 'standard';
+  ownerOrDriver: { id: string; fullName: string; phone?: string | null; whatsapp?: string | null };
+  renter: { id: string; fullName: string; phone?: string | null };
   summary: string;
+  service?: string;
+};
+
+export type DeskCarAlternative = {
+  id: string;
+  title: string;
+  locationText: string;
+  vehicleType: string;
+  owner: { id: string; fullName: string; phone: string | null };
+};
+
+export type DeskDriverAlternative = {
+  id: string;
+  userId: string;
+  primaryCity: string;
+  user: { id: string; fullName: string; phone: string | null };
 };
 
 export type AdminDisputeItem = {
@@ -312,6 +333,68 @@ export async function deactivateSubscription(token: string, subscriptionId: stri
   );
 }
 
+export type AdminPromoCode = {
+  id: string;
+  code: string;
+  kind: 'hoster' | 'driver' | 'taxi' | null;
+  discountPercent: number | null;
+  discountRwf: number | null;
+  maxRedemptions: number | null;
+  redemptionCount: number;
+  startsAt: string | null;
+  endsAt: string | null;
+  isActive: boolean;
+  createdAt: string;
+};
+
+export async function listAdminPromoCodes(token: string) {
+  return authRequest<AdminPromoCode[]>(token, '/admin/promo-codes', undefined, 'Failed to load promo codes.');
+}
+
+export async function createAdminPromoCode(
+  token: string,
+  payload: {
+    code: string;
+    kind?: 'hoster' | 'driver' | 'taxi';
+    discountPercent?: number;
+    discountRwf?: number;
+    maxRedemptions?: number;
+    isActive?: boolean;
+  },
+) {
+  return authRequest<AdminPromoCode>(
+    token,
+    '/admin/promo-codes',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    },
+    'Failed to create promo code.',
+  );
+}
+
+export async function updateAdminPromoCode(
+  token: string,
+  id: string,
+  payload: { isActive?: boolean },
+) {
+  return authRequest<AdminPromoCode>(
+    token,
+    `/admin/promo-codes/${id}`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    },
+    'Failed to update promo code.',
+  );
+}
+
+export async function deleteAdminPromoCode(token: string, id: string) {
+  await authRequest<void>(token, `/admin/promo-codes/${id}`, { method: 'DELETE' }, 'Failed to delete promo code.');
+}
+
 export type ListBookingsFilters = {
   type?: 'car' | 'driver' | 'all';
   status?: string;
@@ -371,6 +454,51 @@ export async function cancelAdminBooking(token: string, type: 'car' | 'driver', 
       body: JSON.stringify({ reason }),
     },
     'Failed to cancel booking.',
+  );
+}
+
+export async function confirmAdminDeskBooking(token: string, type: 'car' | 'driver', id: string) {
+  await authRequest<void>(
+    token,
+    `/admin/bookings/${type}/${id}/confirm`,
+    { method: 'POST' },
+    'Failed to confirm booking.',
+  );
+}
+
+export async function rejectAdminDeskBooking(token: string, type: 'car' | 'driver', id: string) {
+  await authRequest<void>(
+    token,
+    `/admin/bookings/${type}/${id}/reject`,
+    { method: 'POST' },
+    'Failed to reject booking.',
+  );
+}
+
+export async function listAdminDeskAlternatives(token: string, type: 'car' | 'driver', id: string) {
+  return authRequest<DeskCarAlternative[] | DeskDriverAlternative[]>(
+    token,
+    `/admin/bookings/${type}/${id}/alternatives`,
+    undefined,
+    'Failed to load alternatives.',
+  );
+}
+
+export async function tryNextAdminDeskBooking(
+  token: string,
+  type: 'car' | 'driver',
+  id: string,
+  payload: { listingId?: string; driverId?: string },
+) {
+  await authRequest<void>(
+    token,
+    `/admin/bookings/${type}/${id}/try-next`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    },
+    'Failed to move booking to the next provider.',
   );
 }
 

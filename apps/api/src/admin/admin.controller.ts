@@ -20,6 +20,7 @@ import { CarsService } from '../cars/cars.service';
 import { AdjustTrustScoreDto } from './dto/adjust-trust-score.dto';
 import { AdminNoteDto } from './dto/admin-note.dto';
 import { CancelBookingAdminDto } from './dto/cancel-booking-admin.dto';
+import { TryNextBookingDto } from './dto/try-next-booking.dto';
 import { ListBookingsQueryDto } from './dto/list-bookings.query.dto';
 import { ListDisputesQueryDto } from './dto/list-disputes.query.dto';
 import { ListSubscriptionsQueryDto } from './dto/list-subscriptions.query.dto';
@@ -29,6 +30,7 @@ import { RejectListingDto } from './dto/reject-listing.dto';
 import { ListDriversQueryDto } from './dto/list-drivers.query.dto';
 import { AdminCreateCarDto } from './dto/admin-create-car.dto';
 import { AdminCreateDriverDto } from './dto/admin-create-driver.dto';
+import { CreatePromoCodeDto, UpdatePromoCodeDto } from './dto/promo-code.dto';
 
 @ApiTags('Admin')
 @ApiBearerAuth()
@@ -201,6 +203,30 @@ export class AdminController {
     return this.adminService.deactivateSubscription(subscriptionId, payload);
   }
 
+  @Get('promo-codes')
+  @ApiOperation({ summary: 'List promo codes' })
+  listPromoCodes() {
+    return this.adminService.listPromoCodes();
+  }
+
+  @Post('promo-codes')
+  @ApiOperation({ summary: 'Create a promo code' })
+  createPromoCode(@Body() payload: CreatePromoCodeDto) {
+    return this.adminService.createPromoCode(payload);
+  }
+
+  @Patch('promo-codes/:id')
+  @ApiOperation({ summary: 'Update a promo code' })
+  updatePromoCode(@Param('id') id: string, @Body() payload: UpdatePromoCodeDto) {
+    return this.adminService.updatePromoCode(id, payload);
+  }
+
+  @Delete('promo-codes/:id')
+  @ApiOperation({ summary: 'Delete a promo code' })
+  deletePromoCode(@Param('id') id: string) {
+    return this.adminService.deletePromoCode(id);
+  }
+
   @Get('disputes')
   @ApiOperation({ summary: 'List all disputes with optional filters and pagination' })
   listDisputes(@Query() query: ListDisputesQueryDto) {
@@ -251,6 +277,34 @@ export class AdminController {
     @Body() payload: CancelBookingAdminDto,
   ) {
     return this.adminService.cancelBooking(type, bookingId, payload);
+  }
+
+  @Post('bookings/:type/:id/confirm')
+  @ApiOperation({ summary: 'Confirm a Standard booking after calling the provider' })
+  confirmDeskBooking(@Param('type') type: 'car' | 'driver', @Param('id') bookingId: string) {
+    return this.adminService.confirmDeskBooking(type, bookingId);
+  }
+
+  @Post('bookings/:type/:id/reject')
+  @ApiOperation({ summary: 'Reject a Standard booking request' })
+  rejectDeskBooking(@Param('type') type: 'car' | 'driver', @Param('id') bookingId: string) {
+    return this.adminService.rejectDeskBooking(type, bookingId);
+  }
+
+  @Get('bookings/:type/:id/alternatives')
+  @ApiOperation({ summary: 'List alternative listings or drivers for Try next' })
+  listDeskAlternatives(@Param('type') type: 'car' | 'driver', @Param('id') bookingId: string) {
+    return this.adminService.listDeskAlternatives(type, bookingId);
+  }
+
+  @Post('bookings/:type/:id/try-next')
+  @ApiOperation({ summary: 'Decline the current provider and open the same request on another' })
+  tryNextDeskBooking(
+    @Param('type') type: 'car' | 'driver',
+    @Param('id') bookingId: string,
+    @Body() payload: TryNextBookingDto,
+  ) {
+    return this.adminService.tryNextDeskBooking(type, bookingId, payload);
   }
 
   // ── Site Banners ────────────────────────────────────────────────────────────

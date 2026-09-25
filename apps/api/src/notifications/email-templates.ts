@@ -229,22 +229,53 @@ export function bookingConfirmedEmailHtml(
   carTitle: string,
   startDate: Date,
   endDate: Date,
+  providerContact?: string,
 ): string {
   const fmt = (d: Date) => d.toLocaleDateString('en-RW', { dateStyle: 'long' });
   const body = `
-    ${heading('Booking Confirmed!')}
-    ${paragraph(`Hi ${renterName}, your booking has been confirmed by the car owner.`)}
+    ${heading('Booking Confirmed')}
+    ${paragraph(`Hi ${renterName}, your booking is confirmed.`)}
     <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:20px;">
       <tbody>
-        ${infoBox('Car', carTitle)}
+        ${infoBox('Service', carTitle)}
         ${infoBox('From', fmt(startDate))}
         ${infoBox('To', fmt(endDate))}
+        ${providerContact ? infoBox('Provider', providerContact) : ''}
       </tbody>
     </table>
-    ${paragraph('Coordinate pickup details with the owner through the in-app chat.')}
+    ${paragraph('There is no in-app chat. Use the phone or WhatsApp number above to coordinate pickup.')}
     ${button('View Booking', `${BASE_URL}/app`)}
   `;
   return layout('Booking Confirmed — renting.rw', body);
+}
+
+export function bookingDeskRequestEmailHtml(
+  title: string,
+  renterName: string,
+  renterPhone: string,
+  startDate: Date,
+  endDate: Date,
+  pickup: string,
+  notes?: string | null,
+): string {
+  const fmt = (d: Date) => d.toLocaleString('en-RW', { dateStyle: 'medium', timeStyle: 'short' });
+  const body = `
+    ${heading('New booking desk request')}
+    ${paragraph('A Standard booking is waiting. Call the provider, then confirm, reject, or try the next listing.')}
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:20px;">
+      <tbody>
+        ${infoBox('Service', title)}
+        ${infoBox('Client', renterName)}
+        ${infoBox('Client phone', renterPhone)}
+        ${infoBox('From', fmt(startDate))}
+        ${infoBox('To', fmt(endDate))}
+        ${infoBox('Pickup', pickup)}
+        ${notes ? infoBox('Special request', notes) : ''}
+      </tbody>
+    </table>
+    ${button('Open booking desk', `${process.env.NEXT_PUBLIC_ADMIN_URL ?? 'http://localhost:3002'}/en/bookings`)}
+  `;
+  return layout('Booking desk request — renting.rw', body);
 }
 
 export function bookingDeclinedEmailHtml(renterName: string, carTitle: string): string {
