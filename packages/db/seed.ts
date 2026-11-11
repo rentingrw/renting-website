@@ -108,7 +108,7 @@ async function main() {
       },
     });
 
-    await tx.carOwnerProfile.create({
+    const ownerTwoProfile = await tx.carOwnerProfile.create({
       data: {
         userId: ownerTwo.id,
         nationalIdNumber: '1199010098765432',
@@ -130,8 +130,13 @@ async function main() {
           seats: 5,
           transmission: 'Automatic',
           fuelType: 'Petrol',
-          dailyRateKigaliRwf: 85000,
-          dailyRateCountrysideRwf: 95000,
+          listingCity: 'Kigali',
+          dailyRateInCityRwf: 85000,
+          dailyRateOutsideCityRwf: 95000,
+          weeklyRateInCityRwf: 510000,
+          weeklyRateOutsideCityRwf: 570000,
+          monthlyRateInCityRwf: 2380000,
+          monthlyRateOutsideCityRwf: 2660000,
           locationText: 'KG 7 Ave, Kacyiru, Kigali',
           photos: [STOCK_IMAGES.cars.suv],
           features: ['AC', 'Bluetooth', 'Backup Camera'],
@@ -152,8 +157,13 @@ async function main() {
           seats: 5,
           transmission: 'Automatic',
           fuelType: 'Petrol',
-          dailyRateKigaliRwf: 70000,
-          dailyRateCountrysideRwf: 80000,
+          listingCity: 'Kigali',
+          dailyRateInCityRwf: 70000,
+          dailyRateOutsideCityRwf: 80000,
+          weeklyRateInCityRwf: 420000,
+          weeklyRateOutsideCityRwf: 480000,
+          monthlyRateInCityRwf: 1960000,
+          monthlyRateOutsideCityRwf: 2240000,
           locationText: 'KN 5 Rd, Kimihurura, Kigali',
           photos: [STOCK_IMAGES.cars.suv],
           features: ['AC', 'GPS'],
@@ -174,8 +184,13 @@ async function main() {
           seats: 5,
           transmission: 'Automatic',
           fuelType: 'Petrol',
-          dailyRateKigaliRwf: 55000,
-          dailyRateCountrysideRwf: 65000,
+          listingCity: 'Kigali',
+          dailyRateInCityRwf: 55000,
+          dailyRateOutsideCityRwf: 65000,
+          weeklyRateInCityRwf: 330000,
+          weeklyRateOutsideCityRwf: 390000,
+          monthlyRateInCityRwf: 1540000,
+          monthlyRateOutsideCityRwf: 1820000,
           locationText: 'KG 9 Ave, Nyarutarama, Kigali',
           photos: [STOCK_IMAGES.cars.sedan],
           features: ['AC', 'USB Charging'],
@@ -183,6 +198,7 @@ async function main() {
       },
       });
 
+      const renewsAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
       await tx.subscription.create({
       data: {
         userId: ownerOne.id,
@@ -193,7 +209,21 @@ async function main() {
         amountRwf: 15000,
         paymentMethod: 'momo',
         startsAt: new Date(),
-        renewsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        renewsAt,
+      },
+      });
+
+      await tx.subscription.create({
+      data: {
+        userId: ownerTwo.id,
+        carOwnerProfileId: ownerTwoProfile.id,
+        kind: 'hoster',
+        tier: 'premium',
+        status: 'active',
+        amountRwf: 15000,
+        paymentMethod: 'momo',
+        startsAt: new Date(),
+        renewsAt,
       },
       });
 

@@ -4,6 +4,7 @@ import { AppHeader } from '@/components/web/app-header';
 import { SiteFooter } from '@/components/web/site-footer';
 import { IllustrationAbout, IllustrationCarRental } from '@/components/web/illustrations';
 import { isSupportedLocale, routing, type SupportedLocale } from '@/i18n/routing';
+import { SITE_EMAIL, SITE_INSTAGRAM_URL, SITE_PHONE_DISPLAY, SITE_PHONE_TEL, SITE_WHATSAPP_URL } from '@/lib/site-contact';
 import { Car, MapPin, ShieldCheck, Star, Users } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
@@ -47,8 +48,8 @@ export default function AboutPage({ params }: { params: Promise<{ locale: string
               an airport transfer, or a full week across the country.
             </p>
             <p className="mt-4 font-medium leading-relaxed text-muted-foreground">
-              Listings go live after a subscription. Drivers and hosters earn a trust score from
-              completed trips and reviews. Every booking is protected by that system.
+              Hosts and drivers earn a trust score from completed trips and reviews. Every booking
+              is protected by that system.
             </p>
           </div>
           <div>
@@ -75,7 +76,7 @@ export default function AboutPage({ params }: { params: Promise<{ locale: string
               {
                 icon: <ShieldCheck className="h-8 w-8 text-brand" />,
                 title: 'Trust & Safety',
-                desc: 'Hosters and drivers subscribe to go live. Extra Premium is the verified badge. Our trust score keeps standards high.',
+                desc: 'Public trust scores and reviews keep standards high on the marketplace.',
               },
               {
                 icon: <Star className="h-8 w-8 text-brand" />,
@@ -122,12 +123,20 @@ export default function AboutPage({ params }: { params: Promise<{ locale: string
         <p className="font-medium text-muted-foreground">
           CARIRWA LTD — Kigali, Rwanda
           <br />
-          <a href="tel:+250788781648" className="font-black text-brand hover:underline">
-            0788 781 648
+          <a href={SITE_PHONE_TEL} className="font-black text-brand hover:underline">
+            {SITE_PHONE_DISPLAY}
           </a>
           {' · '}
-          <a href="mailto:renting.rw@gmail.com" className="font-black text-brand hover:underline">
-            renting.rw@gmail.com
+          <a href={SITE_WHATSAPP_URL} target="_blank" rel="noreferrer" className="font-black text-brand hover:underline">
+            WhatsApp
+          </a>
+          {' · '}
+          <a href={`mailto:${SITE_EMAIL}`} className="font-black text-brand hover:underline">
+            {SITE_EMAIL}
+          </a>
+          {' · '}
+          <a href={SITE_INSTAGRAM_URL} target="_blank" rel="noreferrer" className="font-black text-brand hover:underline">
+            Instagram
           </a>
         </p>
       </section>

@@ -10,9 +10,10 @@ import {
   type FavoriteItem, type DriverFavoriteItem,
 } from '@/lib/api';
 import { Car, Heart, MapPin, Trash2, User } from 'lucide-react';
-import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+
+import { MediaImage } from '@/components/web/media-image';
 
 type FavoritesPageProps = {
   params: Promise<{ locale: string }>;
@@ -211,7 +212,7 @@ export default function FavoritesPage({ params }: FavoritesPageProps) {
                     <Link href={`/${locale}/cars/${car.id}`} className="block">
                       <div className="relative aspect-[16/10] overflow-hidden border-b-2 border-border bg-muted">
                         {photo ? (
-                          <Image src={photo} alt={car.title} fill sizes="(max-width: 640px) 100vw, 50vw" className="object-cover" />
+                          <MediaImage src={photo} alt={car.title} fill sizes="(max-width: 640px) 100vw, 50vw" className="object-cover" />
                         ) : (
                           <div className="flex h-full items-center justify-center">
                             <Car className="h-10 w-10 text-neutral-300" />

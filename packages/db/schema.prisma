@@ -28,10 +28,19 @@ enum ListingStatus {
   draft
   pending_approval
   active
+  booked
+  inactive
   paused
   rejected
   deleted
   archived
+}
+
+enum DriverProfileStatus {
+  draft
+  pending_approval
+  approved
+  rejected
 }
 
 enum BookingStatus {
@@ -187,9 +196,15 @@ model UserRole {
   @@map("user_roles")
 }
 
+enum CarHostType {
+  individual
+  company
+}
+
 model CarOwnerProfile {
   id               String         @id @default(uuid()) @db.Uuid
   userId           String         @unique @map("user_id") @db.Uuid
+  hostType         CarHostType?   @map("host_type")
   companyName      String?        @map("company_name")
   nationalIdNumber String?        @map("national_id_number")
   tinNumber        String?        @map("tin_number")
@@ -213,6 +228,7 @@ model DriverProfile {
   dailyRateRwf         Decimal          @map("daily_rate_rwf") @db.Decimal(12, 2)
   hourlyRateRwf        Decimal?         @map("hourly_rate_rwf") @db.Decimal(12, 2)
   weeklyRateRwf        Decimal?         @map("weekly_rate_rwf") @db.Decimal(12, 2)
+  monthlyRateRwf       Decimal?         @map("monthly_rate_rwf") @db.Decimal(12, 2)
   primaryCity          String           @map("primary_city")
   primaryCityLocation  Unsupported("geography(Point, 4326)")? @map("primary_city_location")
   languages            Language[]
@@ -225,6 +241,10 @@ model DriverProfile {
   addressText          String?          @map("address_text")
   idDocumentUrl        String?          @map("id_document_url")
   licenseDocumentUrl   String?          @map("license_document_url")
+  status               DriverProfileStatus @default(draft)
+  rejectionReason      String?          @map("rejection_reason")
+  submittedAt          DateTime?        @map("submitted_at")
+  reviewedAt           DateTime?        @map("reviewed_at")
   availabilityCalendar Json             @map("availability_calendar")
   rating               Decimal?         @db.Decimal(3, 2)
   completedTrips       Int              @default(0) @map("completed_trips")
@@ -233,6 +253,7 @@ model DriverProfile {
   user                 User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   driverFavorites      DriverFavorite[]
 
+  @@index([status])
   @@map("driver_profiles")
 }
 
@@ -249,10 +270,15 @@ model CarListing {
   seats          Int
   transmission   String?
   fuelType       String?                                @map("fuel_type")
-  dailyRateKigaliRwf       Int                                    @map("daily_rate_kigali_rwf")
-  dailyRateCountrysideRwf  Int                                    @map("daily_rate_countryside_rwf")
-  weeklyRateRwf            Int?                                   @map("weekly_rate_rwf")
-  monthlyRateRwf           Int?                                   @map("monthly_rate_rwf")
+  plateNumber    String?                                @map("plate_number")
+  color          String?
+  listingCity    String                                 @map("listing_city")
+  dailyRateInCityRwf         Int                          @map("daily_rate_in_city_rwf")
+  dailyRateOutsideCityRwf    Int                          @map("daily_rate_outside_city_rwf")
+  weeklyRateInCityRwf        Int                          @map("weekly_rate_in_city_rwf")
+  weeklyRateOutsideCityRwf   Int                          @map("weekly_rate_outside_city_rwf")
+  monthlyRateInCityRwf       Int                          @map("monthly_rate_in_city_rwf")
+  monthlyRateOutsideCityRwf  Int                          @map("monthly_rate_outside_city_rwf")
   priceNegotiable          Boolean                                @default(false) @map("price_negotiable")
   locationText   String                                 @map("location_text")
   pickupLocation Unsupported("geography(Point, 4326)")? @map("pickup_location")
@@ -484,6 +510,9 @@ enum TaxiDriverStatus {
   pending
   approved
   rejected
+  active
+  inactive
+  booked
 }
 
 model TaxiDriver {
@@ -494,6 +523,10 @@ model TaxiDriver {
   whatsapp        String?
   email           String?
   city            String
+  workLocationText String?          @map("work_location_text")
+  languages       String[]         @default([])
+  contactPhoneEnabled Boolean        @default(true) @map("contact_phone_enabled")
+  contactWhatsappEnabled Boolean     @default(true) @map("contact_whatsapp_enabled")
   seats           Int
   details         String?
   carModel        String?          @map("car_model")
@@ -503,7 +536,7 @@ model TaxiDriver {
   photos          String[]         @default([])
   photoUrl        String?          @map("photo_url")
   profilePhotoUrl String?          @map("profile_photo_url")
-  status          TaxiDriverStatus @default(pending)
+  status          TaxiDriverStatus @default(active)
   createdAt       DateTime         @default(now()) @map("created_at")
   updatedAt       DateTime         @updatedAt @map("updated_at")
   user            User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
@@ -521,4 +554,18 @@ model SiteBanner {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("site_banners")
+}
+
+model JobOpening {
+  id             String   @id @default(uuid()) @db.Uuid
+  title          String
+  employmentType String   @map("employment_type")
+  location       String
+  description    String
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@index([isActive])
+  @@map("job_openings")
 }

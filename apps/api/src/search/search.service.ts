@@ -20,8 +20,10 @@ interface SearchCarRow {
   seats: number;
   transmission: string | null;
   fuelType: string | null;
-  dailyRateKigaliRwf: number;
-  dailyRateCountrysideRwf: number;
+  color: string | null;
+  dailyRateInCityRwf: number;
+  dailyRateOutsideCityRwf: number;
+  listingCity: string;
   locationText: string;
   photos: string[];
   features: string[];
@@ -162,10 +164,10 @@ export class SearchService {
       conditions.push(Prisma.sql`lower(cl.model) = lower(${query.model})`);
     }
     if (query.priceMin !== undefined) {
-      conditions.push(Prisma.sql`cl.daily_rate_kigali_rwf >= ${query.priceMin}`);
+      conditions.push(Prisma.sql`cl.daily_rate_in_city_rwf >= ${query.priceMin}`);
     }
     if (query.priceMax !== undefined) {
-      conditions.push(Prisma.sql`cl.daily_rate_kigali_rwf <= ${query.priceMax}`);
+      conditions.push(Prisma.sql`cl.daily_rate_in_city_rwf <= ${query.priceMax}`);
     }
     if (query.yearMin !== undefined) {
       conditions.push(Prisma.sql`cl.year >= ${query.yearMin}`);
@@ -212,8 +214,10 @@ export class SearchService {
         cl.seats,
         cl.transmission,
         cl.fuel_type AS "fuelType",
-        cl.daily_rate_kigali_rwf AS "dailyRateKigaliRwf",
-        cl.daily_rate_countryside_rwf AS "dailyRateCountrysideRwf",
+        cl.color AS "color",
+        cl.daily_rate_in_city_rwf AS "dailyRateInCityRwf",
+        cl.daily_rate_outside_city_rwf AS "dailyRateOutsideCityRwf",
+        cl.listing_city AS "listingCity",
         cl.location_text AS "locationText",
         cl.photos,
         cl.features,
@@ -245,7 +249,7 @@ export class SearchService {
         ) AS "isBookedNow",
         (live_sub.tier = 'business'::"SubscriptionTier") AS "verified"
       FROM car_listings cl
-      INNER JOIN LATERAL (
+      LEFT JOIN LATERAL (
         SELECT s.tier
         FROM subscriptions s
         WHERE s.user_id = cl.owner_id
@@ -259,7 +263,7 @@ export class SearchService {
       ORDER BY
         ${this.orderByPriceOrFallback(
           query.sort,
-          Prisma.sql`cl.daily_rate_kigali_rwf`,
+          Prisma.sql`cl.daily_rate_in_city_rwf`,
           query.sort === SearchSort.score || query.sort === SearchSort.rating
             ? Prisma.sql`"ownerTrustScore" DESC NULLS LAST,`
             : Prisma.sql`CASE WHEN live_sub.tier IN ('premium'::"SubscriptionTier", 'business'::"SubscriptionTier") THEN 0 ELSE 1 END,`,
@@ -284,6 +288,7 @@ export class SearchService {
       seats: row.seats,
       transmission: row.transmission,
       fuelType: row.fuelType,
+      color: row.color,
       locationText: row.locationText,
       photos: row.photos,
       features: row.features,
@@ -298,15 +303,16 @@ export class SearchService {
       verified: Boolean(row.verified),
       ...(includeExactRates
         ? {
-            dailyRateKigaliRwf: row.dailyRateKigaliRwf,
-            dailyRateCountrysideRwf: row.dailyRateCountrysideRwf,
+            dailyRateInCityRwf: row.dailyRateInCityRwf,
+            dailyRateOutsideCityRwf: row.dailyRateOutsideCityRwf,
           }
         : {
             approximateDailyRateRangeRwf: {
-              kigali: this.getApproximatePriceRange(row.dailyRateKigaliRwf),
-              countryside: this.getApproximatePriceRange(row.dailyRateCountrysideRwf),
+              inCity: this.getApproximatePriceRange(row.dailyRateInCityRwf),
+              outsideCity: this.getApproximatePriceRange(row.dailyRateOutsideCityRwf),
             },
           }),
+      listingCity: row.listingCity,
     }));
   }
 
@@ -378,6 +384,8 @@ export class SearchService {
       conditions.push(Prisma.sql`dp.years_experience >= ${query.experienceMin}`);
     }
 
+    conditions.push(Prisma.sql`dp.status = 'approved'::"DriverProfileStatus"`);
+
     if (query.availableNow) {
       conditions.push(Prisma.sql`
         NOT EXISTS (
@@ -440,11 +448,6 @@ export class SearchService {
         ) AS "isBookedNow"
       FROM driver_profiles dp
       INNER JOIN users u ON u.id = dp.user_id
-      INNER JOIN subscriptions s
-        ON s.user_id = dp.user_id
-        AND s.kind = 'driver'::"SubscriptionKind"
-        AND s.status IN ('active'::"SubscriptionStatus", 'cancelled'::"SubscriptionStatus")
-        AND (s.renews_at IS NULL OR s.renews_at > NOW())
       WHERE ${whereClause}
       ORDER BY
         ${this.orderByPriceOrFallback(
@@ -509,12 +512,6 @@ export class SearchService {
   ) {
     const limit = query.limit ?? 20;
     const offset = query.offset ?? 0;
-    const now = new Date();
-    const liveTaxiSubs = await prisma.subscription.findMany({
-      where: liveSubscriptionWhere(SubscriptionKind.taxi, now),
-      select: { userId: true },
-    });
-    const liveUserIds = liveTaxiSubs.map((s) => s.userId);
     const needle = query.query?.trim().toLowerCase();
     const locationNeedle = query.location?.trim().toLowerCase();
     const hasGeo = coordinates.latitude !== undefined && coordinates.longitude !== undefined;
@@ -522,8 +519,7 @@ export class SearchService {
 
     const rows = await prisma.taxiDriver.findMany({
       where: {
-        status: TaxiDriverStatus.approved,
-        OR: [{ userId: null }, { userId: { in: liveUserIds } }],
+        status: TaxiDriverStatus.active,
       },
       orderBy: { createdAt: 'desc' },
       select: {
@@ -535,6 +531,12 @@ export class SearchService {
         details: true,
         carModel: true,
         vehicleType: true,
+        features: true,
+        languages: true,
+        workLocationText: true,
+        contactPhoneEnabled: true,
+        contactWhatsappEnabled: true,
+        whatsapp: true,
         photos: true,
         photoUrl: true,
         profilePhotoUrl: true,

@@ -9,6 +9,9 @@ export type AdminOverview = {
     activeBookingsToday: number;
     openDisputes: number;
     monthlySubscriptionRevenueRwf: number;
+    pendingDeskCarBookings: number;
+    pendingDeskDriverBookings: number;
+    pendingDeskBookings: number;
   };
   trustScoreDistribution: Record<string, number>;
   openDisputes: Array<{
@@ -541,22 +544,73 @@ export async function escalateDispute(token: string, disputeId: string) {
   );
 }
 
+export type AdminListingOwner = {
+  id: string;
+  fullName: string;
+  email: string;
+  phone: string | null;
+  avatarUrl: string | null;
+  hostType: 'individual' | 'company' | null;
+  companyName: string | null;
+  workAddress: string | null;
+  contactPhone: string | null;
+};
+
 export type AdminListingItem = {
   id: string;
+  ownerId: string;
   title: string;
+  description: string | null;
+  vehicleType: string;
+  serviceType: string;
   brand: string;
   model: string;
   year: number;
-  vehicleType: string;
-  serviceType: string;
-  status: string;
+  seats: number;
+  transmission: string | null;
+  fuelType: string | null;
+  plateNumber: string | null;
+  color: string | null;
+  listingCity: string;
   locationText: string;
-  dailyRateKigaliRwf: number;
-  dailyRateCountrysideRwf: number;
+  dailyRateInCityRwf: number;
+  dailyRateOutsideCityRwf: number;
+  weeklyRateInCityRwf: number;
+  weeklyRateOutsideCityRwf: number;
+  monthlyRateInCityRwf: number;
+  monthlyRateOutsideCityRwf: number;
+  priceNegotiable: boolean;
   photos: string[];
+  features: string[];
+  status: string;
   createdAt: string;
-  owner: { id: string; fullName: string; email: string };
+  updatedAt: string;
+  owner: AdminListingOwner;
 };
+
+type LegacyAdminListingFields = {
+  dailyRateKigaliRwf?: number;
+  dailyRateCountrysideRwf?: number;
+  weeklyRateKigaliRwf?: number;
+  weeklyRateCountrysideRwf?: number;
+  monthlyRateKigaliRwf?: number;
+  monthlyRateCountrysideRwf?: number;
+};
+
+function normalizeAdminListing(raw: AdminListingItem & LegacyAdminListingFields): AdminListingItem {
+  const dailyIn = raw.dailyRateInCityRwf ?? raw.dailyRateKigaliRwf;
+  const dailyOut = raw.dailyRateOutsideCityRwf ?? raw.dailyRateCountrysideRwf;
+  return {
+    ...raw,
+    listingCity: raw.listingCity?.trim() || '—',
+    dailyRateInCityRwf: dailyIn ?? 0,
+    dailyRateOutsideCityRwf: dailyOut ?? 0,
+    weeklyRateInCityRwf: raw.weeklyRateInCityRwf ?? raw.weeklyRateKigaliRwf ?? dailyIn ?? 0,
+    weeklyRateOutsideCityRwf: raw.weeklyRateOutsideCityRwf ?? raw.weeklyRateCountrysideRwf ?? dailyOut ?? 0,
+    monthlyRateInCityRwf: raw.monthlyRateInCityRwf ?? raw.monthlyRateKigaliRwf ?? dailyIn ?? 0,
+    monthlyRateOutsideCityRwf: raw.monthlyRateOutsideCityRwf ?? raw.monthlyRateCountrysideRwf ?? dailyOut ?? 0,
+  };
+}
 
 export type ListListingsFilters = {
   status?: string;
@@ -570,12 +624,23 @@ export async function listAdminListings(token: string, filters: ListListingsFilt
   if (filters.page != null) params.set('page', String(filters.page));
   if (filters.pageSize != null) params.set('pageSize', String(filters.pageSize));
   const suffix = params.toString() ? `?${params.toString()}` : '';
-  return authRequest<Paginated<AdminListingItem>>(
+  const res = await authRequest<Paginated<AdminListingItem & LegacyAdminListingFields>>(
     token,
     `/admin/listings${suffix}`,
     undefined,
     'Failed to load listings.',
   );
+  return { ...res, items: res.items.map(normalizeAdminListing) };
+}
+
+export async function getAdminListingDetail(token: string, listingId: string) {
+  const raw = await authRequest<AdminListingItem & LegacyAdminListingFields>(
+    token,
+    `/admin/listings/${listingId}`,
+    undefined,
+    'Failed to load listing detail.',
+  );
+  return normalizeAdminListing(raw);
 }
 
 export async function approveListing(token: string, listingId: string) {
@@ -584,6 +649,25 @@ export async function approveListing(token: string, listingId: string) {
     `/admin/listings/${listingId}/approve`,
     { method: 'PATCH' },
     'Failed to approve listing.',
+  );
+}
+
+export type AdminListingMarketplaceStatus = 'active' | 'inactive' | 'booked';
+
+export async function setAdminListingStatus(
+  token: string,
+  listingId: string,
+  status: AdminListingMarketplaceStatus,
+) {
+  return authRequest<AdminListingItem>(
+    token,
+    `/admin/listings/${listingId}/status`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    },
+    'Failed to update listing status.',
   );
 }
 
@@ -636,8 +720,13 @@ export type AdminCreateCarPayload = {
   vehicleType: string;
   serviceType: string;
   seats: number;
-  dailyRateKigaliRwf: number;
-  dailyRateCountrysideRwf: number;
+  dailyRateInCityRwf: number;
+  dailyRateOutsideCityRwf: number;
+  weeklyRateInCityRwf: number;
+  weeklyRateOutsideCityRwf: number;
+  monthlyRateInCityRwf: number;
+  monthlyRateOutsideCityRwf: number;
+  listingCity?: string;
   locationText: string;
   transmission?: string;
   fuelType?: string;
@@ -662,13 +751,37 @@ export type AdminDriverItem = {
   driverCategory: string;
   yearsExperience: number;
   dailyRateRwf: number;
+  monthlyRateRwf?: number | null;
   primaryCity: string;
   createdAt: string;
-  user: { id: string; fullName: string; email: string; phone: string | null; status: string };
+  status?: string;
+  rejectionReason?: string | null;
+  submittedAt?: string | null;
+  licenseCategories?: string[];
+  transmission?: string | null;
+  addressText?: string | null;
+  idDocumentUrl?: string | null;
+  licenseDocumentUrl?: string | null;
+  languages?: string[];
+  certifications?: string[];
+  user: { id: string; fullName: string; email: string; phone: string | null; status: string; avatarUrl?: string | null };
+};
+
+export type AdminDriverDetail = AdminDriverItem & {
+  hourlyRateRwf: number | null;
+  weeklyRateRwf: number | null;
+  biography: string | null;
+  categories: string[];
+  vehicleTypes: string[];
+  serviceAreas: string[];
+  certifications: string[];
+  availabilityCalendar: unknown;
+  user: AdminDriverItem['user'] & { whatsapp: string | null; trustScore: number };
 };
 
 export type ListDriversFilters = {
   search?: string;
+  status?: string;
   page?: number;
   pageSize?: number;
 };
@@ -676,6 +789,7 @@ export type ListDriversFilters = {
 export async function listAdminDrivers(token: string, filters: ListDriversFilters = {}) {
   const params = new URLSearchParams();
   if (filters.search) params.set('search', filters.search);
+  if (filters.status) params.set('status', filters.status);
   if (filters.page != null) params.set('page', String(filters.page));
   if (filters.pageSize != null) params.set('pageSize', String(filters.pageSize));
   const suffix = params.toString() ? `?${params.toString()}` : '';
@@ -687,12 +801,93 @@ export async function listAdminDrivers(token: string, filters: ListDriversFilter
   );
 }
 
+export type AdminTaxiItem = {
+  id: string;
+  fullName: string;
+  phone: string;
+  whatsapp: string | null;
+  city: string;
+  workLocationText: string | null;
+  carModel: string | null;
+  plate: string | null;
+  vehicleType: string | null;
+  status: string;
+  createdAt: string;
+  user: { id: string; email: string; fullName: string; phone: string | null } | null;
+};
+
+export type ListTaxisFilters = {
+  search?: string;
+  status?: string;
+  page?: number;
+  pageSize?: number;
+};
+
+export async function listAdminTaxis(token: string, filters: ListTaxisFilters = {}) {
+  const params = new URLSearchParams();
+  if (filters.search) params.set('search', filters.search);
+  if (filters.status) params.set('status', filters.status);
+  if (filters.page != null) params.set('page', String(filters.page));
+  if (filters.pageSize != null) params.set('pageSize', String(filters.pageSize));
+  const suffix = params.toString() ? `?${params.toString()}` : '';
+  return authRequest<Paginated<AdminTaxiItem>>(
+    token,
+    `/admin/taxis${suffix}`,
+    undefined,
+    'Failed to load taxis.',
+  );
+}
+
+export async function setAdminTaxiStatus(token: string, taxiId: string, status: string) {
+  return authRequest<AdminTaxiItem>(
+    token,
+    `/admin/taxis/${taxiId}/status`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    },
+    'Failed to update taxi status.',
+  );
+}
+
 export async function deleteDriver(token: string, driverProfileId: string) {
   await authRequest<void>(
     token,
     `/admin/drivers/${driverProfileId}`,
     { method: 'DELETE' },
     'Failed to delete driver.',
+  );
+}
+
+export async function getAdminDriverDetail(token: string, driverProfileId: string) {
+  return authRequest<AdminDriverDetail>(
+    token,
+    `/admin/drivers/${driverProfileId}`,
+    undefined,
+    'Failed to load driver application.',
+  );
+}
+
+export async function approveDriverApplication(token: string, driverProfileId: string) {
+  return authRequest<{ id: string; status: string }>(
+    token,
+    `/admin/drivers/${driverProfileId}/approve`,
+    { method: 'POST' },
+    'Failed to approve driver.',
+  );
+}
+
+export async function rejectDriverApplication(token: string, driverProfileId: string, reason: string) {
+  return authRequest<{ id: string; status: string; rejectionReason: string }>(
+    token,
+    `/admin/drivers/${driverProfileId}/reject`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason }),
+    },
+    'Failed to reject driver.',
   );
 }
 
@@ -817,4 +1012,53 @@ export async function updateAdminBanner(
 
 export async function deleteAdminBanner(token: string, id: string): Promise<void> {
   await authRequest<void>(token, `/admin/banners/${id}`, { method: 'DELETE' }, 'Failed to delete banner.');
+}
+
+export type JobOpeningItem = {
+  id: string;
+  title: string;
+  employmentType: string;
+  location: string;
+  description: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type JobOpeningPayload = {
+  title: string;
+  employmentType: string;
+  location: string;
+  description: string;
+  isActive?: boolean;
+};
+
+export async function listAdminJobs(token: string): Promise<JobOpeningItem[]> {
+  return authRequest<JobOpeningItem[]>(token, '/admin/jobs', undefined, 'Failed to load jobs.');
+}
+
+export async function createAdminJob(token: string, payload: JobOpeningPayload): Promise<JobOpeningItem> {
+  return authRequest<JobOpeningItem>(
+    token,
+    '/admin/jobs',
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) },
+    'Failed to create job.',
+  );
+}
+
+export async function updateAdminJob(
+  token: string,
+  id: string,
+  payload: Partial<JobOpeningPayload>,
+): Promise<JobOpeningItem> {
+  return authRequest<JobOpeningItem>(
+    token,
+    `/admin/jobs/${id}`,
+    { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) },
+    'Failed to update job.',
+  );
+}
+
+export async function deleteAdminJob(token: string, id: string): Promise<void> {
+  await authRequest<void>(token, `/admin/jobs/${id}`, { method: 'DELETE' }, 'Failed to delete job.');
 }

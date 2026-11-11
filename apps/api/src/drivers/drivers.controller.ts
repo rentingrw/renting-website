@@ -30,6 +30,14 @@ export class DriversController {
     return this.driversService.updateProfile(user, payload);
   }
 
+  @Post('profile/submit')
+  @UseGuards(ClerkAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Submit driver profile for admin review' })
+  submitProfile(@CurrentUser() user: AuthenticatedUser) {
+    return this.driversService.submitForReview(user);
+  }
+
   @Get('profile/me')
   @UseGuards(ClerkAuthGuard)
   @ApiBearerAuth()

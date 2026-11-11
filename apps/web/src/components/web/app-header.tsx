@@ -2,13 +2,14 @@
 
 import { SignInButton, SignUpButton, UserButton, useAuth } from '@clerk/nextjs';
 import {
-  BedDouble,
   Car,
+  ChevronLeft,
   Heart,
   HelpCircle,
   Home,
   LayoutDashboard,
   Menu,
+  Plane,
   Search,
   Truck,
   UserRound,
@@ -16,6 +17,7 @@ import {
   Zap,
 } from 'lucide-react';
 import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -33,9 +35,32 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
 type SiteBanner = { id: string; message: string; ctaText?: string | null; ctaUrl?: string | null };
 
+function fallbackHref(pathname: string, locale: string) {
+  const parts = pathname.split('/').filter(Boolean);
+  const section = parts[1];
+  const nested = parts.length > 2;
+  if (section === 'cars' && nested) return `/${locale}/cars`;
+  if (section === 'drivers' && nested) return `/${locale}/drivers`;
+  if (section === 'taxi-drivers' && nested) return `/${locale}/taxi-drivers`;
+  if (section === 'app' && nested) return `/${locale}/app`;
+  return `/${locale}`;
+}
+
 export function AppHeader({ locale }: AppHeaderProps) {
   const t = useTranslations('web');
   const { isSignedIn } = useAuth();
+  const pathname = usePathname();
+  const router = useRouter();
+  const home = `/${locale}`;
+  const isHome = pathname === home || pathname === `${home}/`;
+
+  function goBack() {
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      router.back();
+      return;
+    }
+    router.push(fallbackHref(pathname, locale));
+  }
   const [banner, setBanner] = useState<SiteBanner | null>(null);
   const [bannerVisible, setBannerVisible] = useState(false);
 
@@ -91,15 +116,28 @@ export function AppHeader({ locale }: AppHeaderProps) {
       )}
 
       <div>
-        <div className="mx-auto flex w-full max-w-7xl min-w-0 items-center justify-between gap-2 px-4 py-3 sm:gap-4 sm:px-6">
-          <Link
-            href={`/${locale}`}
-            className="shrink-0 text-lg font-black tracking-tight text-white sm:text-xl"
-          >
-            Renting<span className="text-white">.rw</span>
-          </Link>
+        <div className="mx-auto flex w-full max-w-7xl min-w-0 items-center justify-between gap-2 px-3 py-2.5 sm:gap-4 sm:px-6 sm:py-3">
+          <div className="flex min-w-0 items-center gap-1">
+            {isHome ? null : (
+              <button
+                type="button"
+                onClick={goBack}
+                className="inline-flex shrink-0 items-center rounded-full p-1.5 text-white transition hover:bg-white/10"
+                aria-label={t('nav.back')}
+              >
+                <ChevronLeft className="h-5 w-5" />
+                <span className="hidden pr-1 text-sm font-semibold sm:inline">{t('nav.back')}</span>
+              </button>
+            )}
+            <Link
+              href={home}
+              className="truncate text-lg font-black tracking-tight text-white sm:text-xl"
+            >
+              Renting<span className="text-white">.rw</span>
+            </Link>
+          </div>
 
-          <nav className="hidden items-center gap-4 sm:flex">
+          <nav className="hidden items-center gap-3 lg:flex">
             <Link href={`/${locale}/cars`} className="text-sm font-bold text-white/80 transition-colors hover:text-white">
               {t('nav.cars')}
             </Link>
@@ -109,8 +147,8 @@ export function AppHeader({ locale }: AppHeaderProps) {
             <Link href={`/${locale}/taxi-drivers`} className="text-sm font-bold text-white/80 transition-colors hover:text-white">
               {t('nav.taxi')}
             </Link>
-            <Link href={`/${locale}/stays`} className="text-sm font-bold text-white/80 transition-colors hover:text-white">
-              {t('nav.stays')}
+            <Link href={`/${locale}/airport`} className="text-sm font-bold text-white/80 transition-colors hover:text-white">
+              {t('nav.airport')}
             </Link>
 
             <LanguageSelector locale={locale} variant="dark" />
@@ -152,7 +190,7 @@ export function AppHeader({ locale }: AppHeaderProps) {
             <HeaderMenu locale={locale} isSignedIn={Boolean(isSignedIn)} />
           </nav>
 
-          <div className="flex items-center gap-2 sm:hidden">
+          <div className="flex shrink-0 items-center gap-1 lg:hidden">
             <Link
               href={`/${locale}/search`}
               aria-label="Search"
@@ -222,7 +260,7 @@ function HeaderMenu({ locale, isSignedIn }: { locale: SupportedLocale; isSignedI
     { href: `/${locale}/cars`, label: t('nav.cars'), icon: Car },
     { href: `/${locale}/drivers`, label: t('nav.drivers'), icon: UserRound },
     { href: `/${locale}/taxi-drivers`, label: t('nav.taxi'), icon: Truck },
-    { href: `/${locale}/stays`, label: t('nav.stays'), icon: BedDouble },
+    { href: `/${locale}/airport`, label: t('nav.airport'), icon: Plane },
   ];
   const supply = [
     { href: `/${locale}/list-your-car`, label: t('nav.becomeHoster'), icon: Home },
@@ -252,8 +290,8 @@ function HeaderMenu({ locale, isSignedIn }: { locale: SupportedLocale; isSignedI
         ? createPortal(
             <div
               ref={panelRef}
-              style={{ top: coords.top, right: coords.right }}
-              className="fixed z-[80] w-60 rounded-2xl border border-border bg-card p-2 text-foreground shadow-lg"
+              style={{ top: coords.top, right: Math.max(8, coords.right) }}
+              className="fixed z-[80] max-h-[min(70vh,32rem)] w-[min(18rem,calc(100vw-1rem))] overflow-y-auto rounded-2xl border border-border bg-card p-2 text-foreground shadow-lg"
             >
               <div className="flex flex-col">
                 {browse.map(({ href, label, icon: Icon }) => (
@@ -261,7 +299,7 @@ function HeaderMenu({ locale, isSignedIn }: { locale: SupportedLocale; isSignedI
                     key={href}
                     href={href}
                     onClick={() => setOpen(false)}
-                    className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-bold hover:bg-brand-soft sm:hidden"
+                    className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-bold hover:bg-brand-soft lg:hidden"
                   >
                     <Icon className="h-4 w-4 text-brand" />
                     {label}
@@ -292,13 +330,30 @@ function HeaderMenu({ locale, isSignedIn }: { locale: SupportedLocale; isSignedI
                 <Link
                   href={`/${locale}/how-it-works`}
                   onClick={() => setOpen(false)}
-                  className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-bold hover:bg-brand-soft"
+                  className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-bold hover:bg-brand-soft"
                 >
                   <HelpCircle className="h-4 w-4 text-brand" />
                   {t('nav.whyRenting')}
                 </Link>
+                <Link
+                  href={`/${locale}/about`}
+                  onClick={() => setOpen(false)}
+                  className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-bold hover:bg-brand-soft lg:hidden"
+                >
+                  {t('nav.about')}
+                </Link>
+                <Link
+                  href={`/${locale}/careers`}
+                  onClick={() => setOpen(false)}
+                  className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-bold hover:bg-brand-soft lg:hidden"
+                >
+                  {t('nav.careers')}
+                </Link>
+                <div className="px-1 py-1 lg:hidden">
+                  <LanguageSelector locale={locale} />
+                </div>
                 {!isSignedIn ? (
-                  <div className="mt-1 flex flex-col gap-1 border-t border-border pt-2 sm:hidden">
+                  <div className="mt-1 flex flex-col gap-1 border-t border-border pt-2 lg:hidden">
                     <SignInButton mode="modal">
                       <button
                         type="button"

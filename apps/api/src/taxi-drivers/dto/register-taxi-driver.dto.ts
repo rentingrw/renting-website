@@ -1,7 +1,9 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
   ArrayMinSize,
   IsArray,
+  IsBoolean,
   IsInt,
   IsNotEmpty,
   IsOptional,
@@ -14,20 +16,43 @@ import {
 export class RegisterTaxiDriverDto {
   @IsString()
   @IsNotEmpty()
+  @MaxLength(120)
   fullName!: string;
 
   @IsString()
   @IsNotEmpty()
+  @MaxLength(30)
   phone!: string;
 
   @IsOptional()
   @IsString()
-  @MaxLength(20)
+  @MaxLength(30)
   whatsapp?: string;
 
   @IsString()
   @IsNotEmpty()
+  @MaxLength(120)
   city!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  workLocationText?: string;
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(8)
+  @IsString({ each: true })
+  @MaxLength(10, { each: true })
+  languages!: string[];
+
+  @IsOptional()
+  @IsBoolean()
+  contactPhoneEnabled?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  contactWhatsappEnabled?: boolean;
 
   @IsInt()
   @Min(1)
@@ -37,6 +62,7 @@ export class RegisterTaxiDriverDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(500)
   details?: string;
 
   @IsString()
@@ -56,11 +82,14 @@ export class RegisterTaxiDriverDto {
 
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(20)
   @IsString({ each: true })
+  @MaxLength(50, { each: true })
   features?: string[];
 
   @IsArray()
   @ArrayMinSize(1)
+  @ArrayMaxSize(5)
   @IsString({ each: true })
   photos!: string[];
 
@@ -68,7 +97,7 @@ export class RegisterTaxiDriverDto {
   @IsString()
   photoUrl?: string;
 
-  @IsOptional()
   @IsString()
-  profilePhotoUrl?: string;
+  @IsNotEmpty()
+  profilePhotoUrl!: string;
 }

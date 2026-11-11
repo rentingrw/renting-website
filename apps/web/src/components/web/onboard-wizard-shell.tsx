@@ -59,7 +59,7 @@ export function OnboardWizardShell({
         ) : null}
         {!isSignedIn ? (
           <div className="mt-5 rounded-2xl border border-border bg-muted p-4 text-center">
-            <p className="text-sm text-muted-foreground">Sign in to save your profile and pay. You stay hidden until payment or a promo succeeds.</p>
+            <p className="text-sm text-muted-foreground">Sign in to save your profile and continue onboarding.</p>
             <SignInButton mode="modal">
               <button type="button" className="mt-3 rounded-full bg-brand px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-hover">
                 Sign in to continue

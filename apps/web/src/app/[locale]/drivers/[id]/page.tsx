@@ -405,12 +405,13 @@ export default function DriverDetailPage({ params }: DriverPageProps) {
       {similar.length > 0 ? (
         <div className="mx-auto max-w-7xl px-4 pb-10 md:px-6">
           <h2 className="mb-4 text-lg font-black text-foreground">{t('listing.similarDrivers')}</h2>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {similar.map((driver) => (
               <DriverListingCard
                 key={driver.id}
                 driver={driver}
                 locale={locale}
+                size="medium"
                 favorited={false}
                 onFavoriteChange={() => undefined}
               />

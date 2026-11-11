@@ -3,24 +3,18 @@
 import React from 'react';
 import { useAuth, useUser } from '@clerk/nextjs';
 import {
-  Badge,
   Button,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from '@rentingi/ui';
-import Image from 'next/image';
-import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { isSupportedLocale, routing, type SupportedLocale } from '@/i18n/routing';
+import { MediaImage } from '@/components/web/media-image';
 import {
   cancelBooking,
   createCarListing,
@@ -29,33 +23,23 @@ import {
   getCarBookingsMine,
   getCarsMine,
   getDriverBookingsMine,
-  getDriverProfileMe,
+  getDriverProfileFull,
   getMe,
-  getSubscriptionOverview,
-  getSubscriptionPaymentHistory,
-  getDriverSubscriptionOverview,
-  initiateDriverSubscription,
-  cancelDriverSubscription,
-  getTaxiSubscriptionOverview,
-  initiateTaxiSubscription,
-  cancelTaxiSubscription,
-  cancelSubscription,
-  initiateSubscription,
+  getTaxiDriverMe,
   markBookingComplete,
   patchLanguagePreference,
-  pauseCar,
+  setCarListingStatus,
+  type CarMarketplaceVisibility,
   publishCar,
   syncUser,
-  upgradeSubscription,
   updateCarListing,
   type CarBooking,
   type CarListingPayload,
   type DriverBooking,
-  type DriverProfileMe,
+  type DriverProfileFull,
   type MeResponse,
   type OwnerCar,
-  type SubscriptionOverview,
-  type SubscriptionPayment,
+  type TaxiDriverMe,
 } from '@/lib/api';
 import { formatCurrencyRwf } from '@/lib/format';
 import { setLocaleCookie } from '@/lib/locale';
@@ -63,15 +47,24 @@ import { stockImages } from '@/lib/stock-images';
 import { connectSocket, socket } from '@/lib/socket';
 import { useStore } from '@/lib/store';
 import { DashboardHeader } from '@/components/web/dashboard-header';
+import {
+  DashboardNav,
+  filterOwnerCars,
+  parseCarListingFilter,
+  resolveDashboardNavKey,
+} from '@/components/web/dashboard-nav';
 import { AppLoadingSkeleton, LoadingSpinner } from '@/components/web/loading-states';
+import { DashboardOverview } from '@/components/web/dashboard-overview';
+import { OwnerDashboardCarList } from '@/components/web/owner-dashboard-car-card';
 import { OwnerListingWizard } from '@/components/web/owner-listing-wizard';
+import Link from 'next/link';
 
 type AppPageProps = {
   params: Promise<{ locale: string }>;
 };
 
 type BookingType = 'car' | 'driver';
-type DashboardSection = 'overview' | 'cars' | 'bookings' | 'subscription';
+type DashboardSection = 'overview' | 'cars' | 'bookings';
 
 type DashboardBooking = {
   key: string;
@@ -171,6 +164,7 @@ export default function AppPage({ params }: AppPageProps) {
   const t = useTranslations('web');
   const router = useRouter();
   const searchParams = useSearchParams();
+  const pathname = usePathname();
   const { isLoaded, getToken } = useAuth();
   const { user } = useUser();
   const [locale, setLocale] = useState<SupportedLocale>(routing.defaultLocale);
@@ -184,11 +178,9 @@ export default function AppPage({ params }: AppPageProps) {
   const [carBookings, setCarBookings] = useState<CarBooking[]>([]);
   const [driverBookings, setDriverBookings] = useState<DriverBooking[]>([]);
   const [cars, setCars] = useState<OwnerCar[]>([]);
-  const [subscription, setSubscription] = useState<SubscriptionOverview | null>(null);
-  const [subscriptionHistory, setSubscriptionHistory] = useState<SubscriptionPayment[]>([]);
-  const [driverSubscription, setDriverSubscription] = useState<{ subscription: null | { id: string; status: string; renewsAt: string | null; amountRwf: number; paymentMethod: string | null }; isActive: boolean; planPriceRwf: number } | null>(null);
-  const [driverProfile, setDriverProfile] = useState<DriverProfileMe | null>(null);
-  const [activeSection, setActiveSection] = useState<DashboardSection>('bookings');
+  const [driverProfileFull, setDriverProfileFull] = useState<DriverProfileFull | null>(null);
+  const [taxiProfile, setTaxiProfile] = useState<TaxiDriverMe | null>(null);
+  const [activeSection, setActiveSection] = useState<DashboardSection>('overview');
   const [selectedBookingKey, setSelectedBookingKey] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<string[]>([]);
   const [trustScore, setTrustScore] = useState<number | null>(null);
@@ -201,17 +193,6 @@ export default function AppPage({ params }: AppPageProps) {
   } | null>(null);
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState('');
-  const [subscriptionTier, setSubscriptionTier] = useState<'basic' | 'premium' | 'enterprise'>('basic');
-  const [subscriptionPaymentMethod, setSubscriptionPaymentMethod] = useState<'mtn_momo' | 'airtel_money'>('mtn_momo');
-  const [subscriptionPhone, setSubscriptionPhone] = useState('');
-  const [driverSubPaymentMethod, setDriverSubPaymentMethod] = useState<'mtn_momo' | 'airtel_money'>('mtn_momo');
-  const [driverSubPhone, setDriverSubPhone] = useState('');
-  const [subscriptionPromo, setSubscriptionPromo] = useState('');
-  const [driverSubPromo, setDriverSubPromo] = useState('');
-  const [taxiSubscription, setTaxiSubscription] = useState<{ subscription: null | { id: string; status: string; renewsAt: string | null; amountRwf: number; paymentMethod: string | null }; isActive: boolean; planPriceRwf: number } | null>(null);
-  const [taxiSubPaymentMethod, setTaxiSubPaymentMethod] = useState<'mtn_momo' | 'airtel_money'>('mtn_momo');
-  const [taxiSubPhone, setTaxiSubPhone] = useState('');
-  const [taxiSubPromo, setTaxiSubPromo] = useState('');
   const [listingWizardOpen, setListingWizardOpen] = useState(false);
   const [editingCar, setEditingCar] = useState<OwnerCar | null>(null);
   const storeLocale = useStore((state) => state.locale);
@@ -220,12 +201,7 @@ export default function AppPage({ params }: AppPageProps) {
 
   const sectionFromQuery = useMemo<DashboardSection | null>(() => {
     const section = searchParams.get('section');
-    if (
-      section === 'overview' ||
-      section === 'cars' ||
-      section === 'bookings' ||
-      section === 'subscription'
-    ) {
+    if (section === 'overview' || section === 'cars' || section === 'bookings') {
       return section;
     }
     return null;
@@ -314,24 +290,21 @@ export default function AppPage({ params }: AppPageProps) {
     setAppBusy(true);
     setError(null);
     try {
-      const [carData, driverData, carMine, sub, driverMe, history, driverSub, taxiSub] = await Promise.all([
+      const loadDriver = profile.roles.includes('driver') || profile.hasDriverProfile;
+      const loadTaxi = Boolean(profile.hasTaxiProfile);
+
+      const [carData, driverData, carMine, driverFull, taxiMe] = await Promise.all([
         getCarBookingsMine(token),
         getDriverBookingsMine(token),
         profile.roles.includes('car_owner') ? getCarsMine(token) : Promise.resolve([]),
-        profile.roles.includes('car_owner') ? getSubscriptionOverview(token) : Promise.resolve(null),
-        profile.roles.includes('driver') ? getDriverProfileMe(token) : Promise.resolve(null),
-        profile.roles.includes('car_owner') ? getSubscriptionPaymentHistory(token) : Promise.resolve([]),
-        profile.roles.includes('driver') ? getDriverSubscriptionOverview(token) : Promise.resolve(null),
-        profile.hasTaxiProfile ? getTaxiSubscriptionOverview(token) : Promise.resolve(null),
+        loadDriver ? getDriverProfileFull(token).catch(() => null) : Promise.resolve(null),
+        loadTaxi ? getTaxiDriverMe(token).catch(() => null) : Promise.resolve(null),
       ]);
       setCarBookings(carData);
       setDriverBookings(driverData);
       setCars(carMine);
-      setSubscription(sub);
-      setDriverProfile(driverMe);
-      setSubscriptionHistory(history);
-      setDriverSubscription(driverSub);
-      setTaxiSubscription(taxiSub);
+      setDriverProfileFull(driverFull);
+      setTaxiProfile(taxiMe);
       const all = toDashboardBookings(profile, carData, driverData);
       if (!selectedBookingKey && all[0]) {
         setSelectedBookingKey(all[0].key);
@@ -416,11 +389,6 @@ export default function AppPage({ params }: AppPageProps) {
       notify('A booking was auto-cancelled.');
       await refreshHandler();
     };
-    const subscriptionActivatedHandler = async () => {
-      notify('Subscription activated.');
-      await refreshHandler();
-    };
-
     socket.on('booking:new_request', bookingNewRequestHandler);
     socket.on('booking:confirmed', bookingConfirmedHandler);
     socket.on('booking:declined', bookingDeclinedHandler);
@@ -428,7 +396,6 @@ export default function AppPage({ params }: AppPageProps) {
     socket.on('booking:mark_complete_received', refreshHandler);
     socket.on('review:prompt', reviewHandler);
     socket.on('trust_score:updated', trustHandler);
-    socket.on('subscription:activated', subscriptionActivatedHandler);
 
     return () => {
       socket.off('booking:new_request', bookingNewRequestHandler);
@@ -438,7 +405,6 @@ export default function AppPage({ params }: AppPageProps) {
       socket.off('booking:mark_complete_received', refreshHandler);
       socket.off('review:prompt', reviewHandler);
       socket.off('trust_score:updated', trustHandler);
-      socket.off('subscription:activated', subscriptionActivatedHandler);
     };
   }, [bookings, profile]);
 
@@ -450,13 +416,13 @@ export default function AppPage({ params }: AppPageProps) {
     const isHoster = profile.roles.includes('car_owner');
     const isDriver = profile.roles.includes('driver');
 
-    if (sectionFromQuery === 'cars' && isHoster) {
-      setActiveSection('cars');
+    if (sectionFromQuery === 'overview') {
+      setActiveSection('overview');
       return;
     }
 
-    if (sectionFromQuery === 'subscription' && (isHoster || isDriver)) {
-      setActiveSection('subscription');
+    if (sectionFromQuery === 'cars' && isHoster) {
+      setActiveSection('cars');
       return;
     }
 
@@ -465,19 +431,17 @@ export default function AppPage({ params }: AppPageProps) {
       return;
     }
 
-    if (sectionFromQuery === 'overview' && isDriver) {
-      setActiveSection('overview');
-      return;
-    }
-
-    if (isHoster) {
-      setActiveSection('cars');
-    } else if (isDriver) {
-      setActiveSection('overview');
-    } else {
-      setActiveSection('bookings');
-    }
+    setActiveSection('overview');
   }, [profile, sectionFromQuery]);
+
+  function goToDashboardSection(section: DashboardSection) {
+    const next = new URLSearchParams(searchParams.toString());
+    next.set('section', section);
+    if (section !== 'cars') {
+      next.delete('filter');
+    }
+    router.push(`/${currentLocale}/app?${next.toString()}`);
+  }
 
   async function handleLanguageChange(nextLocale: SupportedLocale) {
     setUpdatingLanguage(true);
@@ -593,49 +557,48 @@ export default function AppPage({ params }: AppPageProps) {
     });
   }
 
-  async function handleSubscription(mode: 'initiate' | 'upgrade') {
-    await withToken(async (token) => {
-      const payload = {
-        tier: subscriptionTier,
-        paymentMethod: subscriptionPaymentMethod,
-        mobileNumber: subscriptionPhone,
-        ...(subscriptionPromo.trim() ? { promoCode: subscriptionPromo.trim() } : {}),
-      };
-      const result =
-        mode === 'initiate'
-          ? await initiateSubscription(token, payload)
-          : await upgradeSubscription(token, payload);
-      if (result.redirectUrl) {
-        window.open(result.redirectUrl, '_blank', 'noopener,noreferrer');
-      }
-      setNotifications((previous) => [
-        result.status === 'active' ? 'Promo applied. Your plan is live.' : 'Subscription payment request sent.',
-        ...previous,
-      ].slice(0, 6));
-      await loadDashboardData(token);
-    });
-  }
-
-  async function toggleCarStatus(car: OwnerCar) {
+  async function changeCarMarketplaceStatus(car: OwnerCar, status: CarMarketplaceVisibility) {
     await withToken(async (token) => {
       try {
-        if (car.status === 'active') {
-          await pauseCar(token, car.id);
-        } else if (car.status === 'paused' || car.status === 'draft') {
-          await publishCar(token, car.id);
-        }
+        await setCarListingStatus(token, car.id, status);
       } catch (toggleError) {
         const message =
           toggleError instanceof Error ? toggleError.message : 'Unable to update listing status.';
         setError(message);
-        if (message.toLowerCase().includes('subscription')) {
-          setNotifications((previous) => ['A subscription is required before publishing.', ...previous].slice(0, 6));
-          setActiveSection('subscription');
-        }
         return;
       }
       await loadDashboardData(token);
     });
+  }
+
+  async function submitCarForApproval(car: OwnerCar) {
+    await withToken(async (token) => {
+      try {
+        await publishCar(token, car.id);
+      } catch (toggleError) {
+        const message =
+          toggleError instanceof Error ? toggleError.message : 'Unable to submit listing.';
+        setError(message);
+        return;
+      }
+      await loadDashboardData(token);
+    });
+  }
+
+  function carMarketplaceSelectValue(car: OwnerCar): CarMarketplaceVisibility | '' {
+    if (car.status === 'active') return 'active';
+    if (car.status === 'booked') return 'booked';
+    if (car.status === 'inactive' || car.status === 'paused') return 'inactive';
+    return '';
+  }
+
+  function canPickMarketplaceStatus(car: OwnerCar): boolean {
+    return (
+      car.status === 'active' ||
+      car.status === 'inactive' ||
+      car.status === 'booked' ||
+      car.status === 'paused'
+    );
   }
 
   async function handleListingSubmit(payload: CarListingPayload, publishNow: boolean) {
@@ -676,11 +639,15 @@ export default function AppPage({ params }: AppPageProps) {
     );
   }
 
-  const pendingRequests = bookings.filter((item) => item.status === 'pending' && item.youAre === 'renter');
-  const activeBookings = bookings.filter((item) => item.status === 'active');
-  const completedBookings = bookings.filter(
-    (item) => item.status === 'completed' || item.status === 'auto_completed',
+  const carListingFilter = parseCarListingFilter(searchParams.get('filter'));
+  const navActive = resolveDashboardNavKey(
+    pathname,
+    searchParams.get('section'),
+    searchParams.get('filter'),
+    'overview',
   );
+  const isCarOwner = profile?.roles.includes('car_owner');
+  const displayedCars = isCarOwner ? filterOwnerCars(cars, carListingFilter) : cars;
 
   return (
     <div className="min-h-screen bg-background">
@@ -691,234 +658,37 @@ export default function AppPage({ params }: AppPageProps) {
         onClearNotifications={() => setNotifications([])}
       />
 
-      <main className="mx-auto w-full max-w-7xl space-y-6 p-4 md:p-8">
-        {/* Welcome + Search & Book (VELOCITY reference: button top-right of welcome) */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-black tracking-tight text-foreground md:text-3xl">
-              {t('app.welcome')}, {profile?.fullName?.split(' ')[0] ?? 'there'}
-            </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {profile?.primaryRole.replace('_', ' ')}
-              {profile?.primaryRole === 'renter' || profile?.roles?.includes('renter')
-                ? ` • ${t('app.welcomeSubtitle')}`
-                : ''}
-            </p>
-            <div className="mt-2 flex flex-wrap items-center gap-2 gap-y-1">
-              {profile && profile.roles.length > 1 ? (
-                <>
-                  <div className="flex gap-1.5">
-                    {profile.roles
-                      .filter((r) => r !== profile.primaryRole)
-                      .map((role) => (
-                        <Badge key={role} className="bg-gray-200 text-muted-foreground text-xs font-medium">
-                          {role.replace('_', ' ')}
-                        </Badge>
-                      ))}
-                  </div>
-                  {trustScore !== null ? (
-                    <>
-                      <span className="text-muted-foreground">·</span>
-                      <Badge className="bg-brand-soft text-brand text-xs font-medium">
-                        {t('trust.score')}: {trustScore.toFixed(1)}
-                      </Badge>
-                    </>
-                  ) : null}
-                </>
-              ) : trustScore !== null ? (
-                <Badge className="bg-brand-soft text-brand text-xs font-medium">
-                  {t('trust.score')}: {trustScore.toFixed(1)}
-                </Badge>
-              ) : null}
-            </div>
-          </div>
-        </div>
-
-      <div className="-mx-4 flex overflow-x-auto border-b-2 border-border bg-card px-4 md:mx-0 md:px-0">
-        <nav className="flex gap-1 py-2" aria-label="Dashboard navigation">
-          {profile?.roles.includes('car_owner') ? (
-            <>
-              <Link
-                href={`/${currentLocale}/app/cars`}
-                className={`shrink-0 rounded border-2 px-3 py-1.5 text-xs font-black uppercase tracking-wide transition-all ${
-                  activeSection === 'cars' ? 'border-brand bg-brand text-white' : 'border-transparent text-muted-foreground hover:border-neutral-300 hover:bg-muted hover:text-foreground'
-                }`}
-              >
-                {t('app.nav.cars')}
-              </Link>
-              <Link
-                href={`/${currentLocale}/app/subscription`}
-                className={`shrink-0 rounded border-2 px-3 py-1.5 text-xs font-black uppercase tracking-wide transition-all ${
-                  activeSection === 'subscription' ? 'border-brand bg-brand text-white' : 'border-transparent text-muted-foreground hover:border-neutral-300 hover:bg-muted hover:text-foreground'
-                }`}
-              >
-                {t('app.nav.subscription')}
-              </Link>
-            </>
-          ) : null}
-          {profile?.roles.includes('driver') ? (
-            <>
-              <Link
-                href={`/${currentLocale}/app?section=overview`}
-                className={`shrink-0 rounded border-2 px-3 py-1.5 text-xs font-black uppercase tracking-wide transition-all ${
-                  activeSection === 'overview' ? 'border-brand bg-brand text-white' : 'border-transparent text-muted-foreground hover:border-neutral-300 hover:bg-muted hover:text-foreground'
-                }`}
-              >
-                {t('app.nav.status')}
-              </Link>
-              {!profile.roles.includes('car_owner') ? (
-                <Link
-                  href={`/${currentLocale}/app/subscription`}
-                  className={`shrink-0 rounded border-2 px-3 py-1.5 text-xs font-black uppercase tracking-wide transition-all ${
-                    activeSection === 'subscription' ? 'border-brand bg-brand text-white' : 'border-transparent text-muted-foreground hover:border-neutral-300 hover:bg-muted hover:text-foreground'
-                  }`}
-                >
-                  {t('app.nav.subscription')}
-                </Link>
-              ) : null}
-              <Link
-                href={`/${currentLocale}/app/driver-profile`}
-                className="shrink-0 rounded border-2 border-transparent px-3 py-1.5 text-xs font-black uppercase tracking-wide text-muted-foreground transition-all hover:border-neutral-300 hover:bg-muted hover:text-foreground"
-              >
-                {t('app.nav.availability')}
-              </Link>
-            </>
-          ) : null}
-          <Link
-            href={`/${currentLocale}/app/bookings`}
-            className={`shrink-0 rounded border-2 px-3 py-1.5 text-xs font-black uppercase tracking-wide transition-all ${
-              activeSection === 'bookings' ? 'border-brand bg-brand text-white' : 'border-transparent text-muted-foreground hover:border-neutral-300 hover:bg-muted hover:text-foreground'
-            }`}
-          >
-            {t('app.nav.bookings')}
-          </Link>
-          <Link
-            href={`/${currentLocale}/app/settings`}
-            className="shrink-0 rounded border-2 border-transparent px-3 py-1.5 text-xs font-black uppercase tracking-wide text-muted-foreground transition-all hover:border-neutral-300 hover:bg-muted hover:text-foreground"
-          >
-            {t('app.nav.settings')}
-          </Link>
-        </nav>
-      </div>
-
-      {activeSection === 'overview' && profile?.roles.includes('driver') ? (
-        <section className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
-          <div className="rounded-2xl border border-border bg-card p-5 shadow-card">
-            <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">{t('app.stats.pendingRequests')}</p>
-            <p className="mt-2 text-3xl font-black tabular-nums text-foreground">{pendingRequests.length}</p>
-          </div>
-          <div className="rounded-2xl border border-border bg-card p-5 shadow-card">
-            <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">{t('app.stats.activeBookings')}</p>
-            <p className="mt-2 text-3xl font-black tabular-nums text-foreground">{activeBookings.length}</p>
-          </div>
-          <div className="rounded-2xl border border-border bg-card p-5 shadow-card">
-            <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">{t('app.stats.completedBookings')}</p>
-            <p className="mt-2 text-3xl font-black tabular-nums text-foreground">{completedBookings.length}</p>
-          </div>
-          <div className="rounded-2xl border border-border bg-card p-5 shadow-card">
-            <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">{t('app.stats.activeListingsJobs')}</p>
-            <p className="mt-2 text-3xl font-black tabular-nums text-foreground">
-              {profile?.roles.includes('car_owner')
-                ? cars.filter((car) => car.status === 'active').length
-                : driverProfile?.bookingStats.active ?? 0}
-            </p>
-          </div>
-
-          {profile?.roles.includes('driver') ? (
-            <>
-              <div className="rounded-2xl border border-border bg-card p-5 shadow-card">
-                <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Live status</p>
-                <p className="mt-2 text-2xl font-black text-foreground">
-                  {driverProfile && driverSubscription?.isActive ? 'Live' : 'Hidden'}
-                </p>
-                <p className="mt-1 text-xs font-medium text-muted-foreground">
-                  {driverProfile && driverSubscription?.isActive
-                    ? 'Visible in driver search.'
-                    : 'Complete your profile and subscribe to appear in search.'}
-                </p>
-              </div>
-              <div className="rounded-2xl border border-border bg-card p-5 shadow-card">
-                <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Subscription</p>
-                <p className="mt-2 text-2xl font-black text-foreground">
-                  {driverSubscription?.isActive ? 'Active' : 'None'}
-                </p>
-                <Link
-                  href={`/${currentLocale}/app/subscription`}
-                  className="mt-2 inline-block text-xs font-black uppercase tracking-wide text-brand"
-                >
-                  Manage plan →
-                </Link>
-              </div>
-              <div className="rounded-2xl border border-border bg-card p-5 shadow-card sm:col-span-2">
-                <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Availability</p>
-                <p className="mt-2 text-sm font-medium text-muted-foreground">
-                  Set when you work and which services you offer.
-                </p>
-                <Link
-                  href={`/${currentLocale}/app/driver-profile`}
-                  className="mt-3 inline-block rounded border-2 border-border bg-card px-3 py-1.5 text-xs font-black uppercase tracking-wide text-foreground shadow-brutal-xs"
-                >
-                  Edit availability
-                </Link>
-              </div>
-            </>
-          ) : null}
-
-          {profile?.roles.includes('driver') && driverProfile?.categories?.length ? (
-            <Card className="overflow-hidden border-border bg-card shadow-sm sm:col-span-2 md:col-span-4">
-              <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle className="text-base">{t('app.driver.categories')}</CardTitle>
-                <a
-                  href={`/${locale}/app/driver-profile`}
-                  className="rounded border-2 border-border bg-card px-3 py-1 text-xs font-black text-foreground shadow-brutal-xs transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none"
-                >
-                  Edit Profile
-                </a>
-              </CardHeader>
-              <CardContent className="flex flex-wrap gap-2">
-                {driverProfile.categories.map((category) => (
-                  <Badge key={category} variant="secondary" className="font-medium">
-                    {category.replaceAll('_', ' ')}
-                  </Badge>
-                ))}
-              </CardContent>
-            </Card>
-          ) : profile?.roles.includes('driver') && !driverProfile ? (
-            <div className="overflow-hidden rounded-md border-2 border-amber-500 bg-amber-50 p-5 shadow-brutal-xs sm:col-span-2 md:col-span-4">
-              <p className="font-black text-foreground">Complete Your Driver Profile</p>
-              <p className="mt-1 text-sm font-medium text-muted-foreground">
-                Set up your driver profile to start receiving booking requests from customers.
-              </p>
-              <a
-                href={`/${locale}/app/driver-profile`}
-                className="mt-3 inline-block rounded border-2 border-brand-strong bg-brand px-4 py-2 text-sm font-black text-white shadow-brutal-sky-sm transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none"
-              >
-                Set Up Driver Profile →
-              </a>
-            </div>
-          ) : null}
-
-          {pendingRequests.map((booking) => (
-            <Card key={booking.key} className="overflow-hidden border-border bg-card shadow-sm md:col-span-2">
-              <CardHeader>
-                <CardTitle className="text-base">{booking.title}</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                <p>{t('app.booking.status')}: {booking.status.replaceAll('_', ' ')}</p>
-                <p className="text-xs text-muted-foreground">
-                  {new Date(booking.startAt).toLocaleString()} to {new Date(booking.endAt).toLocaleString()}
-                </p>
-                <p className="font-medium text-amber-200">{t('app.booking.deskConfirming')}</p>
-              </CardContent>
-            </Card>
-          ))}
-        </section>
+      {profile ? (
+        <DashboardNav
+          locale={currentLocale}
+          roles={profile.roles}
+          hasTaxiProfile={profile.hasTaxiProfile}
+          hasDriverProfile={profile.hasDriverProfile}
+          active={navActive}
+        />
       ) : null}
 
-      {activeSection === 'cars' ? (
-        <section className="space-y-3">
-          <div className="flex justify-end">
+      <main className="mx-auto w-full max-w-5xl space-y-5 p-4 md:p-8">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-xl font-bold tracking-tight text-foreground md:text-2xl">
+              {t('app.welcome')}, {profile?.fullName?.split(' ')[0] ?? 'there'}
+            </h1>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              {activeSection === 'overview'
+                ? t('app.overview.subtitle')
+                : activeSection === 'cars' && isCarOwner
+                  ? t('app.cars.listingCount', { count: displayedCars.length })
+                  : activeSection === 'bookings'
+                    ? t('app.nav.bookings')
+                    : profile?.primaryRole === 'renter' || profile?.roles?.includes('renter')
+                      ? t('app.welcomeSubtitle')
+                      : null}
+            </p>
+          </div>
+          {isCarOwner && activeSection === 'cars' ? (
             <Button
+              className="shrink-0"
               onClick={() => {
                 setEditingCar(null);
                 setListingWizardOpen(true);
@@ -926,391 +696,106 @@ export default function AppPage({ params }: AppPageProps) {
             >
               {t('app.cars.newListing')}
             </Button>
-          </div>
-          {cars.map((car) => (
-            <Card key={car.id}>
-              <CardContent className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <p className="font-semibold">{car.title}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {car.brand} {car.model} • {car.locationText}
-                  </p>
-                  <div className="mt-2 flex gap-2 text-xs">
-                    <Badge variant="secondary">{car.status.replaceAll('_', ' ')}</Badge>
-                    <Badge variant="secondary">Pending: {car.bookingCounts.pending}</Badge>
-                    <Badge variant="secondary">Active: {car.bookingCounts.active}</Badge>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-medium">{formatCurrencyRwf(car.dailyRateKigaliRwf)}</p>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setEditingCar(car);
-                      setListingWizardOpen(true);
-                    }}
-                  >
-                    {t('app.actions.edit')}
-                  </Button>
-                  <Button variant="outline" onClick={() => toggleCarStatus(car)}>
-                    {car.status === 'active' ? t('app.actions.pause') : t('app.actions.publish')}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-          {cars.length === 0 ? <p className="text-sm text-muted-foreground">{t('app.cars.empty')}</p> : null}
-        </section>
+          ) : null}
+        </div>
+
+      {activeSection === 'overview' && profile ? (
+        <DashboardOverview
+          locale={currentLocale}
+          profile={profile}
+          cars={cars}
+          bookings={bookings.map((b) => ({
+            key: b.key,
+            title: b.title,
+            status: b.status,
+            startAt: b.startAt,
+            amountRwf: b.amountRwf,
+          }))}
+          driverProfile={driverProfileFull}
+          taxiProfile={taxiProfile}
+          onOpenBookings={() => goToDashboardSection('bookings')}
+          onOpenCars={() => goToDashboardSection('cars')}
+          onNewListing={
+            isCarOwner
+              ? () => {
+                  setEditingCar(null);
+                  setListingWizardOpen(true);
+                }
+              : undefined
+          }
+        />
       ) : null}
 
-      {activeSection === 'subscription' ? (
-        <section className="space-y-6">
-          {/* Car Owner Subscription */}
-          {profile?.roles.includes('car_owner') ? (
-            <div className="grid gap-4 md:grid-cols-[1.3fr_1fr]">
-              <Card>
-                <CardHeader className="border-b border-gray-100 pb-3">
-                  <CardTitle className="text-base">{t('app.subscription.currentTitle')}</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 pt-4">
-                  {subscription?.subscription ? (
-                    <>
-                      <div className="flex items-center justify-between rounded-lg bg-brand-soft px-4 py-3">
-                        <div>
-                          <p className="text-xs uppercase tracking-wide text-brand">Plan</p>
-                          <p className="text-lg font-bold capitalize text-brand-strong">
-                            {subscription.subscription.tier === 'enterprise' ? 'Extra Premium' : subscription.subscription.tier}
-                          </p>
-                        </div>
-                        <span className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${
-                          subscription.subscription.status === 'active'
-                            ? 'bg-green-100 text-green-700'
-                            : subscription.subscription.status === 'cancelled'
-                              ? 'bg-amber-100 text-amber-700'
-                              : 'bg-gray-100 text-muted-foreground'
-                        }`}>
-                          {subscription.subscription.status}
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-3 gap-3 text-sm">
-                        <div className="rounded-lg border border-gray-100 px-3 py-2 text-center">
-                          <p className="text-xs text-muted-foreground">Active cars</p>
-                          <p className="font-semibold">{subscription.activeCars}</p>
-                        </div>
-                        <div className="rounded-lg border border-gray-100 px-3 py-2 text-center">
-                          <p className="text-xs text-muted-foreground">Limit</p>
-                          <p className="font-semibold">{subscription.maxCars ?? '∞'}</p>
-                        </div>
-                        <div className="rounded-lg border border-gray-100 px-3 py-2 text-center">
-                          <p className="text-xs text-muted-foreground">Can publish</p>
-                          <p className="font-semibold">{subscription.canPublish ? '✓' : '✗'}</p>
-                        </div>
-                      </div>
-                      {subscription.subscription.renewsAt && (
-                        <p className="text-xs text-muted-foreground">
-                          Renews {new Date(subscription.subscription.renewsAt).toLocaleDateString('en-RW', { dateStyle: 'medium' })}
-                        </p>
-                      )}
-                      <p className="text-xs text-muted-foreground">
-                        {[
-                          subscription.locationBoost ? 'Location boost' : null,
-                          subscription.verified ? 'Verified badge' : null,
-                          subscription.instantBooking ? 'Instant booking' : null,
-                          subscription.publicContact ? 'Public contact' : 'Contact after confirmation',
-                        ].filter(Boolean).join(' · ')}
-                      </p>
-                    </>
-                  ) : (
-                    <p className="rounded-lg bg-gray-50 px-4 py-6 text-center text-sm text-muted-foreground">
-                      No active subscription. Start one to publish your cars.
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="border-b border-gray-100 pb-3">
-                  <CardTitle className="text-base">{t('app.subscription.upgradeTitle')}</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 pt-4">
-                  <select
-                    className="w-full rounded border border-gray-300 bg-card px-3 py-2 text-sm text-foreground"
-                    value={subscriptionTier}
-                    onChange={(event) => setSubscriptionTier(event.target.value as 'basic' | 'premium' | 'enterprise')}
-                  >
-                    <option value="basic">Basic 10,000 RWF (1 car)</option>
-                    <option value="premium">Premium 25,000 RWF (5 cars + location boost)</option>
-                    <option value="enterprise">Extra Premium 50,000 RWF (unlimited, verified, instant booking, public contact)</option>
-                  </select>
-                  <select
-                    className="w-full rounded border border-gray-300 bg-card px-3 py-2 text-sm text-foreground"
-                    value={subscriptionPaymentMethod}
-                    onChange={(event) => setSubscriptionPaymentMethod(event.target.value as 'mtn_momo' | 'airtel_money')}
-                  >
-                    <option value="mtn_momo">MTN MoMo</option>
-                    <option value="airtel_money">Airtel Money</option>
-                  </select>
-                  <input
-                    className="w-full rounded border border-gray-300 bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground"
-                    value={subscriptionPhone}
-                    onChange={(event) => setSubscriptionPhone(event.target.value)}
-                    placeholder={t('app.subscription.mobilePlaceholder')}
-                  />
-                  <input
-                    className="w-full rounded border border-gray-300 bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground"
-                    value={subscriptionPromo}
-                    onChange={(event) => setSubscriptionPromo(event.target.value)}
-                    placeholder="Promo code (optional)"
-                  />
-                  <div className="flex gap-2">
-                    <Button
-                      className="flex-1 bg-brand hover:bg-brand-hover"
-                      onClick={() => handleSubscription(subscription?.subscription ? 'upgrade' : 'initiate')}
-                    >
-                      {subscription?.subscription ? t('app.subscription.upgrade') : t('app.subscription.startPayment')}
-                    </Button>
-                    {subscription?.subscription?.status === 'active' ? (
-                      <Button
-                        variant="outline"
-                        className="text-red-600 hover:bg-red-50"
-                        onClick={() => withToken(async (token) => {
-                          await cancelSubscription(token);
-                          setNotifications((prev) => ['Subscription cancelled. Active until renewal date.', ...prev].slice(0, 6));
-                          await loadDashboardData(token);
-                        })}
-                      >
-                        Cancel
-                      </Button>
-                    ) : null}
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Payment history */}
-              {subscriptionHistory.length > 0 ? (
-                <Card className="md:col-span-2">
-                  <CardHeader className="border-b border-gray-100 pb-3">
-                    <CardTitle className="text-base">Payment History</CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-0">
-                    <div className="divide-y divide-gray-100">
-                      {subscriptionHistory.map((payment) => (
-                        <div key={payment.id} className="flex items-center justify-between px-4 py-3 text-sm">
-                          <div>
-                            <span className="font-medium capitalize">{payment.tier ?? 'Driver'} plan</span>
-                            <span className="ml-2 text-xs text-gray-400">
-                              {new Date(payment.createdAt).toLocaleDateString('en-RW', { dateStyle: 'medium' })}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${
-                              payment.status === 'active' ? 'bg-green-100 text-green-700'
-                              : payment.status === 'expired' ? 'bg-gray-100 text-muted-foreground'
-                              : 'bg-amber-100 text-amber-600'
-                            }`}>{payment.status}</span>
-                            <span className="font-semibold text-gray-800">
-                              {formatCurrencyRwf(payment.amountRwf)}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
+      {activeSection === 'cars' ? (
+        <section className="space-y-3">
+          <nav className="flex flex-wrap gap-2" aria-label="Listing filters">
+            {(
+              [
+                ['all', t('app.nav.cars')],
+                ['active', t('app.nav.filterActive')],
+                ['inactive', t('app.nav.filterInactive')],
+                ['booked', t('app.nav.filterBooked')],
+              ] as const
+            ).map(([filter, label]) => {
+              const active = carListingFilter === filter;
+              const href =
+                filter === 'all'
+                  ? `/${currentLocale}/app?section=cars`
+                  : `/${currentLocale}/app?section=cars&filter=${filter}`;
+              return (
+                <Link
+                  key={filter}
+                  href={href}
+                  className={`rounded-md px-3 py-1.5 text-xs font-bold transition-colors ${
+                    active ? 'bg-brand text-white' : 'bg-muted text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {label}
+                </Link>
+              );
+            })}
+          </nav>
+          {displayedCars.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-border px-4 py-10 text-center">
+              <p className="text-sm text-muted-foreground">
+                {cars.length === 0 ? t('app.cars.empty') : t('app.cars.emptyFilter')}
+              </p>
+              {cars.length === 0 ? (
+                <Button
+                  className="mt-3"
+                  size="sm"
+                  onClick={() => {
+                    setEditingCar(null);
+                    setListingWizardOpen(true);
+                  }}
+                >
+                  {t('app.cars.newListing')}
+                </Button>
               ) : null}
             </div>
-          ) : null}
-
-          {/* Driver Subscription */}
-          {profile?.roles.includes('driver') ? (
-            <div className="grid gap-4 md:grid-cols-[1.3fr_1fr]">
-              <Card>
-                <CardHeader className="border-b border-gray-100 pb-3">
-                  <CardTitle className="text-base">Driver Subscription</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 pt-4">
-                  {driverSubscription?.subscription ? (
-                    <>
-                      <div className="flex items-center justify-between rounded-lg bg-brand-soft px-4 py-3">
-                        <div>
-                          <p className="text-xs uppercase tracking-wide text-brand">Driver Plan</p>
-          <p className="text-lg font-bold text-brand-strong">{formatCurrencyRwf(driverSubscription.planPriceRwf)} / month</p>
-                        </div>
-                        <span className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${
-                          driverSubscription.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-muted-foreground'
-                        }`}>
-                          {driverSubscription.isActive ? 'Active' : driverSubscription.subscription.status}
-                        </span>
-                      </div>
-                      {driverSubscription.subscription.renewsAt && (
-                        <p className="text-xs text-muted-foreground">
-                          Renews {new Date(driverSubscription.subscription.renewsAt).toLocaleDateString('en-RW', { dateStyle: 'medium' })}
-                        </p>
-                      )}
-                    </>
-                  ) : (
-                    <p className="rounded-lg bg-gray-50 px-4 py-6 text-center text-sm text-muted-foreground">
-                      No active driver subscription. Subscribe to appear in search results.
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="border-b border-gray-100 pb-3">
-                  <CardTitle className="text-base">Subscribe as Driver</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 pt-4">
-                  <div className="rounded-lg bg-brand-soft px-4 py-3 text-sm text-brand-strong">
-                    <strong>{formatCurrencyRwf(driverSubscription?.planPriceRwf ?? 10000)} / month</strong> so customers can find you.
-                  </div>
-                  <select
-                    className="w-full rounded border border-gray-300 bg-card px-3 py-2 text-sm text-foreground"
-                    value={driverSubPaymentMethod}
-                    onChange={(e) => setDriverSubPaymentMethod(e.target.value as 'mtn_momo' | 'airtel_money')}
-                  >
-                    <option value="mtn_momo">MTN MoMo</option>
-                    <option value="airtel_money">Airtel Money</option>
-                  </select>
-                  <input
-                    className="w-full rounded border border-gray-300 bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground"
-                    value={driverSubPhone}
-                    onChange={(e) => setDriverSubPhone(e.target.value)}
-                    placeholder="Mobile number (e.g. 07XXXXXXXX)"
-                  />
-                  <input
-                    className="w-full rounded border border-gray-300 bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground"
-                    value={driverSubPromo}
-                    onChange={(e) => setDriverSubPromo(e.target.value)}
-                    placeholder="Promo code (optional)"
-                  />
-                  <Button
-                    className="w-full bg-brand hover:bg-brand-hover"
-                    onClick={() => withToken(async (token) => {
-                      const result = await initiateDriverSubscription(token, {
-                        paymentMethod: driverSubPaymentMethod,
-                        mobileNumber: driverSubPhone,
-                        ...(driverSubPromo.trim() ? { promoCode: driverSubPromo.trim() } : {}),
-                      });
-                      if (result.redirectUrl) window.open(result.redirectUrl, '_blank', 'noopener,noreferrer');
-                      setNotifications((prev) => ['Driver subscription payment request sent.', ...prev].slice(0, 6));
-                      await loadDashboardData(token);
-                    })}
-                  >
-                    {driverSubscription?.isActive ? 'Renew Subscription' : 'Start Subscription'}
-                  </Button>
-                  {driverSubscription?.isActive ? (
-                    <Button
-                      variant="outline"
-                      className="w-full text-red-600 hover:bg-red-50"
-                      onClick={() => withToken(async (token) => {
-                        await cancelDriverSubscription(token);
-                        setNotifications((prev) => ['Driver subscription cancelled.', ...prev].slice(0, 6));
-                        await loadDashboardData(token);
-                      })}
-                    >
-                      Cancel Subscription
-                    </Button>
-                  ) : null}
-                </CardContent>
-              </Card>
-            </div>
-          ) : null}
-
-          {profile?.hasTaxiProfile ? (
-            <div className="grid gap-4 md:grid-cols-[1.3fr_1fr]">
-              <Card>
-                <CardHeader className="border-b border-gray-100 pb-3">
-                  <CardTitle className="text-base">Taxi Subscription</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 pt-4">
-                  {taxiSubscription?.subscription ? (
-                    <>
-                      <div className="flex items-center justify-between rounded-lg bg-brand-soft px-4 py-3">
-                        <div>
-                          <p className="text-xs uppercase tracking-wide text-brand">Taxi Plan</p>
-                          <p className="text-lg font-bold text-brand-strong">{formatCurrencyRwf(taxiSubscription.planPriceRwf)} / month</p>
-                        </div>
-                        <span className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${
-                          taxiSubscription.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-muted-foreground'
-                        }`}>
-                          {taxiSubscription.isActive ? 'Active' : taxiSubscription.subscription.status}
-                        </span>
-                      </div>
-                      {taxiSubscription.subscription.renewsAt && (
-                        <p className="text-xs text-muted-foreground">
-                          Renews {new Date(taxiSubscription.subscription.renewsAt).toLocaleDateString('en-RW', { dateStyle: 'medium' })}
-                        </p>
-                      )}
-                    </>
-                  ) : (
-                    <p className="rounded-lg bg-gray-50 px-4 py-6 text-center text-sm text-muted-foreground">
-                      No active taxi subscription. Subscribe to appear in search. Phone stays public.
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="border-b border-gray-100 pb-3">
-                  <CardTitle className="text-base">Subscribe as Taxi</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 pt-4">
-                  <div className="rounded-lg bg-brand-soft px-4 py-3 text-sm text-brand-strong">
-                    <strong>{formatCurrencyRwf(taxiSubscription?.planPriceRwf ?? 10000)} / month</strong> to go live. Contacts stay public.
-                  </div>
-                  <select
-                    className="w-full rounded border border-gray-300 bg-card px-3 py-2 text-sm text-foreground"
-                    value={taxiSubPaymentMethod}
-                    onChange={(e) => setTaxiSubPaymentMethod(e.target.value as 'mtn_momo' | 'airtel_money')}
-                  >
-                    <option value="mtn_momo">MTN MoMo</option>
-                    <option value="airtel_money">Airtel Money</option>
-                  </select>
-                  <input
-                    className="w-full rounded border border-gray-300 bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground"
-                    value={taxiSubPhone}
-                    onChange={(e) => setTaxiSubPhone(e.target.value)}
-                    placeholder="Mobile number (e.g. 07XXXXXXXX)"
-                  />
-                  <input
-                    className="w-full rounded border border-gray-300 bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground"
-                    value={taxiSubPromo}
-                    onChange={(e) => setTaxiSubPromo(e.target.value)}
-                    placeholder="Promo code (optional)"
-                  />
-                  <Button
-                    className="w-full bg-brand hover:bg-brand-hover"
-                    onClick={() => withToken(async (token) => {
-                      const result = await initiateTaxiSubscription(token, {
-                        paymentMethod: taxiSubPaymentMethod,
-                        mobileNumber: taxiSubPhone,
-                        ...(taxiSubPromo.trim() ? { promoCode: taxiSubPromo.trim() } : {}),
-                      });
-                      if (result.redirectUrl) window.open(result.redirectUrl, '_blank', 'noopener,noreferrer');
-                      setNotifications((prev) => [
-                        result.status === 'active' ? 'Taxi promo applied. You are live.' : 'Taxi subscription payment request sent.',
-                        ...prev,
-                      ].slice(0, 6));
-                      await loadDashboardData(token);
-                    })}
-                  >
-                    {taxiSubscription?.isActive ? 'Renew Subscription' : 'Start Subscription'}
-                  </Button>
-                  {taxiSubscription?.isActive ? (
-                    <Button
-                      variant="outline"
-                      className="w-full text-red-600 hover:bg-red-50"
-                      onClick={() => withToken(async (token) => {
-                        await cancelTaxiSubscription(token);
-                        setNotifications((prev) => ['Taxi subscription cancelled.', ...prev].slice(0, 6));
-                        await loadDashboardData(token);
-                      })}
-                    >
-                      Cancel Subscription
-                    </Button>
-                  ) : null}
-                </CardContent>
-              </Card>
-            </div>
-          ) : null}
+          ) : (
+            <OwnerDashboardCarList
+              cars={displayedCars}
+              locale={currentLocale}
+              labels={{
+                edit: t('app.actions.edit'),
+                publish: t('app.actions.publish'),
+                statusActive: t('app.cars.statusActive'),
+                statusInactive: t('app.cars.statusInactive'),
+                statusBooked: t('app.cars.statusBooked'),
+                pendingApproval: t('app.cars.pendingApproval'),
+                viewListing: t('app.cars.viewListing'),
+              }}
+              marketplaceValueFor={carMarketplaceSelectValue}
+              canPickMarketplaceStatus={canPickMarketplaceStatus}
+              onEdit={(car) => {
+                setEditingCar(car);
+                setListingWizardOpen(true);
+              }}
+              onStatusChange={(car, next) => void changeCarMarketplaceStatus(car, next)}
+              onPublish={(car) => void submitCarForApproval(car)}
+            />
+          )}
         </section>
       ) : null}
 
@@ -1354,7 +839,7 @@ export default function AppPage({ params }: AppPageProps) {
                       className="flex w-full items-center gap-4 p-4 text-left"
                     >
                       <div className="relative h-16 w-24 shrink-0 overflow-hidden rounded border-2 border-border bg-muted">
-                        <Image src={imgSrc} alt="" fill sizes="96px" className="object-cover" />
+                        <MediaImage src={imgSrc} alt="" fill sizes="96px" className="object-cover" />
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-2">
@@ -1515,7 +1000,7 @@ export default function AppPage({ params }: AppPageProps) {
           }
         }}
         initialCar={editingCar}
-        canPublish={Boolean(subscription?.canPublish)}
+        
         onSubmit={handleListingSubmit}
         getToken={async () => (await getToken()) ?? null}
       />

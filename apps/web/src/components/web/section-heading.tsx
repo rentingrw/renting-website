@@ -23,7 +23,7 @@ export function SectionHeading({ title, description, href, actionLabel }: Sectio
           href={href}
           className="shrink-0 text-sm font-semibold text-brand transition hover:underline"
         >
-          {actionLabel} →
+          {actionLabel}
         </Link>
       ) : null}
     </div>

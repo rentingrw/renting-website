@@ -3,52 +3,93 @@
 import { AppHeader } from '@/components/web/app-header';
 import { SiteFooter } from '@/components/web/site-footer';
 import { isSupportedLocale, routing, type SupportedLocale } from '@/i18n/routing';
+import { applyForJob, listPublicJobs, type PublicJobOpening } from '@/lib/api';
+import { SITE_EMAIL } from '@/lib/site-contact';
 import { Briefcase, Mail } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
-type CareersPageProps = {
-  params: Promise<{ locale: string }>;
-};
+type ApplyTarget = { id: string | null; title: string };
 
-const OPEN_POSITIONS = [
-  {
-    title: 'Customer Support Agent',
-    type: 'Full-time',
-    location: 'Kigali, Rwanda',
-    description: 'Help our customers get the best experience — answer calls, resolve issues, and ensure satisfaction across all platforms.',
-  },
-  {
-    title: 'Driver Verification Officer',
-    type: 'Contract',
-    location: 'Multiple cities, Rwanda',
-    description: 'Verify driver profiles, conduct background checks, and ensure all drivers meet Renting.rw standards.',
-  },
-  {
-    title: 'Business Development Representative',
-    type: 'Full-time',
-    location: 'Kigali, Rwanda',
-    description: 'Grow our network of car hosters and drivers across Rwanda. Build partnerships and onboard new partners.',
-  },
-  {
-    title: 'Mobile App Developer',
-    type: 'Full-time (Remote)',
-    location: 'Rwanda / Remote',
-    description: 'Build and improve the Renting.rw mobile app. React Native experience required.',
-  },
-];
+const EMPTY_APPLICATION = { fullName: '', email: '', phone: '', message: '' };
 
-export default function CareersPage({ params }: CareersPageProps) {
+function mailtoHref(subject: string, body: string) {
+  return `mailto:${SITE_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
+export default function CareersPage({ params }: { params: Promise<{ locale: string }> }) {
   const [locale, setLocale] = useState<SupportedLocale>(routing.defaultLocale);
+  const [jobs, setJobs] = useState<PublicJobOpening[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [target, setTarget] = useState<ApplyTarget | null>(null);
+  const [form, setForm] = useState(EMPTY_APPLICATION);
+  const [sending, setSending] = useState(false);
+  const [sentTitle, setSentTitle] = useState('');
+  const [formError, setFormError] = useState('');
+
+  useEffect(() => {
+    params.then((p) => {
+      if (isSupportedLocale(p.locale)) setLocale(p.locale);
+    });
+  }, [params]);
 
   useEffect(() => {
     let cancelled = false;
-    async function resolveParams() {
-      const routeParams = await params;
-      if (!cancelled && isSupportedLocale(routeParams.locale)) setLocale(routeParams.locale);
+    async function load() {
+      try {
+        const data = await listPublicJobs();
+        if (!cancelled) setJobs(data);
+      } catch (error) {
+        if (!cancelled) setLoadError(error instanceof Error ? error.message : 'Could not load jobs.');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     }
-    resolveParams();
-    return () => { cancelled = true; };
-  }, [params]);
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  function openApplication(next: ApplyTarget) {
+    setTarget(next);
+    setForm(EMPTY_APPLICATION);
+    setFormError('');
+    setSentTitle('');
+  }
+
+  async function submitApplication() {
+    if (!target) return;
+    const fullName = form.fullName.trim();
+    const email = form.email.trim();
+    const phone = form.phone.trim();
+    const message = form.message.trim();
+    if (fullName.length < 2 || !email.includes('@') || phone.length < 7 || message.length < 10) {
+      setFormError('Enter your name, email, phone, and a short note (at least 10 characters).');
+      return;
+    }
+
+    const subject = target.id ? `Application: ${target.title}` : 'Open application';
+    const body = [`Role: ${target.title}`, `Name: ${fullName}`, `Email: ${email}`, `Phone: ${phone}`, '', message].join('\n');
+
+    setSending(true);
+    setFormError('');
+    try {
+      await applyForJob({
+        ...(target.id ? { jobId: target.id } : {}),
+        fullName,
+        email,
+        phone,
+        message,
+      });
+      setSentTitle(target.title);
+      setTarget(null);
+    } catch {
+      window.location.href = mailtoHref(subject, body);
+    } finally {
+      setSending(false);
+    }
+  }
 
   return (
     <main className="min-h-screen bg-background">
@@ -57,69 +98,168 @@ export default function CareersPage({ params }: CareersPageProps) {
       <section className="bg-background px-4 py-16 text-center">
         <div className="mx-auto max-w-2xl">
           <div className="mb-4 flex justify-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-md border-2 border-amber-400 bg-amber-400 shadow-brutal">
-              <Briefcase className="h-8 w-8 text-foreground" />
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-border bg-card text-brand shadow-card">
+              <Briefcase className="h-8 w-8" />
             </div>
           </div>
           <h1 className="text-3xl font-black text-foreground md:text-4xl">Careers at Renting.rw</h1>
-          <p className="mt-4 text-base font-medium text-foreground/80">
-            Join our mission to make renting easy and fast across Rwanda. We&apos;re building the future of mobility.
+          <p className="mt-4 text-base font-medium text-muted-foreground">
+            Join the team building car, driver, and airport rental across Rwanda. Applications are sent to {SITE_EMAIL}.
           </p>
         </div>
       </section>
 
       <div className="mx-auto max-w-4xl px-4 py-12">
-        <h2 className="text-xl font-black text-foreground">Open Positions</h2>
+        <h2 className="text-xl font-black text-foreground">Open positions</h2>
         <p className="mt-1 text-sm font-medium text-muted-foreground">
-          {OPEN_POSITIONS.length} position{OPEN_POSITIONS.length !== 1 ? 's' : ''} available
+          {loading ? 'Loading…' : `${jobs.length} position${jobs.length === 1 ? '' : 's'} available`}
         </p>
+        {loadError ? <p className="mt-3 text-sm font-medium text-red-700">{loadError}</p> : null}
+        {sentTitle ? (
+          <p className="mt-4 rounded-xl border border-border bg-brand-soft px-4 py-3 text-sm font-medium text-foreground">
+            Your application for {sentTitle} was sent to {SITE_EMAIL}.
+          </p>
+        ) : null}
 
         <div className="mt-6 space-y-4">
-          {OPEN_POSITIONS.map((position) => (
-            <div
-              key={position.title}
-              className="rounded-2xl border border-border bg-card p-6 shadow-card"
-            >
+          {!loading && jobs.length === 0 ? (
+            <p className="rounded-2xl border border-border bg-card p-6 text-sm font-medium text-muted-foreground">
+              There are no open roles right now. You can still send an open application below.
+            </p>
+          ) : null}
+          {jobs.map((job) => (
+            <article key={job.id} className="rounded-2xl border border-border bg-card p-6 shadow-card">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="flex-1">
-                  <h3 className="text-lg font-black text-foreground">{position.title}</h3>
+                  <h3 className="text-lg font-black text-foreground">{job.title}</h3>
                   <div className="mt-1 flex flex-wrap gap-2 text-xs">
-                    <span className="rounded border-2 border-brand bg-brand-soft px-2 py-0.5 font-black text-brand">
-                      {position.type}
-                    </span>
-                    <span className="rounded border-2 border-neutral-300 bg-neutral-50 px-2 py-0.5 font-black text-muted-foreground">
-                      {position.location}
-                    </span>
+                    <span className="rounded-full bg-brand-soft px-2 py-0.5 font-bold text-brand">{job.employmentType}</span>
+                    <span className="rounded-full bg-muted px-2 py-0.5 font-bold text-muted-foreground">{job.location}</span>
                   </div>
-                  <p className="mt-3 text-sm font-medium text-muted-foreground">{position.description}</p>
+                  <p className="mt-3 whitespace-pre-wrap text-sm font-medium text-muted-foreground">{job.description}</p>
                 </div>
-                <a
-                  href={`mailto:renting.rw@gmail.com?subject=Application: ${encodeURIComponent(position.title)}`}
-                  className="shrink-0 rounded border-2 border-border bg-card px-4 py-2 text-sm font-black text-foreground shadow-brutal-xs transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none"
+                <button
+                  type="button"
+                  onClick={() => openApplication({ id: job.id, title: job.title })}
+                  className="shrink-0 rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-hover"
                 >
-                  Apply Now
-                </a>
+                  Apply
+                </button>
               </div>
-            </div>
+              {target?.id === job.id ? (
+                <ApplicationForm
+                  form={form}
+                  sending={sending}
+                  error={formError}
+                  onChange={setForm}
+                  onCancel={() => setTarget(null)}
+                  onSubmit={() => void submitApplication()}
+                />
+              ) : null}
+            </article>
           ))}
         </div>
 
-        <div className="mt-12 rounded-md border-2 border-border bg-amber-50 p-6 shadow-brutal">
+        <div className="mt-12 rounded-2xl border border-border bg-card p-6 shadow-card">
           <h2 className="font-black text-foreground">Don&apos;t see your role?</h2>
           <p className="mt-2 text-sm font-medium text-muted-foreground">
-            We&apos;re always looking for talented people. Send us your CV and let us know how you can contribute.
+            Send your name, phone, and a short note. We read every application at {SITE_EMAIL}.
           </p>
-          <a
-            href="mailto:renting.rw@gmail.com?subject=Open Application"
-            className="mt-4 inline-flex items-center gap-2 rounded border-2 border-border bg-amber-400 px-5 py-2.5 text-sm font-black text-foreground shadow-brutal-xs transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none"
+          <button
+            type="button"
+            onClick={() => openApplication({ id: null, title: 'Open application' })}
+            className="mt-4 inline-flex items-center gap-2 rounded-full border border-border px-5 py-2.5 text-sm font-semibold text-foreground hover:bg-muted"
           >
             <Mail className="h-4 w-4" />
-            Send Open Application
-          </a>
+            Send an open application
+          </button>
+          {target?.id === null ? (
+            <ApplicationForm
+              form={form}
+              sending={sending}
+              error={formError}
+              onChange={setForm}
+              onCancel={() => setTarget(null)}
+              onSubmit={() => void submitApplication()}
+            />
+          ) : null}
         </div>
       </div>
 
       <SiteFooter locale={locale} />
     </main>
+  );
+}
+
+function ApplicationForm({
+  form,
+  sending,
+  error,
+  onChange,
+  onCancel,
+  onSubmit,
+}: {
+  form: typeof EMPTY_APPLICATION;
+  sending: boolean;
+  error: string;
+  onChange: (value: typeof EMPTY_APPLICATION) => void;
+  onCancel: () => void;
+  onSubmit: () => void;
+}) {
+  const fieldClass =
+    'w-full rounded-xl border border-border bg-white px-3 py-2.5 text-sm font-medium text-foreground placeholder:text-muted-foreground focus:border-brand focus:outline-none';
+
+  return (
+    <form
+      className="mt-5 space-y-3 border-t border-border pt-5"
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSubmit();
+      }}
+    >
+      <div className="grid gap-3 sm:grid-cols-2">
+        <input
+          className={fieldClass}
+          value={form.fullName}
+          onChange={(event) => onChange({ ...form, fullName: event.target.value })}
+          placeholder="Full name"
+          autoComplete="name"
+        />
+        <input
+          className={fieldClass}
+          type="email"
+          value={form.email}
+          onChange={(event) => onChange({ ...form, email: event.target.value })}
+          placeholder="Email"
+          autoComplete="email"
+        />
+      </div>
+      <input
+        className={fieldClass}
+        value={form.phone}
+        onChange={(event) => onChange({ ...form, phone: event.target.value })}
+        placeholder="Phone"
+        autoComplete="tel"
+      />
+      <textarea
+        className={`${fieldClass} min-h-[96px] resize-y`}
+        value={form.message}
+        onChange={(event) => onChange({ ...form, message: event.target.value })}
+        placeholder="Tell us about yourself and why you want to join."
+      />
+      {error ? <p className="text-sm font-medium text-red-700">{error}</p> : null}
+      <div className="flex gap-2">
+        <button
+          type="submit"
+          disabled={sending}
+          className="rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-hover disabled:opacity-50"
+        >
+          {sending ? 'Sending…' : 'Send to our email'}
+        </button>
+        <button type="button" onClick={onCancel} className="rounded-full px-4 py-2 text-sm font-semibold text-muted-foreground">
+          Cancel
+        </button>
+      </div>
+    </form>
   );
 }

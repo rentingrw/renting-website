@@ -7,10 +7,21 @@
         "name": "next"
       }
     ],
-    "baseUrl": ".",
     "paths": {
       "@/*": [
         "./src/*"
+      ],
+      "@rentingi/types": [
+        "../../packages/types/index.ts"
+      ],
+      "@rentingi/db": [
+        "../../packages/db/index.ts"
+      ],
+      "@rentingi/ui": [
+        "../../packages/ui/index.ts"
+      ],
+      "@rentingi/*": [
+        "../../packages/*/index.ts"
       ]
     },
     "lib": [

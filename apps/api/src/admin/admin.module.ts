@@ -10,10 +10,11 @@ import { DriverBookingsModule } from '../driver-bookings/driver-bookings.module'
 import { AdminController } from './admin.controller';
 import { AdminService } from './admin.service';
 import { BannersPublicController } from './banners-public.controller';
+import { JobsPublicController } from './jobs-public.controller';
 
 @Module({
   imports: [CarsModule, TrustScoreModule, DisputesModule, NotificationsModule, UsersModule, BookingsModule, DriverBookingsModule],
-  controllers: [AdminController, BannersPublicController],
+  controllers: [AdminController, BannersPublicController, JobsPublicController],
   providers: [AdminService],
   exports: [AdminService],
 })

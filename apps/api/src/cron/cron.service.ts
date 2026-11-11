@@ -389,7 +389,7 @@ export class CronService {
             ownerId: sub.userId,
             status: ListingStatus.active,
           },
-          data: { status: ListingStatus.paused },
+          data: { status: ListingStatus.inactive },
         });
       });
 

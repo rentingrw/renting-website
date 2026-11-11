@@ -2,6 +2,7 @@ import { ServiceType, VehicleType } from '@prisma/client';
 import { Transform } from 'class-transformer';
 import {
   ArrayMaxSize,
+  ArrayMinSize,
   ArrayNotEmpty,
   IsArray,
   IsBoolean,
@@ -15,6 +16,11 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+
+import {
+  LISTING_PHOTO_URL_OPTIONS,
+  transformListingRate,
+} from '../../common/listing-photo-url.validator';
 
 export class CreateCarDto {
   @IsString()
@@ -62,27 +68,77 @@ export class CreateCarDto {
   @MaxLength(32)
   fuelType?: string;
 
-  @Transform(({ value }) => Number(value))
-  @IsInt()
-  @Min(1000)
-  dailyRateKigaliRwf!: number;
-
-  @Transform(({ value }) => Number(value))
-  @IsInt()
-  @Min(1000)
-  dailyRateCountrysideRwf!: number;
+  @IsString()
+  @MaxLength(24)
+  plateNumber!: string;
 
   @IsOptional()
-  @Transform(({ value }) => (value === undefined ? undefined : Number(value)))
-  @IsInt()
-  @Min(1000)
-  weeklyRateRwf?: number;
+  @IsString()
+  @MaxLength(48)
+  color?: string;
 
   @IsOptional()
-  @Transform(({ value }) => (value === undefined ? undefined : Number(value)))
+  @IsString()
+  @MaxLength(80)
+  listingCity?: string;
+
+  @Transform(({ obj }) => transformListingRate(obj as Record<string, unknown>, 'dailyRateInCityRwf', 'dailyRateKigaliRwf'))
   @IsInt()
   @Min(1000)
-  monthlyRateRwf?: number;
+  dailyRateInCityRwf!: number;
+
+  @Transform(({ obj }) =>
+    transformListingRate(obj as Record<string, unknown>, 'dailyRateOutsideCityRwf', 'dailyRateCountrysideRwf'),
+  )
+  @IsInt()
+  @Min(1000)
+  dailyRateOutsideCityRwf!: number;
+
+  @Transform(({ obj }) => {
+    const body = obj as Record<string, unknown>;
+    return (
+      transformListingRate(body, 'weeklyRateInCityRwf', 'weeklyRateRwf') ??
+      transformListingRate(body, 'dailyRateInCityRwf', 'dailyRateKigaliRwf')
+    );
+  })
+  @IsInt()
+  @Min(1000)
+  weeklyRateInCityRwf!: number;
+
+  @Transform(({ obj }) => {
+    const body = obj as Record<string, unknown>;
+    return (
+      transformListingRate(body, 'weeklyRateOutsideCityRwf') ??
+      transformListingRate(body, 'weeklyRateInCityRwf', 'weeklyRateRwf') ??
+      transformListingRate(body, 'dailyRateOutsideCityRwf', 'dailyRateCountrysideRwf')
+    );
+  })
+  @IsInt()
+  @Min(1000)
+  weeklyRateOutsideCityRwf!: number;
+
+  @Transform(({ obj }) => {
+    const body = obj as Record<string, unknown>;
+    return (
+      transformListingRate(body, 'monthlyRateInCityRwf', 'monthlyRateRwf') ??
+      transformListingRate(body, 'dailyRateInCityRwf', 'dailyRateKigaliRwf')
+    );
+  })
+  @IsInt()
+  @Min(1000)
+  monthlyRateInCityRwf!: number;
+
+  @Transform(({ obj }) => {
+    const body = obj as Record<string, unknown>;
+    return (
+      transformListingRate(body, 'monthlyRateOutsideCityRwf') ??
+      transformListingRate(body, 'monthlyRateInCityRwf', 'monthlyRateRwf') ??
+      transformListingRate(body, 'dailyRateOutsideCityRwf', 'dailyRateCountrysideRwf')
+    );
+  })
+  @IsInt()
+  @Min(1000)
+  monthlyRateOutsideCityRwf!: number;
 
   @IsOptional()
   @IsBoolean()
@@ -106,9 +162,11 @@ export class CreateCarDto {
   @Max(180)
   longitude?: number;
 
+  @Transform(({ value }) => (Array.isArray(value) ? value.filter((item) => typeof item === 'string' && item.trim()) : value))
   @IsArray()
-  @ArrayMaxSize(20)
-  @IsUrl({}, { each: true })
+  @ArrayMinSize(1)
+  @ArrayMaxSize(5)
+  @IsUrl(LISTING_PHOTO_URL_OPTIONS, { each: true })
   photos!: string[];
 
   @IsArray()

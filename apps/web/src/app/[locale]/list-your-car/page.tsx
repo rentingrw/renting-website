@@ -37,7 +37,7 @@ export default function ListYourCarPage({ params }: { params: Promise<{ locale: 
             </p>
             <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row md:justify-start sm:justify-center">
               <Link
-                href={`/${locale}/onboard/hoster`}
+                href={`/${locale}/onboard/car`}
                 className="rounded-full bg-brand px-8 py-3 font-semibold text-white transition hover:bg-brand-hover"
               >
                 Start hosting
@@ -62,7 +62,7 @@ export default function ListYourCarPage({ params }: { params: Promise<{ locale: 
             {
               icon: <DollarSign className="h-8 w-8 text-brand" />,
               title: 'Earn on Your Schedule',
-              desc: 'Set your own daily rates for Kigali and countryside trips. Block dates when you need your car.',
+              desc: 'Set daily, weekly, and monthly rates in your listing city and outside it. Block dates when you need your car.',
             },
             {
               icon: <BadgeCheck className="h-8 w-8 text-brand" />,
@@ -77,7 +77,7 @@ export default function ListYourCarPage({ params }: { params: Promise<{ locale: 
             {
               icon: <TrendingUp className="h-8 w-8 text-brand" />,
               title: 'Grow Your Business',
-              desc: 'Collect reviews, build your reputation, and unlock more bookings with our subscription tiers.',
+              desc: 'Collect reviews, build your reputation, and get more bookings over time.',
             },
           ].map((item) => (
             <div key={item.title} className="rounded-2xl border border-border bg-card p-5 shadow-card">
@@ -96,7 +96,7 @@ export default function ListYourCarPage({ params }: { params: Promise<{ locale: 
           <ol className="space-y-5">
             {[
               { step: '1', title: 'Create an account', desc: 'Sign up with your email in under 2 minutes.' },
-              { step: '2', title: 'Complete hoster onboarding', desc: 'Add your details, choose a plan, and pay or apply a promo. You are not searchable until that succeeds.' },
+              { step: '2', title: 'Complete host onboarding', desc: 'Add your details and host profile so renters know who they are booking with.' },
               { step: '3', title: 'Create your listing', desc: 'Add photos, set your price, choose your availability. Use the listing wizard from your dashboard.' },
               { step: '4', title: 'Get booked', desc: 'The renting.rw desk confirms Standard bookings after calling you. Extra Premium listings book instantly.' },
             ].map((s) => (
@@ -119,7 +119,7 @@ export default function ListYourCarPage({ params }: { params: Promise<{ locale: 
         <h2 className="mb-3 text-2xl font-black text-foreground">Ready to start earning?</h2>
         <p className="mb-6 font-medium text-muted-foreground">Join car owners across Rwanda already earning on renting.rw.</p>
         <Link
-          href={`/${locale}/onboard/hoster`}
+          href={`/${locale}/onboard/car`}
           className="inline-block rounded border-2 border-brand-strong bg-brand px-10 py-3 font-black uppercase tracking-wide text-white shadow-brutal-sky-sm transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none"
         >
           Start hosting

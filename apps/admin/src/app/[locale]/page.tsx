@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import {
   Bar,
@@ -7,8 +8,6 @@ import {
   CartesianGrid,
   Cell,
   Legend,
-  Line,
-  LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -28,7 +27,6 @@ import {
   TrendingUp,
   Users,
   XCircle,
-  Zap,
 } from 'lucide-react';
 
 import {
@@ -41,7 +39,6 @@ import {
   updateAdminBanner,
   deleteAdminBanner,
   listDriverOverview,
-  activateDriverSubscription,
   type AdminAnalytics,
   type AdminOverview,
   type SiteBannerItem,
@@ -52,14 +49,6 @@ import { useAuthToken } from '@/lib/use-auth-token';
 import { Skeleton, TableRowSkeleton } from '@/components/ui/skeleton';
 
 const AUTH_ERROR_MSG = 'Session not ready. Please refresh the page or sign out and sign in again.';
-
-function formatRwf(amount: number) {
-  return new Intl.NumberFormat('en-RW', {
-    style: 'currency',
-    currency: 'RWF',
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
 
 const TRUST_TIER_COLORS: Record<string, string> = {
   platinum: '#10b981',
@@ -97,8 +86,6 @@ export default function AdminHomePage() {
   const [driversLoading, setDriversLoading] = useState(false);
   const [driversError, setDriversError] = useState<string | null>(null);
   const [driversSearch, setDriversSearch] = useState('');
-  const [activatingDriverId, setActivatingDriverId] = useState<string | null>(null);
-
   const loadData = useCallback(async () => {
     if (!isLoaded || !isSignedIn) return;
     setIsLoading(true);
@@ -153,20 +140,6 @@ export default function AdminHomePage() {
   }, [fetchToken, isLoaded, isSignedIn]);
 
   useEffect(() => { if (tab === 'drivers') void loadDrivers(driversSearch); }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  async function handleActivateDriver(userId: string) {
-    setActivatingDriverId(userId);
-    try {
-      const token = await fetchToken();
-      if (!token) throw new Error(AUTH_ERROR_MSG);
-      await activateDriverSubscription(token, userId);
-      await loadDrivers(driversSearch);
-    } catch (err) {
-      setDriversError(err instanceof Error ? err.message : 'Failed to activate subscription.');
-    } finally {
-      setActivatingDriverId(null);
-    }
-  }
 
   async function handleSaveBanner() {
     setBannerSaving(true);
@@ -262,18 +235,20 @@ export default function AdminHomePage() {
   };
 
   return (
-    <main className="min-h-screen p-6 space-y-6">
+    <main className="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-neutral-900">Dashboard</h1>
-          <p className="text-sm text-neutral-500 mt-0.5 font-medium">Platform overview and analytics</p>
+          <h1 className="text-2xl font-black tracking-tight text-ink">Dashboard</h1>
+          <p className="mt-0.5 text-sm font-medium text-muted-foreground">
+            Cars, drivers, taxi, airport transfers, bookings, and careers
+          </p>
         </div>
         <button
           type="button"
           onClick={() => void loadData()}
           disabled={isLoading}
-          className="flex items-center gap-2 rounded border-2 border-neutral-900 bg-white px-3 py-2 text-sm font-bold shadow-brutal-sm hover:translate-x-px hover:translate-y-px hover:shadow-none transition-all active:translate-x-[2px] active:translate-y-[2px] active:shadow-none disabled:opacity-40"
+          className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-sm font-bold shadow-brutal-sm disabled:opacity-40"
         >
           <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
           Refresh
@@ -282,7 +257,7 @@ export default function AdminHomePage() {
 
       {/* Error */}
       {error && (
-        <div className="flex items-center gap-3 rounded border-2 border-red-700 bg-red-50 p-3 text-sm font-semibold text-red-700 shadow-[3px_3px_0_#991b1b]">
+        <div className="flex items-center gap-3 rounded border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700 shadow-brutal-red">
           <AlertCircle className="h-4 w-4 shrink-0" />
           <span className="flex-1">{error}</span>
           <button type="button" onClick={() => void loadData()} className="font-black underline">Retry</button>
@@ -290,7 +265,7 @@ export default function AdminHomePage() {
       )}
 
       {/* Tabs */}
-      <div className="flex gap-1 border-2 border-neutral-900 bg-white p-1 w-fit rounded shadow-brutal-sm">
+      <div className="flex w-fit max-w-full flex-wrap gap-1 rounded-full border border-border bg-card p-1 shadow-soft-sm">
         {([
           { id: 'overview', label: 'Overview', icon: LayoutDashboard },
           { id: 'analytics', label: 'Analytics', icon: BarChart3 },
@@ -301,10 +276,10 @@ export default function AdminHomePage() {
             key={id}
             type="button"
             onClick={() => setTab(id)}
-            className={`flex items-center gap-2 rounded px-4 py-1.5 text-sm font-bold transition-colors ${
+            className={`flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-bold transition ${
               tab === id
-                ? 'bg-neutral-900 text-white'
-                : 'text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100'
+                ? 'bg-brand text-white'
+                : 'text-muted-foreground hover:bg-brand-soft hover:text-ink'
             }`}
           >
             <Icon className="h-3.5 w-3.5" />
@@ -315,6 +290,27 @@ export default function AdminHomePage() {
 
       {tab === 'overview' && (
         <>
+          {(overview?.metrics.pendingDeskBookings ?? 0) > 0 ? (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-sun/50 bg-[#fbf4e0] px-5 py-4 shadow-brutal">
+              <div>
+                <p className="text-sm font-black text-ink">Booking desk waiting</p>
+                <p className="text-sm font-medium text-muted-foreground">
+                  {overview?.metrics.pendingDeskCarBookings ?? 0} car
+                  {' · '}
+                  {overview?.metrics.pendingDeskDriverBookings ?? 0} driver
+                  {' — '}
+                  Desk requests need a call to the provider.
+                </p>
+              </div>
+              <Link
+                href="/bookings?status=pending"
+                className="rounded border border-border bg-brand px-4 py-2 text-sm font-black text-white shadow-brutal-sm hover:bg-brand-hover"
+              >
+                Open booking desk
+              </Link>
+            </div>
+          ) : null}
+
           {/* Metric cards */}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
             <MetricCard
@@ -325,15 +321,17 @@ export default function AdminHomePage() {
             />
             <MetricCard title="Active bookings today" value={overview?.metrics.activeBookingsToday ?? 0} loading={isLoading} />
             <MetricCard
+              title="Pending desk requests"
+              value={overview?.metrics.pendingDeskBookings ?? 0}
+              loading={isLoading}
+              sub={`Cars: ${overview?.metrics.pendingDeskCarBookings ?? 0} · Drivers: ${overview?.metrics.pendingDeskDriverBookings ?? 0}`}
+              highlight={(overview?.metrics.pendingDeskBookings ?? 0) > 0 ? 'warn' : undefined}
+            />
+            <MetricCard
               title="Open disputes"
               value={overview?.metrics.openDisputes ?? 0}
               loading={isLoading}
               highlight={overview?.metrics.openDisputes ? 'warn' : undefined}
-            />
-            <MetricCard
-              title="Monthly revenue"
-              value={formatRwf(overview?.metrics.monthlySubscriptionRevenueRwf ?? 0)}
-              loading={isLoading}
             />
             <MetricCard
               title="Suspended users"
@@ -344,14 +342,14 @@ export default function AdminHomePage() {
           </div>
 
           {/* Open disputes table */}
-          <div className="rounded-md border-2 border-neutral-900 bg-white shadow-brutal overflow-hidden">
-            <div className="flex items-center justify-between border-b-2 border-neutral-900 px-5 py-3.5 bg-white">
+          <div className="rounded-2xl border border-border bg-card shadow-soft overflow-hidden">
+            <div className="flex items-center justify-between border-b border-border px-5 py-3.5 bg-white">
               <div>
-                <h2 className="font-black text-neutral-900">Open Disputes</h2>
-                <p className="text-xs text-neutral-500 font-medium mt-0.5">Requiring moderation action</p>
+                <h2 className="font-black text-ink">Open Disputes</h2>
+                <p className="text-xs text-muted-foreground font-medium mt-0.5">Requiring moderation action</p>
               </div>
               {(overview?.openDisputes.length ?? 0) > 0 && (
-                <span className="rounded border-2 border-neutral-900 bg-red-500 px-2 py-0.5 text-xs font-black text-white shadow-brutal-xs">
+                <span className="rounded border border-border bg-red-500 px-2 py-0.5 text-xs font-black text-white shadow-brutal-xs">
                   {overview?.openDisputes.length}
                 </span>
               )}
@@ -359,7 +357,7 @@ export default function AdminHomePage() {
             <div className="overflow-auto">
               <table className="min-w-full text-left text-sm">
                 <thead>
-                  <tr className="bg-neutral-900 text-white">
+                  <tr className="bg-brand text-white">
                     <th className="px-5 py-3 text-xs font-black uppercase tracking-wider">Priority</th>
                     <th className="px-5 py-3 text-xs font-black uppercase tracking-wider">Reason</th>
                     <th className="px-5 py-3 text-xs font-black uppercase tracking-wider">Parties</th>
@@ -375,24 +373,24 @@ export default function AdminHomePage() {
                     <tr>
                       <td colSpan={6} className="px-5 py-10 text-center">
                         <CheckCircle2 className="mx-auto mb-2 h-8 w-8 text-green-500" />
-                        <p className="text-sm font-semibold text-neutral-500">No open disputes — all clear!</p>
+                        <p className="text-sm font-semibold text-muted-foreground">No open disputes — all clear!</p>
                       </td>
                     </tr>
                   ) : (
                     overview?.openDisputes.map((dispute) => (
-                      <tr key={dispute.id} className="border-t-2 border-neutral-900 hover:bg-amber-50 transition-colors">
+                      <tr key={dispute.id} className="border-t border-border hover:bg-brand-soft transition-colors">
                         <td className="px-5 py-3">
                           <PriorityBadge priority={dispute.priority} />
                         </td>
                         <td className="px-5 py-3 font-semibold">{dispute.reason}</td>
-                        <td className="px-5 py-3 text-neutral-600">
+                        <td className="px-5 py-3 text-muted-foreground">
                           {dispute.openedBy.fullName} <span className="text-xs font-black">vs</span> {dispute.againstUser.fullName}
                         </td>
-                        <td className="px-5 py-3 text-xs text-neutral-500 capitalize">
+                        <td className="px-5 py-3 text-xs text-muted-foreground capitalize">
                           {dispute.bookingType} · <span className="font-mono">{dispute.bookingId?.slice(0, 8)}</span>
                         </td>
                         <td className="px-5 py-3">
-                          <span className="rounded border-2 border-neutral-900 px-2 py-0.5 text-xs font-bold capitalize">{dispute.status.replace('_', ' ')}</span>
+                          <span className="rounded border border-border px-2 py-0.5 text-xs font-bold capitalize">{dispute.status.replace('_', ' ')}</span>
                         </td>
                         <td className="px-5 py-3">
                           <div className="flex justify-end gap-2">
@@ -400,7 +398,7 @@ export default function AdminHomePage() {
                               type="button"
                               disabled={actingId === dispute.id}
                               onClick={() => void handleDismiss(dispute.id)}
-                              className="flex items-center gap-1 rounded border-2 border-neutral-900 bg-white px-2.5 py-1 text-xs font-bold shadow-brutal-xs hover:translate-x-px hover:translate-y-px hover:shadow-none transition-all active:translate-x-[1px] active:translate-y-[1px] active:shadow-none disabled:opacity-40"
+                              className="flex items-center gap-1 rounded-xl border border-border bg-card px-2.5 py-1 text-xs font-bold shadow-brutal-xs disabled:opacity-40"
                             >
                               <XCircle className="h-3 w-3" />
                               Dismiss
@@ -409,7 +407,7 @@ export default function AdminHomePage() {
                               type="button"
                               disabled={actingId === dispute.id}
                               onClick={() => void handleResolve(dispute.id)}
-                              className="flex items-center gap-1 rounded border-2 border-neutral-900 bg-neutral-900 px-2.5 py-1 text-xs font-black text-white shadow-brutal-xs hover:bg-neutral-800 disabled:opacity-40"
+                              className="flex items-center gap-1 rounded border border-border bg-brand px-2.5 py-1 text-xs font-black text-white shadow-brutal-xs hover:bg-brand-hover disabled:opacity-40"
                             >
                               <CheckCircle2 className="h-3 w-3" />
                               Resolve
@@ -433,48 +431,48 @@ export default function AdminHomePage() {
       {tab === 'banners' && (
         <div className="space-y-6">
           {bannerError && (
-            <div className="flex items-center gap-3 rounded border-2 border-red-700 bg-red-50 p-3 text-sm font-semibold text-red-700">
+            <div className="flex items-center gap-3 rounded border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">
               <AlertCircle className="h-4 w-4 shrink-0" />
               {bannerError}
             </div>
           )}
 
           {/* Create / Edit form */}
-          <div className="rounded-md border-2 border-neutral-900 bg-white shadow-brutal">
-            <div className="border-b-2 border-neutral-900 px-5 py-3.5">
-              <h2 className="font-black text-neutral-900">{editingBannerId ? 'Edit Banner' : 'Create Banner'}</h2>
-              <p className="text-xs text-neutral-500 font-medium mt-0.5">This banner appears at the top of the website for all visitors</p>
+          <div className="rounded-2xl border border-border bg-card shadow-soft">
+            <div className="border-b border-border px-5 py-3.5">
+              <h2 className="font-black text-ink">{editingBannerId ? 'Edit Banner' : 'Create Banner'}</h2>
+              <p className="text-xs text-muted-foreground font-medium mt-0.5">This banner appears at the top of the website for all visitors</p>
             </div>
             <div className="p-5 space-y-4">
               <div>
-                <label className="block text-xs font-black uppercase tracking-widest text-neutral-500 mb-1">Message *</label>
+                <label className="block text-xs font-black uppercase tracking-widest text-muted-foreground mb-1">Message *</label>
                 <textarea
                   rows={2}
                   value={bannerForm.message}
                   onChange={(e) => setBannerForm((f) => ({ ...f, message: e.target.value }))}
-                  placeholder="e.g. Start earning today — list your car on Renting.rw!"
-                  className="w-full rounded border-2 border-neutral-900 px-3 py-2 text-sm font-semibold text-neutral-900 placeholder:font-normal placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-teal-500/20 resize-none"
+                  placeholder="e.g. Airport transfers available — rent a car or book a driver"
+                  className="w-full rounded border border-border px-3 py-2 text-sm font-semibold text-ink placeholder:font-normal placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand/20 resize-none"
                 />
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="block text-xs font-black uppercase tracking-widest text-neutral-500 mb-1">CTA Text</label>
+                  <label className="block text-xs font-black uppercase tracking-widest text-muted-foreground mb-1">CTA Text</label>
                   <input
                     type="text"
                     value={bannerForm.ctaText}
                     onChange={(e) => setBannerForm((f) => ({ ...f, ctaText: e.target.value }))}
-                    placeholder="e.g. List your car"
-                    className="w-full rounded border-2 border-neutral-900 px-3 py-2 text-sm font-semibold text-neutral-900 placeholder:font-normal placeholder:text-neutral-400 focus:outline-none"
+                    placeholder="e.g. Airport transfers"
+                    className="w-full rounded-xl border border-border px-3 py-2 text-sm font-semibold text-ink placeholder:font-normal placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand/20"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-black uppercase tracking-widest text-neutral-500 mb-1">CTA URL</label>
+                  <label className="block text-xs font-black uppercase tracking-widest text-muted-foreground mb-1">CTA URL</label>
                   <input
                     type="text"
                     value={bannerForm.ctaUrl}
                     onChange={(e) => setBannerForm((f) => ({ ...f, ctaUrl: e.target.value }))}
-                    placeholder="e.g. /en/list-your-car"
-                    className="w-full rounded border-2 border-neutral-900 px-3 py-2 text-sm font-semibold text-neutral-900 placeholder:font-normal placeholder:text-neutral-400 focus:outline-none"
+                    placeholder="e.g. /en/airport"
+                    className="w-full rounded-xl border border-border px-3 py-2 text-sm font-semibold text-ink placeholder:font-normal placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand/20"
                   />
                 </div>
               </div>
@@ -486,17 +484,17 @@ export default function AdminHomePage() {
                     onChange={(e) => setBannerForm((f) => ({ ...f, isActive: e.target.checked }))}
                     className="sr-only peer"
                   />
-                  <div className="h-5 w-9 rounded-full border-2 border-neutral-900 bg-neutral-200 peer-checked:bg-teal-500 transition-colors" />
-                  <div className="absolute left-0.5 top-0.5 h-4 w-4 rounded-full border-2 border-neutral-900 bg-white transition-transform peer-checked:translate-x-4" />
+                  <div className="h-5 w-9 rounded-full border border-border bg-muted peer-checked:bg-brand transition-colors" />
+                  <div className="absolute left-0.5 top-0.5 h-4 w-4 rounded-full border border-border bg-white transition-transform peer-checked:translate-x-4" />
                 </label>
-                <span className="text-sm font-bold text-neutral-700">Active (visible on site)</span>
+                <span className="text-sm font-bold text-ink/80">Active (visible on site)</span>
               </div>
               <div className="flex gap-3">
                 <button
                   type="button"
                   onClick={() => void handleSaveBanner()}
                   disabled={bannerSaving || !bannerForm.message.trim()}
-                  className="flex items-center gap-2 rounded border-2 border-neutral-900 bg-neutral-900 px-4 py-2 text-sm font-black text-white shadow-brutal-sm hover:bg-neutral-800 disabled:opacity-40 transition-all"
+                  className="flex items-center gap-2 rounded border border-border bg-brand px-4 py-2 text-sm font-black text-white shadow-brutal-sm hover:bg-brand-hover disabled:opacity-40 transition-all"
                 >
                   <Plus className="h-4 w-4" />
                   {bannerSaving ? 'Saving…' : editingBannerId ? 'Update Banner' : 'Create Banner'}
@@ -505,7 +503,7 @@ export default function AdminHomePage() {
                   <button
                     type="button"
                     onClick={() => { setEditingBannerId(null); setBannerForm(EMPTY_BANNER_FORM); }}
-                    className="rounded border-2 border-neutral-900 bg-white px-4 py-2 text-sm font-bold shadow-brutal-sm hover:bg-neutral-100 transition-all"
+                    className="rounded-xl border border-border bg-card px-4 py-2 text-sm font-bold shadow-brutal-sm hover:bg-brand-soft transition-all"
                   >
                     Cancel
                   </button>
@@ -515,45 +513,45 @@ export default function AdminHomePage() {
           </div>
 
           {/* Banners list */}
-          <div className="rounded-md border-2 border-neutral-900 bg-white shadow-brutal overflow-hidden">
-            <div className="border-b-2 border-neutral-900 px-5 py-3.5 flex items-center justify-between">
-              <h2 className="font-black text-neutral-900">All Banners</h2>
+          <div className="rounded-2xl border border-border bg-card shadow-soft overflow-hidden">
+            <div className="border-b border-border px-5 py-3.5 flex items-center justify-between">
+              <h2 className="font-black text-ink">All Banners</h2>
               <button
                 type="button"
                 onClick={() => void loadBanners()}
                 disabled={bannerLoading}
-                className="flex items-center gap-1.5 rounded border-2 border-neutral-900 bg-white px-2.5 py-1.5 text-xs font-bold shadow-brutal-xs hover:translate-x-px hover:translate-y-px hover:shadow-none transition-all"
+                className="flex items-center gap-1.5 rounded-xl border border-border bg-card px-2.5 py-1.5 text-xs font-bold shadow-brutal-xs transition-all"
               >
                 <RefreshCw className={`h-3 w-3 ${bannerLoading ? 'animate-spin' : ''}`} />
                 Refresh
               </button>
             </div>
             {bannerLoading ? (
-              <div className="px-5 py-10 text-center text-sm font-semibold text-neutral-500">Loading…</div>
+              <div className="px-5 py-10 text-center text-sm font-semibold text-muted-foreground">Loading…</div>
             ) : banners.length === 0 ? (
               <div className="px-5 py-10 text-center">
                 <Megaphone className="mx-auto mb-2 h-8 w-8 text-neutral-300" />
-                <p className="text-sm font-semibold text-neutral-500">No banners yet. Create one above.</p>
+                <p className="text-sm font-semibold text-muted-foreground">No banners yet. Create one above.</p>
               </div>
             ) : (
-              <div className="divide-y-2 divide-neutral-900">
+              <div className="divide-y divide-border">
                 {banners.map((banner) => (
                   <div key={banner.id} className="flex items-start justify-between gap-4 px-5 py-4">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className={`inline-flex items-center rounded border-2 px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider ${
+                        <span className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider ${
                           banner.isActive
-                            ? 'border-teal-700 bg-teal-50 text-teal-700'
-                            : 'border-neutral-400 bg-neutral-100 text-neutral-500'
+                            ? 'border-hill/40 bg-emerald-50 text-hill'
+                            : 'border-border bg-muted text-muted-foreground'
                         }`}>
                           {banner.isActive ? 'Active' : 'Inactive'}
                         </span>
-                        <p className="font-bold text-neutral-900 truncate">{banner.message}</p>
+                        <p className="font-bold text-ink truncate">{banner.message}</p>
                       </div>
                       {(banner.ctaText || banner.ctaUrl) && (
-                        <p className="mt-1 text-xs text-neutral-500 font-medium">
+                        <p className="mt-1 text-xs text-muted-foreground font-medium">
                           CTA: {banner.ctaText && <span className="font-bold">{banner.ctaText}</span>}
-                          {banner.ctaUrl && <span className="ml-1 text-teal-600">{banner.ctaUrl}</span>}
+                          {banner.ctaUrl && <span className="ml-1 text-hill">{banner.ctaUrl}</span>}
                         </p>
                       )}
                     </div>
@@ -561,21 +559,21 @@ export default function AdminHomePage() {
                       <button
                         type="button"
                         onClick={() => void handleToggleBannerActive(banner)}
-                        className="rounded border-2 border-neutral-900 bg-white px-2.5 py-1 text-xs font-bold shadow-brutal-xs hover:translate-x-px hover:translate-y-px hover:shadow-none transition-all"
+                        className="rounded-xl border border-border bg-card px-2.5 py-1 text-xs font-bold shadow-brutal-xs transition-all"
                       >
                         {banner.isActive ? 'Deactivate' : 'Activate'}
                       </button>
                       <button
                         type="button"
                         onClick={() => startEditBanner(banner)}
-                        className="rounded border-2 border-neutral-900 bg-white px-2.5 py-1 text-xs font-bold shadow-brutal-xs hover:translate-x-px hover:translate-y-px hover:shadow-none transition-all"
+                        className="rounded-xl border border-border bg-card px-2.5 py-1 text-xs font-bold shadow-brutal-xs transition-all"
                       >
                         Edit
                       </button>
                       <button
                         type="button"
                         onClick={() => void handleDeleteBanner(banner.id)}
-                        className="flex items-center gap-1 rounded border-2 border-red-400 px-2.5 py-1 text-xs font-bold text-red-600 hover:bg-red-50 transition-all"
+                        className="flex items-center gap-1 rounded border border-red-300 px-2.5 py-1 text-xs font-bold text-red-600 hover:bg-red-50 transition-all"
                       >
                         <Trash2 className="h-3 w-3" />
                       </button>
@@ -591,7 +589,7 @@ export default function AdminHomePage() {
       {tab === 'drivers' && (
         <div className="space-y-5">
           {driversError && (
-            <div className="flex items-center gap-3 rounded border-2 border-red-700 bg-red-50 p-3 text-sm font-semibold text-red-700">
+            <div className="flex items-center gap-3 rounded border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">
               <AlertCircle className="h-4 w-4 shrink-0" />
               {driversError}
             </div>
@@ -604,92 +602,65 @@ export default function AdminHomePage() {
               value={driversSearch}
               onChange={(e) => setDriversSearch(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') void loadDrivers(driversSearch); }}
-              className="flex-1 rounded border-2 border-neutral-900 px-3 py-2 text-sm font-semibold focus:outline-none focus:border-teal-600"
+              className="flex-1 rounded border border-border px-3 py-2 text-sm font-semibold focus:outline-none focus:border-brand"
             />
             <button
               type="button"
               onClick={() => void loadDrivers(driversSearch)}
               disabled={driversLoading}
-              className="flex items-center gap-1.5 rounded border-2 border-neutral-900 bg-white px-3 py-2 text-sm font-bold shadow-brutal-xs hover:translate-x-px hover:translate-y-px hover:shadow-none transition-all"
+              className="flex items-center gap-1.5 rounded-xl border border-border bg-card px-3 py-2 text-sm font-bold shadow-brutal-xs transition-all"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${driversLoading ? 'animate-spin' : ''}`} />
               {driversLoading ? 'Loading…' : 'Search'}
             </button>
           </div>
 
-          <div className="rounded-md border-2 border-neutral-900 bg-white shadow-brutal overflow-hidden">
-            <div className="border-b-2 border-neutral-900 px-5 py-3.5">
-              <h2 className="font-black text-neutral-900">All Driver-Role Users</h2>
-              <p className="text-xs font-medium text-neutral-500 mt-0.5">
+          <div className="rounded-2xl border border-border bg-card shadow-soft overflow-hidden">
+            <div className="border-b border-border px-5 py-3.5">
+              <h2 className="font-black text-ink">All Driver-Role Users</h2>
+              <p className="text-xs font-medium text-muted-foreground mt-0.5">
                 {driversData ? `${driversData.total} total — ${driversData.items.filter((d) => d.isVisibleInSearch).length} visible in search` : 'Loading…'}
               </p>
             </div>
 
             {driversLoading ? (
-              <div className="px-5 py-10 text-center text-sm font-semibold text-neutral-500">Loading…</div>
+              <div className="px-5 py-10 text-center text-sm font-semibold text-muted-foreground">Loading…</div>
             ) : !driversData || driversData.items.length === 0 ? (
               <div className="px-5 py-10 text-center">
                 <Users className="mx-auto mb-2 h-8 w-8 text-neutral-300" />
-                <p className="text-sm font-semibold text-neutral-500">No driver-role users found.</p>
+                <p className="text-sm font-semibold text-muted-foreground">No driver-role users found.</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="min-w-full text-left text-sm">
-                  <thead className="border-b-2 border-neutral-900 bg-neutral-50">
+                  <thead className="border-b border-border bg-muted">
                     <tr>
-                      {['Name / Email', 'City', 'Profile', 'Subscription', 'Renews', 'Search?', 'Action'].map((h) => (
-                        <th key={h} className="px-4 py-3 text-xs font-black uppercase tracking-wider text-neutral-500">{h}</th>
+                      {['Name / Email', 'City', 'Profile', 'In search'].map((h) => (
+                        <th key={h} className="px-4 py-3 text-xs font-black uppercase tracking-wider text-muted-foreground">{h}</th>
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-neutral-100">
+                  <tbody className="divide-y divide-border">
                     {driversData.items.map((driver) => (
-                      <tr key={driver.id} className="hover:bg-neutral-50">
+                      <tr key={driver.id} className="hover:bg-muted">
                         <td className="px-4 py-3">
-                          <p className="font-bold text-neutral-900">{driver.fullName}</p>
-                          <p className="text-xs text-neutral-500">{driver.email}</p>
+                          <p className="font-bold text-ink">{driver.fullName}</p>
+                          <p className="text-xs text-muted-foreground">{driver.email}</p>
                         </td>
-                        <td className="px-4 py-3 text-xs font-semibold text-neutral-600">{driver.primaryCity ?? '—'}</td>
+                        <td className="px-4 py-3 text-xs font-semibold text-muted-foreground">{driver.primaryCity ?? '—'}</td>
                         <td className="px-4 py-3">
                           {driver.hasProfile ? (
-                            <span className="rounded border border-teal-600 bg-teal-50 px-2 py-0.5 text-[10px] font-black text-teal-700">Set up</span>
+                            <span className="rounded border border-hill/40 bg-emerald-50 px-2 py-0.5 text-[10px] font-black text-hill">Set up</span>
                           ) : (
-                            <span className="rounded border border-amber-500 bg-amber-50 px-2 py-0.5 text-[10px] font-black text-amber-700">Missing</span>
+                            <span className="rounded border border-amber-500 bg-[#fbf4e0] px-2 py-0.5 text-[10px] font-black text-amber-700">Missing</span>
                           )}
-                        </td>
-                        <td className="px-4 py-3">
-                          {driver.subscriptionStatus ? (
-                            <span className={`rounded border px-2 py-0.5 text-[10px] font-black capitalize ${
-                              driver.subscriptionStatus === 'active'
-                                ? 'border-teal-600 bg-teal-50 text-teal-700'
-                                : 'border-neutral-400 bg-neutral-100 text-neutral-500'
-                            }`}>{driver.subscriptionStatus}</span>
-                          ) : (
-                            <span className="rounded border border-red-400 bg-red-50 px-2 py-0.5 text-[10px] font-black text-red-600">None</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-xs font-semibold text-neutral-600">
-                          {driver.subscriptionRenewsAt
-                            ? new Date(driver.subscriptionRenewsAt).toLocaleDateString()
-                            : '—'}
                         </td>
                         <td className="px-4 py-3">
                           {driver.isVisibleInSearch ? (
-                            <CheckCircle2 className="h-4 w-4 text-teal-600" />
+                            <CheckCircle2 className="h-4 w-4 text-hill" />
                           ) : (
                             <XCircle className="h-4 w-4 text-red-500" />
                           )}
-                        </td>
-                        <td className="px-4 py-3">
-                          <button
-                            type="button"
-                            disabled={activatingDriverId === driver.id || driver.isVisibleInSearch}
-                            onClick={() => void handleActivateDriver(driver.id)}
-                            className="flex items-center gap-1.5 rounded border-2 border-teal-800 bg-teal-600 px-2.5 py-1 text-xs font-bold text-white shadow-brutal-teal-xs transition-all hover:translate-x-px hover:translate-y-px hover:bg-teal-700 hover:shadow-none disabled:opacity-40 disabled:cursor-not-allowed"
-                          >
-                            <Zap className="h-3 w-3" />
-                            {activatingDriverId === driver.id ? 'Activating…' : driver.isVisibleInSearch ? 'Active' : 'Activate'}
-                          </button>
                         </td>
                       </tr>
                     ))}
@@ -707,11 +678,11 @@ export default function AdminHomePage() {
 function PriorityBadge({ priority }: { priority: 'low' | 'medium' | 'high' }) {
   const map = {
     high: 'bg-red-500 text-white border-red-700',
-    medium: 'bg-amber-400 text-neutral-900 border-amber-600',
+    medium: 'bg-sun text-ink border-amber-600',
     low: 'bg-blue-100 text-blue-900 border-blue-300',
   };
   return (
-    <span className={`rounded border-2 px-2 py-0.5 text-xs font-black capitalize ${map[priority]}`}>
+    <span className={`rounded border px-2 py-0.5 text-xs font-black capitalize ${map[priority]}`}>
       {priority}
     </span>
   );
@@ -731,19 +702,18 @@ function MetricCard({
   highlight?: 'warn' | 'danger';
 }) {
   const borderColor =
-    highlight === 'danger' ? 'border-red-600' : highlight === 'warn' ? 'border-amber-500' : 'border-neutral-900';
-  const shadowColor =
-    highlight === 'danger' ? 'shadow-brutal-red' : 'shadow-brutal';
+    highlight === 'danger' ? 'border-red-300' : highlight === 'warn' ? 'border-sun/50' : 'border-border';
+  const shadowColor = highlight === 'danger' ? 'shadow-brutal-red' : 'shadow-soft';
   const valueColor =
-    highlight === 'danger' ? 'text-red-600' : highlight === 'warn' ? 'text-amber-600' : 'text-neutral-900';
+    highlight === 'danger' ? 'text-red-600' : highlight === 'warn' ? 'text-[#8a6a10]' : 'text-ink';
 
   return (
-    <div className={`rounded-md border-2 ${borderColor} bg-white p-4 ${shadowColor}`}>
-      <p className="text-[10px] font-black uppercase tracking-widest text-neutral-500">{title}</p>
+    <div className={`rounded-2xl border ${borderColor} bg-card p-4 ${shadowColor}`}>
+      <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">{title}</p>
       <p className={`mt-2 text-2xl font-black ${valueColor}`}>
         {loading ? <Skeleton className="h-7 w-20" /> : value}
       </p>
-      {sub && !loading && <p className="mt-1.5 text-xs font-medium text-neutral-500">{sub}</p>}
+      {sub && !loading && <p className="mt-1.5 text-xs font-medium text-muted-foreground">{sub}</p>}
       {sub && loading && <Skeleton className="mt-1.5 h-3 w-32" />}
     </div>
   );
@@ -755,7 +725,7 @@ function AnalyticsTab({ analytics, loading }: { analytics: AdminAnalytics | null
       <div className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-3">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="rounded-md border-2 border-neutral-900 bg-white p-4 shadow-brutal">
+            <div key={i} className="rounded-2xl border border-border bg-card p-4 shadow-brutal">
               <Skeleton className="h-3 w-24 mb-3" />
               <Skeleton className="h-7 w-16" />
             </div>
@@ -763,7 +733,7 @@ function AnalyticsTab({ analytics, loading }: { analytics: AdminAnalytics | null
         </div>
         <div className="grid gap-4 lg:grid-cols-2">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="rounded-md border-2 border-neutral-900 bg-white p-5 shadow-brutal">
+            <div key={i} className="rounded-2xl border border-border bg-card p-5 shadow-brutal">
               <Skeleton className="h-4 w-40 mb-4" />
               <Skeleton className="h-56 w-full" />
             </div>
@@ -773,14 +743,6 @@ function AnalyticsTab({ analytics, loading }: { analytics: AdminAnalytics | null
     );
   }
   if (!analytics) return null;
-
-  const revenueData = analytics.subscriptionRevenueByTier.map((entry) => ({
-    month: String(entry.month),
-    Basic: Number(entry.standard ?? entry.basic ?? 0),
-    Premium: Number(entry.premium ?? 0),
-    Enterprise: Number(entry.business ?? entry.enterprise ?? 0),
-    Driver: Number(entry.free ?? entry.driver ?? 0),
-  }));
 
   const bookingVolumeData = analytics.bookingVolume.map((entry) => ({
     month: entry.month,
@@ -809,33 +771,19 @@ function AnalyticsTab({ analytics, loading }: { analytics: AdminAnalytics | null
           { label: 'No-show rate', value: `${(analytics.cancellationNoShowRates.noShowRate * 100).toFixed(1)}%`, icon: TrendingUp },
           { label: 'Tracked bookings', value: String(analytics.cancellationNoShowRates.totalBookings), icon: BarChart3 },
         ].map(({ label, value, icon: Icon }) => (
-          <div key={label} className="flex items-center gap-3 rounded-md border-2 border-neutral-900 bg-white p-4 shadow-brutal">
-            <div className="flex h-9 w-9 items-center justify-center rounded border-2 border-neutral-900 bg-amber-400">
-              <Icon className="h-4 w-4 text-neutral-900" />
+          <div key={label} className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4 shadow-soft">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-sun/20">
+              <Icon className="h-4 w-4 text-ink" />
             </div>
             <div>
-              <p className="text-[10px] font-black uppercase tracking-widest text-neutral-500">{label}</p>
-              <p className="text-xl font-black text-neutral-900">{value}</p>
+              <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">{label}</p>
+              <p className="text-xl font-black text-ink">{value}</p>
             </div>
           </div>
         ))}
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <ChartCard title="Subscription Revenue by Tier (RWF)">
-          <LineChart data={revenueData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e5e5e5" />
-            <XAxis dataKey="month" tick={{ fontSize: 11, fontWeight: 600 }} />
-            <YAxis tick={{ fontSize: 11, fontWeight: 600 }} tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}k`} />
-            <Tooltip formatter={(v: number) => [`${v.toLocaleString()} RWF`]} />
-            <Legend />
-            <Line type="monotone" dataKey="Basic" stroke="#3b82f6" strokeWidth={2} dot={false} />
-            <Line type="monotone" dataKey="Premium" stroke="#8b5cf6" strokeWidth={2} dot={false} />
-            <Line type="monotone" dataKey="Enterprise" stroke="#10b981" strokeWidth={2} dot={false} />
-            <Line type="monotone" dataKey="Driver" stroke="#f97316" strokeWidth={2} dot={false} />
-          </LineChart>
-        </ChartCard>
-
         <ChartCard title="Booking Volume — Cars vs Drivers">
           <BarChart data={bookingVolumeData}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e5e5" />
@@ -887,7 +835,7 @@ function AnalyticsTab({ analytics, loading }: { analytics: AdminAnalytics | null
             <div className="flex flex-col gap-2">
               {trustPieData.map(({ name, value }) => (
                 <div key={name} className="flex items-center gap-2">
-                  <span className="h-2.5 w-2.5 rounded-sm border border-neutral-400" style={{ backgroundColor: TRUST_TIER_COLORS[name] ?? '#94a3b8' }} />
+                  <span className="h-2.5 w-2.5 rounded-sm border border-border" style={{ backgroundColor: TRUST_TIER_COLORS[name] ?? '#94a3b8' }} />
                   <span className="text-sm font-semibold capitalize">{name}</span>
                   <span className="ml-auto pl-4 font-black text-sm">{value}</span>
                 </div>
@@ -902,8 +850,8 @@ function AnalyticsTab({ analytics, loading }: { analytics: AdminAnalytics | null
 
 function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-md border-2 border-neutral-900 bg-white p-5 shadow-brutal">
-      <h3 className="mb-4 font-black text-sm uppercase tracking-wide text-neutral-900">{title}</h3>
+    <div className="rounded-2xl border border-border bg-card p-5 shadow-brutal">
+      <h3 className="mb-4 font-black text-sm uppercase tracking-wide text-ink">{title}</h3>
       <div className="h-56">
         <ResponsiveContainer width="100%" height="100%">
           {children as React.ReactElement}

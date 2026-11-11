@@ -1,10 +1,9 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
-import { SubscriptionKind, TaxiDriverStatus } from '@prisma/client';
+import { TaxiDriverStatus } from '@prisma/client';
 
 import type { AuthenticatedUser } from '../auth/types/authenticated-request.interface';
 import { prisma } from '../database/prisma';
 import { taxiDriverRegisteredEmailHtml, taxiDriverAdminAlertEmailHtml } from '../notifications/email-templates';
-import { liveSubscriptionWhere } from '../subscriptions/subscription-tier.util';
 import type { RegisterTaxiDriverDto } from './dto/register-taxi-driver.dto';
 
 const ADMIN_EMAIL = process.env.ADMIN_ALERT_EMAIL ?? 'renting.rw@gmail.com';
@@ -27,6 +26,10 @@ const taxiSelect = {
   phone: true,
   whatsapp: true,
   city: true,
+  workLocationText: true,
+  languages: true,
+  contactPhoneEnabled: true,
+  contactWhatsappEnabled: true,
   seats: true,
   details: true,
   carModel: true,
@@ -39,6 +42,40 @@ const taxiSelect = {
   status: true,
   createdAt: true,
 } as const;
+
+function assertContactPayload(payload: RegisterTaxiDriverDto) {
+  const phoneOn = payload.contactPhoneEnabled !== false;
+  const whatsappOn = payload.contactWhatsappEnabled !== false;
+  if (!phoneOn && !whatsappOn) {
+    throw new BadRequestException('Enable at least one contact method: phone call or WhatsApp.');
+  }
+  if (phoneOn && !payload.phone?.trim()) {
+    throw new BadRequestException('Phone number is required when phone calls are enabled.');
+  }
+  if (whatsappOn && !payload.whatsapp?.trim()) {
+    throw new BadRequestException('WhatsApp number is required when WhatsApp is enabled.');
+  }
+}
+
+function normalizePayload(payload: RegisterTaxiDriverDto) {
+  const photos = (payload.photos?.filter(Boolean) ?? []).slice(0, 5);
+  const photoUrl = payload.photoUrl ?? photos[0];
+  if (!photoUrl) {
+    throw new BadRequestException('Add at least one car photo.');
+  }
+  if (!payload.profilePhotoUrl?.trim()) {
+    throw new BadRequestException('Profile photo is required.');
+  }
+  assertContactPayload(payload);
+  return {
+    photos,
+    photoUrl,
+    seats: payload.seats,
+    contactPhoneEnabled: payload.contactPhoneEnabled !== false,
+    contactWhatsappEnabled: payload.contactWhatsappEnabled !== false,
+    workLocationText: payload.workLocationText?.trim() || payload.city.trim(),
+  };
+}
 
 @Injectable()
 export class TaxiDriversService {
@@ -55,29 +92,29 @@ export class TaxiDriversService {
       throw new ConflictException('You already have a taxi driver profile.');
     }
 
-    const photos = payload.photos?.filter(Boolean) ?? [];
-    const photoUrl = payload.photoUrl ?? photos[0];
-    if (!photoUrl) {
-      throw new BadRequestException('Add at least one full-car photo.');
-    }
+    const normalized = normalizePayload(payload);
 
     const created = await prisma.taxiDriver.create({
       data: {
         userId: user.id,
-        fullName: payload.fullName,
-        phone: payload.phone,
-        whatsapp: payload.whatsapp,
-        city: payload.city,
+        fullName: payload.fullName.trim(),
+        phone: payload.phone.trim(),
+        whatsapp: payload.whatsapp?.trim() || null,
+        city: payload.city.trim(),
+        workLocationText: normalized.workLocationText,
+        languages: payload.languages,
+        contactPhoneEnabled: normalized.contactPhoneEnabled,
+        contactWhatsappEnabled: normalized.contactWhatsappEnabled,
         seats: payload.seats,
-        details: payload.details,
-        carModel: payload.carModel,
-        plate: payload.plate,
+        details: payload.details?.trim(),
+        carModel: payload.carModel.trim(),
+        plate: payload.plate.trim(),
         vehicleType: payload.vehicleType,
         features: payload.features ?? [],
-        photos: photos.length ? photos : photoUrl ? [photoUrl] : [],
-        photoUrl,
-        profilePhotoUrl: payload.profilePhotoUrl,
-        status: TaxiDriverStatus.pending,
+        photos: normalized.photos.length ? normalized.photos : [normalized.photoUrl],
+        photoUrl: normalized.photoUrl,
+        profilePhotoUrl: payload.profilePhotoUrl.trim(),
+        status: TaxiDriverStatus.active,
       },
       select: taxiSelect,
     });
@@ -89,16 +126,23 @@ export class TaxiDriversService {
     await prisma.user.update({
       where: { id: user.id },
       data: {
-        ...(phoneTaken ? {} : { phone: payload.phone }),
-        ...(payload.whatsapp ? { whatsapp: payload.whatsapp } : {}),
-        ...(payload.profilePhotoUrl ? { avatarUrl: payload.profilePhotoUrl } : {}),
+        ...(phoneTaken ? {} : { phone: payload.phone.trim() }),
+        ...(payload.whatsapp?.trim() ? { whatsapp: payload.whatsapp.trim() } : {}),
+        avatarUrl: payload.profilePhotoUrl.trim(),
       },
     });
 
     void sendEmail(
       ADMIN_EMAIL,
       `New taxi driver registration: ${payload.fullName}`,
-      taxiDriverAdminAlertEmailHtml(payload.fullName, payload.phone, payload.city, payload.seats, undefined, payload.details),
+      taxiDriverAdminAlertEmailHtml(
+        payload.fullName,
+        payload.phone,
+        payload.city,
+        normalized.seats,
+        undefined,
+        payload.details,
+      ),
     ).catch(() => undefined);
 
     return created;
@@ -118,24 +162,39 @@ export class TaxiDriversService {
     const user = await this.requireUser(authUser);
     const existing = await prisma.taxiDriver.findUnique({ where: { userId: user.id } });
     if (!existing) throw new NotFoundException('Taxi profile not found. Register first.');
-    const photos = payload.photos?.filter(Boolean) ?? existing.photos;
+    const normalized = normalizePayload(payload);
     return prisma.taxiDriver.update({
       where: { id: existing.id },
       data: {
-        fullName: payload.fullName,
-        phone: payload.phone,
-        whatsapp: payload.whatsapp,
-        city: payload.city,
+        fullName: payload.fullName.trim(),
+        phone: payload.phone.trim(),
+        whatsapp: payload.whatsapp?.trim() || null,
+        city: payload.city.trim(),
+        workLocationText: normalized.workLocationText,
+        languages: payload.languages,
+        contactPhoneEnabled: normalized.contactPhoneEnabled,
+        contactWhatsappEnabled: normalized.contactWhatsappEnabled,
         seats: payload.seats,
-        details: payload.details,
-        carModel: payload.carModel,
-        plate: payload.plate,
+        details: payload.details?.trim(),
+        carModel: payload.carModel.trim(),
+        plate: payload.plate.trim(),
         vehicleType: payload.vehicleType,
         features: payload.features ?? existing.features,
-        photos,
-        photoUrl: payload.photoUrl ?? photos[0] ?? existing.photoUrl,
-        profilePhotoUrl: payload.profilePhotoUrl ?? existing.profilePhotoUrl,
+        photos: normalized.photos,
+        photoUrl: normalized.photoUrl,
+        profilePhotoUrl: payload.profilePhotoUrl.trim(),
       },
+      select: taxiSelect,
+    });
+  }
+
+  async setMineStatus(authUser: AuthenticatedUser, status: 'active' | 'inactive' | 'booked') {
+    const user = await this.requireUser(authUser);
+    const existing = await prisma.taxiDriver.findUnique({ where: { userId: user.id } });
+    if (!existing) throw new NotFoundException('Taxi profile not found.');
+    return prisma.taxiDriver.update({
+      where: { id: existing.id },
+      data: { status: status as TaxiDriverStatus },
       select: taxiSelect,
     });
   }
@@ -143,31 +202,18 @@ export class TaxiDriversService {
   async approveForUser(userId: string) {
     await prisma.taxiDriver.updateMany({
       where: { userId },
-      data: { status: TaxiDriverStatus.approved },
+      data: { status: TaxiDriverStatus.active },
     });
   }
 
   async list(city?: string) {
-    const now = new Date();
-    const liveTaxiSubs = await prisma.subscription.findMany({
-      where: liveSubscriptionWhere(SubscriptionKind.taxi, now),
-      select: { userId: true },
-    });
-    const liveUserIds = liveTaxiSubs.map((s) => s.userId);
-
     return prisma.taxiDriver.findMany({
       where: {
-        status: TaxiDriverStatus.approved,
+        status: TaxiDriverStatus.active,
         ...(city?.trim() ? { city: { contains: city.trim(), mode: 'insensitive' as const } } : {}),
-        OR: [
-          { userId: null },
-          { userId: { in: liveUserIds } },
-        ],
       },
       orderBy: { createdAt: 'asc' },
-      select: {
-        ...taxiSelect,
-      },
+      select: taxiSelect,
     });
   }
 
@@ -176,19 +222,8 @@ export class TaxiDriversService {
       where: { id },
       select: taxiSelect,
     });
-    if (!taxi || taxi.status !== TaxiDriverStatus.approved) {
+    if (!taxi || taxi.status !== TaxiDriverStatus.active) {
       throw new NotFoundException('Taxi driver not found.');
-    }
-
-    if (taxi.userId) {
-      const live = await prisma.subscription.findFirst({
-        where: {
-          userId: taxi.userId,
-          ...liveSubscriptionWhere(SubscriptionKind.taxi),
-        },
-        select: { id: true },
-      });
-      if (!live) throw new NotFoundException('Taxi driver not found.');
     }
 
     return taxi;

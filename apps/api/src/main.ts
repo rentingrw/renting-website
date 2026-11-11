@@ -5,6 +5,7 @@ import express from 'express';
 
 import { AppModule } from './app.module';
 import { buildCorsOptions } from './cors';
+import { ImageUploadService } from './uploads/image-upload.service';
 import { RedisIoAdapter } from './realtime/redis-io.adapter';
 
 async function bootstrap() {
@@ -22,6 +23,14 @@ async function bootstrap() {
   }
 
   app.enableCors(buildCorsOptions());
+
+  const imageUploadService = app.get(ImageUploadService);
+  app.use('/dev-media', express.static(imageUploadService.localUploadRoot()));
+  if (process.env.NODE_ENV !== 'production' && !process.env.CLOUDINARY_CLOUD_NAME?.trim()) {
+    process.stdout.write(
+      'Cloudinary not configured — local dev uploads enabled at /dev-media (set CLOUDINARY_* in .env for Cloudinary).\n',
+    );
+  }
 
   app.use('/webhooks/clerk', express.raw({ type: 'application/json' }));
 

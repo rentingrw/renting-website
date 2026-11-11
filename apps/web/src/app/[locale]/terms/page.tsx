@@ -88,9 +88,10 @@ export default function TermsPage({ params }: { params: Promise<{ locale: string
           <div>
             <h2 className="mb-2 text-lg font-black text-foreground">6. Payments and Fees</h2>
             <p>
-              Payments are processed via iPay. renting.rw charges a service fee on each
-              transaction. All fees are displayed before confirmation. The Company reserves the right
-              to adjust fees with 30 days&apos; notice.
+              Payments are processed via iPay. Hosts and drivers pay renting.rw a platform fee of{' '}
+              <strong className="text-foreground">10% of the rental amount</strong> on each confirmed
+              booking and keep the remaining 90%. Guests see the full rental price before they book.
+              The Company reserves the right to adjust this fee with 30 days&apos; notice.
             </p>
           </div>
 

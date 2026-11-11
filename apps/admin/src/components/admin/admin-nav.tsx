@@ -2,27 +2,30 @@
 
 import Link from 'next/link';
 import { useParams, usePathname, useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import {
   BookOpen,
+  Briefcase,
   Car,
   Home,
   LogOut,
+  Menu,
   MessageSquareWarning,
-  Users,
-  Wallet,
-  Ticket,
+  Truck,
   UserCheck,
+  Users,
+  X,
 } from 'lucide-react';
 
 const ITEMS = [
   { href: '', label: 'Overview', icon: Home },
-  { href: '/listings', label: 'Listings', icon: Car },
+  { href: '/listings', label: 'Cars', icon: Car },
   { href: '/drivers', label: 'Drivers', icon: UserCheck },
+  { href: '/taxis', label: 'Taxi', icon: Truck },
   { href: '/users', label: 'Users', icon: Users },
   { href: '/disputes', label: 'Disputes', icon: MessageSquareWarning },
-  { href: '/subscriptions', label: 'Subscriptions', icon: Wallet },
-  { href: '/promo-codes', label: 'Promo codes', icon: Ticket },
   { href: '/bookings', label: 'Booking desk', icon: BookOpen },
+  { href: '/jobs', label: 'Careers', icon: Briefcase },
 ];
 
 export function AdminNav() {
@@ -30,6 +33,36 @@ export function AdminNav() {
   const params = useParams<{ locale?: string }>();
   const locale = params.locale ?? 'en';
   const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(false);
+
+  useEffect(() => {
+    const media = window.matchMedia('(min-width: 1024px)');
+    function sync() {
+      setIsDesktop(media.matches);
+      if (media.matches) setOpen(false);
+    }
+    sync();
+    media.addEventListener('change', sync);
+    return () => media.removeEventListener('change', sync);
+  }, []);
+
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!open) return;
+    function onKey(event: KeyboardEvent) {
+      if (event.key === 'Escape') setOpen(false);
+    }
+    document.addEventListener('keydown', onKey);
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = '';
+    };
+  }, [open]);
 
   const onSignOut = async () => {
     await fetch('/api/auth/logout', { method: 'POST' });
@@ -38,49 +71,98 @@ export function AdminNav() {
   };
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-30 flex w-56 flex-col bg-neutral-900 border-r-4 border-neutral-900">
-      <div className="flex h-14 items-center border-b-2 border-neutral-700 px-4">
-        <span className="text-base font-black tracking-tight text-white">renting.rw</span>
-        <span className="ml-2 rounded bg-amber-400 px-1.5 py-0.5 text-[9px] font-black uppercase text-neutral-900 border border-amber-600">
-          Admin
-        </span>
-      </div>
-
-      <nav className="flex-1 space-y-0.5 overflow-y-auto px-2 py-3">
-        {ITEMS.map((item) => {
-          const href = `/${locale}${item.href}`;
-          const active =
-            item.href === ''
-              ? pathname === href
-              : pathname === href || pathname.startsWith(`${href}/`);
-          const Icon = item.icon;
-          return (
-            <Link
-              key={item.label}
-              href={href}
-              className={`flex items-center gap-2.5 rounded px-3 py-2 text-sm font-semibold transition-colors ${
-                active
-                  ? 'bg-amber-400 text-neutral-900'
-                  : 'text-neutral-400 hover:bg-neutral-800 hover:text-white'
-              }`}
-            >
-              <Icon className="h-4 w-4 shrink-0" />
-              {item.label}
-            </Link>
-          );
-        })}
-      </nav>
-
-      <div className="border-t-2 border-neutral-700 p-2">
+    <>
+      <header className="sticky top-0 z-40 flex h-14 items-center gap-3 border-b border-white/10 bg-ink px-3 text-white lg:hidden">
         <button
           type="button"
-          onClick={() => void onSignOut()}
-          className="flex w-full items-center gap-2.5 rounded px-3 py-2 text-sm font-semibold text-neutral-400 transition-colors hover:bg-red-900 hover:text-white"
+          onClick={() => setOpen(true)}
+          className="rounded-full p-1.5 transition hover:bg-white/10"
+          aria-label="Open menu"
         >
-          <LogOut className="h-4 w-4 shrink-0" />
-          Sign out
+          <Menu className="h-5 w-5" />
         </button>
-      </div>
-    </aside>
+        <Link href={`/${locale}`} className="truncate text-base font-black tracking-tight">
+          Renting.rw
+        </Link>
+        <span className="rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide">
+          Admin
+        </span>
+      </header>
+
+      {open ? (
+        <button
+          type="button"
+          className="fixed inset-0 z-40 bg-ink/40 lg:hidden"
+          aria-label="Close menu overlay"
+          onClick={() => setOpen(false)}
+        />
+      ) : null}
+
+      <aside
+        aria-hidden={isDesktop ? undefined : !open}
+        className={`fixed inset-y-0 left-0 z-50 flex w-56 flex-col bg-ink text-white transition-transform duration-200 lg:translate-x-0 ${
+          open ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <div className="flex h-14 items-center gap-2 border-b border-white/10 px-4">
+          <Link href={`/${locale}`} className="truncate text-base font-black tracking-tight text-white">
+            Renting.rw
+          </Link>
+          <span className="rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+            Admin
+          </span>
+          <button
+            type="button"
+            className="ml-auto rounded-full p-1.5 text-white/80 transition hover:bg-white/10 lg:hidden"
+            onClick={() => setOpen(false)}
+            aria-label="Close menu"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <nav className="flex-1 space-y-0.5 overflow-y-auto px-2 py-3">
+          <p className="px-3 pb-2 text-[10px] font-bold uppercase tracking-widest text-white/40">
+            Marketplace
+          </p>
+          {ITEMS.map((item) => {
+            const href = `/${locale}${item.href}`;
+            const active =
+              item.href === ''
+                ? pathname === href || pathname === `/${locale}/`
+                : pathname === href || pathname.startsWith(`${href}/`);
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.label}
+                href={href}
+                className={`flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${
+                  active
+                    ? 'bg-white text-ink'
+                    : 'text-white/70 hover:bg-white/10 hover:text-white'
+                }`}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
+
+        <div className="border-t border-white/10 p-2">
+          <p className="px-3 pb-2 text-[10px] font-medium leading-snug text-white/40">
+            Cars, drivers, taxi &amp; airport transfers · hosts keep 90%
+          </p>
+          <button
+            type="button"
+            onClick={() => void onSignOut()}
+            className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-semibold text-white/70 transition hover:bg-white/10 hover:text-white"
+          >
+            <LogOut className="h-4 w-4 shrink-0" />
+            Sign out
+          </button>
+        </div>
+      </aside>
+    </>
   );
 }

@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import { AppHeader } from '@/components/web/app-header';
 import { AddressInput } from '@/components/web/address-input';
 import { CarListingCard } from '@/components/web/car-listing-card';
+import { OwnerCarsManageStrip } from '@/components/web/owner-cars-manage-strip';
 import { useFavoriteIds } from '@/components/web/favorite-button';
 import {
   compactRwf,
@@ -40,12 +41,12 @@ type ListingSort = 'score' | 'price_asc' | 'price_desc' | '';
 
 function CarCardSkeleton() {
   return (
-    <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-card animate-pulse">
-      <div className="aspect-[4/3] bg-muted" />
-      <div className="p-4 space-y-2">
-        <div className="h-5 w-3/4 rounded bg-muted" />
-        <div className="h-4 w-1/2 rounded bg-muted" />
-        <div className="h-5 w-28 rounded bg-muted" />
+    <div className="overflow-hidden rounded-xl border border-border bg-card animate-pulse">
+      <div className="aspect-[5/3] bg-muted" />
+      <div className="space-y-2 p-3">
+        <div className="h-4 w-3/4 rounded bg-muted" />
+        <div className="h-3 w-1/2 rounded bg-muted" />
+        <div className="h-4 w-28 rounded bg-muted" />
       </div>
     </div>
   );
@@ -302,6 +303,7 @@ export default function CarsPage({ params }: { params: Promise<{ locale: string 
         </ListingFilterRail>
 
         <div className="min-w-0 flex-1 px-4 py-6 sm:px-6">
+          <OwnerCarsManageStrip locale={locale} />
           <h1 className="text-2xl font-bold text-foreground">{t('tabs.cars')}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {loading ? t('search.loading') : t('search.resultsCount', { count: cars.length })}
@@ -310,7 +312,7 @@ export default function CarsPage({ params }: { params: Promise<{ locale: string 
             <p className="mt-2 rounded-xl bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{error}</p>
           ) : null}
 
-          <div className="mt-6 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {loading ? (
               [...Array(8)].map((_, i) => <CarCardSkeleton key={i} />)
             ) : (
@@ -319,6 +321,7 @@ export default function CarsPage({ params }: { params: Promise<{ locale: string 
                   key={car.id}
                   car={car}
                   locale={locale}
+                  size="medium"
                   favorited={carFavorites.ids.has(car.id)}
                   onFavoriteChange={(next) => carFavorites.setFavorited(car.id, next)}
                 />

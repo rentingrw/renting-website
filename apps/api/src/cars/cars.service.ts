@@ -6,19 +6,16 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { BookingStatus, ListingStatus, Prisma, SubscriptionKind, type User } from '@prisma/client';
-import { createHash } from 'node:crypto';
 
 import { prisma } from '../database/prisma';
 import type { AuthenticatedUser } from '../auth/types/authenticated-request.interface';
-import {
-  getTierPlan,
-  liveSubscriptionWhere,
-  storedTierToProductTier,
-} from '../subscriptions/subscription-tier.util';
+import { liveSubscriptionWhere } from '../subscriptions/subscription-tier.util';
 import { getContactVisibility } from '../subscriptions/contact-visibility.util';
 import { listingIsBookedNow } from '../bookings/booking-desk.util';
+import { resolveListingCity } from '../common/listing-city.util';
 import type { CreateCarDto } from './dto/create-car.dto';
 import type { UpdateCarDto } from './dto/update-car.dto';
+import type { OwnerListingMarketplaceStatus } from './dto/set-listing-status.dto';
 
 type CarListingWithOwner = Prisma.CarListingGetPayload<{
   include: {
@@ -38,6 +35,8 @@ export class CarsService {
     const owner = await this.requireCarOwner(authUser.clerkUserId);
     this.validateCoordinatePair(payload.latitude, payload.longitude);
 
+    const listingCity = resolveListingCity(payload.locationText, payload.listingCity);
+
     const created = await prisma.$transaction(async (tx) => {
       const listing = await tx.carListing.create({
         data: {
@@ -52,10 +51,15 @@ export class CarsService {
           seats: payload.seats,
           transmission: payload.transmission,
           fuelType: payload.fuelType,
-          dailyRateKigaliRwf: payload.dailyRateKigaliRwf,
-          dailyRateCountrysideRwf: payload.dailyRateCountrysideRwf,
-          weeklyRateRwf: payload.weeklyRateRwf,
-          monthlyRateRwf: payload.monthlyRateRwf,
+          plateNumber: payload.plateNumber.trim(),
+          color: payload.color?.trim() || null,
+          listingCity,
+          dailyRateInCityRwf: payload.dailyRateInCityRwf,
+          dailyRateOutsideCityRwf: payload.dailyRateOutsideCityRwf,
+          weeklyRateInCityRwf: payload.weeklyRateInCityRwf,
+          weeklyRateOutsideCityRwf: payload.weeklyRateOutsideCityRwf,
+          monthlyRateInCityRwf: payload.monthlyRateInCityRwf,
+          monthlyRateOutsideCityRwf: payload.monthlyRateOutsideCityRwf,
           priceNegotiable: payload.priceNegotiable ?? false,
           locationText: payload.locationText,
           photos: payload.photos,
@@ -94,6 +98,18 @@ export class CarsService {
     const listing = await this.requireOwnerListing(listingId, owner.id);
     this.validateCoordinatePair(payload.latitude, payload.longitude);
 
+    let listingCity: string | undefined;
+    if (payload.locationText !== undefined || payload.listingCity !== undefined) {
+      const current = await prisma.carListing.findUnique({
+        where: { id: listing.id },
+        select: { locationText: true },
+      });
+      listingCity = resolveListingCity(
+        payload.locationText ?? current?.locationText ?? '',
+        payload.listingCity,
+      );
+    }
+
     await prisma.carListing.update({
       where: { id: listing.id },
       data: {
@@ -107,10 +123,15 @@ export class CarsService {
         seats: payload.seats,
         transmission: payload.transmission,
         fuelType: payload.fuelType,
-        dailyRateKigaliRwf: payload.dailyRateKigaliRwf,
-        dailyRateCountrysideRwf: payload.dailyRateCountrysideRwf,
-        weeklyRateRwf: payload.weeklyRateRwf,
-        monthlyRateRwf: payload.monthlyRateRwf,
+        plateNumber: payload.plateNumber?.trim(),
+        color: payload.color?.trim() || null,
+        ...(listingCity !== undefined ? { listingCity } : {}),
+        dailyRateInCityRwf: payload.dailyRateInCityRwf,
+        dailyRateOutsideCityRwf: payload.dailyRateOutsideCityRwf,
+        weeklyRateInCityRwf: payload.weeklyRateInCityRwf,
+        weeklyRateOutsideCityRwf: payload.weeklyRateOutsideCityRwf,
+        monthlyRateInCityRwf: payload.monthlyRateInCityRwf,
+        monthlyRateOutsideCityRwf: payload.monthlyRateOutsideCityRwf,
         priceNegotiable: payload.priceNegotiable,
         locationText: payload.locationText,
         photos: payload.photos,
@@ -167,43 +188,11 @@ export class CarsService {
 
     if (
       listing.status !== ListingStatus.draft &&
+      listing.status !== ListingStatus.inactive &&
       listing.status !== ListingStatus.paused &&
       listing.status !== ListingStatus.rejected
     ) {
-      throw new BadRequestException('Only draft, paused, or rejected listings can be submitted for approval.');
-    }
-
-    const subscription = await prisma.subscription.findFirst({
-      where: {
-        userId: owner.id,
-        ...liveSubscriptionWhere(SubscriptionKind.hoster),
-      },
-      orderBy: {
-        startsAt: 'desc',
-      },
-    });
-
-    if (!subscription) {
-      throw new ForbiddenException('An active subscription is required before publishing a listing.');
-    }
-
-    const productTier = storedTierToProductTier(subscription.tier);
-    const plan = getTierPlan(productTier);
-    const limit = plan.maxCars ?? Number.POSITIVE_INFINITY;
-    if (Number.isFinite(limit)) {
-      const activeCount = await prisma.carListing.count({
-        where: {
-          ownerId: owner.id,
-          status: ListingStatus.active,
-          id: { not: listing.id },
-        },
-      });
-
-      if (activeCount >= limit) {
-        throw new ForbiddenException(
-          `Your ${productTier} listing plan allows up to ${limit} active car listings.`,
-        );
-      }
+      throw new BadRequestException('Only draft, inactive, or rejected listings can be submitted for approval.');
     }
 
     const updated = await prisma.carListing.update({
@@ -224,16 +213,46 @@ export class CarsService {
   }
 
   async pause(authUser: AuthenticatedUser, listingId: string) {
+    return this.setListingStatus(authUser, listingId, 'inactive');
+  }
+
+  async setListingStatus(
+    authUser: AuthenticatedUser,
+    listingId: string,
+    target: OwnerListingMarketplaceStatus,
+  ) {
     const owner = await this.requireCarOwner(authUser.clerkUserId);
     const listing = await this.requireOwnerListing(listingId, owner.id);
 
-    if (listing.status !== ListingStatus.active) {
-      throw new BadRequestException('Only active listings can be paused.');
+    if (this.isSoftDeletedStatus(listing.status)) {
+      throw new BadRequestException('This listing is no longer available.');
+    }
+
+    if (listing.status === ListingStatus.pending_approval) {
+      throw new BadRequestException('This listing is awaiting admin approval.');
+    }
+
+    if (listing.status === ListingStatus.draft || listing.status === ListingStatus.rejected) {
+      if (target === 'active') {
+        return this.publish(authUser, listingId);
+      }
+      throw new BadRequestException('Publish the listing for approval before changing visibility.');
+    }
+
+    if (target === 'active') {
+      await this.assertHostCanActivateListing(owner.id, listing.id);
+    } else if (
+      listing.status !== ListingStatus.active &&
+      listing.status !== ListingStatus.inactive &&
+      listing.status !== ListingStatus.booked &&
+      listing.status !== ListingStatus.paused
+    ) {
+      throw new BadRequestException('Only visible listings can be set to inactive or booked.');
     }
 
     const updated = await prisma.carListing.update({
       where: { id: listing.id },
-      data: { status: ListingStatus.paused },
+      data: { status: this.toPrismaMarketplaceStatus(target) },
       include: {
         owner: {
           select: {
@@ -273,6 +292,9 @@ export class CarsService {
       ? await prisma.user.findUnique({ where: { clerkId: user.clerkUserId }, select: { id: true } })
       : null;
     const isOwner = caller?.id === listing.ownerId;
+    if (!isOwner && listing.status !== ListingStatus.active) {
+      throw new NotFoundException('Listing not found.');
+    }
     let bookingConfirmed = false;
     if (caller && !isOwner) {
       const confirmed = await prisma.carBooking.findFirst({
@@ -292,6 +314,7 @@ export class CarsService {
     const visibility = getContactVisibility({
       kind: SubscriptionKind.hoster,
       storedTier: hosterSub?.tier,
+      productTier: hosterSub ? undefined : 'enterprise',
       bookingConfirmed,
     });
     return this.mapListing(listing, includeExactRates, {
@@ -372,15 +395,28 @@ export class CarsService {
     }));
   }
 
-  async getByOwner(userId: string, excludeId?: string) {
+  async getByOwner(userId: string, excludeId?: string, viewer?: AuthenticatedUser) {
+    let viewerUserId: string | undefined;
+    if (viewer) {
+      const viewerUser = await prisma.user.findUnique({
+        where: { clerkId: viewer.clerkUserId },
+        select: { id: true },
+      });
+      viewerUserId = viewerUser?.id;
+    }
+
+    const isOwnerViewingSelf = viewerUserId === userId;
+
     const listings = await prisma.carListing.findMany({
       where: {
         ownerId: userId,
-        status: ListingStatus.active,
+        ...(isOwnerViewingSelf
+          ? { status: { notIn: [ListingStatus.deleted, ListingStatus.archived] } }
+          : { status: ListingStatus.active }),
         ...(excludeId ? { id: { not: excludeId } } : {}),
       },
       orderBy: { createdAt: 'desc' },
-      take: 6,
+      take: isOwnerViewingSelf ? 100 : 6,
       include: {
         owner: {
           select: {
@@ -392,7 +428,7 @@ export class CarsService {
         },
       },
     });
-    return listings.map((l) => this.mapListing(l, false, { showContact: false }));
+    return listings.map((l) => this.mapListing(l, isOwnerViewingSelf, { showContact: false }));
   }
 
   async getAvailability(listingId: string, month: string) {
@@ -441,42 +477,13 @@ export class CarsService {
     };
   }
 
-  getSignedUploadUrl(folder?: string) {
-    const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
-    const apiKey = process.env.CLOUDINARY_API_KEY;
-    const apiSecret = process.env.CLOUDINARY_API_SECRET;
-
-    if (!cloudName || !apiKey || !apiSecret) {
-      throw new BadRequestException('Cloudinary configuration is incomplete.');
-    }
-
-    const timestamp = Math.floor(Date.now() / 1000);
-    const safeFolder = (folder ?? 'rentingi/cars').trim() || 'rentingi/cars';
-    const allowedFormats = 'jpg,jpeg,png,webp,heic,heif';
-
-    // Only include params Cloudinary signs — max_file_size is not a signable param
-    const signaturePayload = `allowed_formats=${allowedFormats}&folder=${safeFolder}&timestamp=${timestamp}${apiSecret}`;
-    const signature = createHash('sha1').update(signaturePayload).digest('hex');
-
-    return {
-      uploadUrl: `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
-      fields: {
-        api_key: apiKey,
-        timestamp,
-        folder: safeFolder,
-        allowed_formats: allowedFormats,
-        signature,
-      },
-    };
-  }
-
   private mapListing(
     listing: CarListingWithOwner,
     includeExactRates: boolean,
     extras?: { showContact?: boolean; verified?: boolean; instantBooking?: boolean; isBookedNow?: boolean },
   ) {
-    const kigaliPriceApproximation = this.getApproximatePriceRange(listing.dailyRateKigaliRwf);
-    const countrysidePriceApproximation = this.getApproximatePriceRange(listing.dailyRateCountrysideRwf);
+    const inCityDailyApproximation = this.getApproximatePriceRange(listing.dailyRateInCityRwf);
+    const outsideCityDailyApproximation = this.getApproximatePriceRange(listing.dailyRateOutsideCityRwf);
     const showContact = extras?.showContact ?? includeExactRates;
     return {
       id: listing.id,
@@ -498,6 +505,9 @@ export class CarsService {
       seats: listing.seats,
       transmission: listing.transmission,
       fuelType: listing.fuelType,
+      plateNumber: includeExactRates ? listing.plateNumber : null,
+      color: listing.color,
+      listingCity: listing.listingCity,
       locationText: listing.locationText,
       photos: listing.photos,
       features: listing.features,
@@ -507,15 +517,17 @@ export class CarsService {
       updatedAt: listing.updatedAt,
       ...(includeExactRates
         ? {
-            dailyRateKigaliRwf: listing.dailyRateKigaliRwf,
-            dailyRateCountrysideRwf: listing.dailyRateCountrysideRwf,
-            weeklyRateRwf: listing.weeklyRateRwf ?? null,
-            monthlyRateRwf: listing.monthlyRateRwf ?? null,
+            dailyRateInCityRwf: listing.dailyRateInCityRwf,
+            dailyRateOutsideCityRwf: listing.dailyRateOutsideCityRwf,
+            weeklyRateInCityRwf: listing.weeklyRateInCityRwf,
+            weeklyRateOutsideCityRwf: listing.weeklyRateOutsideCityRwf,
+            monthlyRateInCityRwf: listing.monthlyRateInCityRwf,
+            monthlyRateOutsideCityRwf: listing.monthlyRateOutsideCityRwf,
           }
         : {
             approximateDailyRateRangeRwf: {
-              kigali: kigaliPriceApproximation,
-              countryside: countrysidePriceApproximation,
+              inCity: inCityDailyApproximation,
+              outsideCity: outsideCityDailyApproximation,
             },
           }),
     };
@@ -581,6 +593,16 @@ export class CarsService {
 
   private isSoftDeletedStatus(status: ListingStatus): boolean {
     return status === ListingStatus.deleted || status === ListingStatus.archived;
+  }
+
+  private toPrismaMarketplaceStatus(target: OwnerListingMarketplaceStatus): ListingStatus {
+    if (target === 'active') return ListingStatus.active;
+    if (target === 'booked') return ListingStatus.booked;
+    return ListingStatus.inactive;
+  }
+
+  private async assertHostCanActivateListing(_ownerId: string, _listingId: string): Promise<void> {
+    // Subscriptions disabled — hosts may activate listings without a paid plan.
   }
 
   private async setPickupLocation(

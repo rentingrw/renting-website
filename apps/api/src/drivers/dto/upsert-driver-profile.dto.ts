@@ -56,6 +56,12 @@ export class CreateDriverProfileDto {
   @Min(1000)
   weeklyRateRwf?: number;
 
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(1000)
+  monthlyRateRwf?: number;
+
   @IsString()
   @MaxLength(120)
   primaryCity!: string;
@@ -157,6 +163,12 @@ export class UpdateDriverProfileDto {
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(1000)
   weeklyRateRwf?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(1000)
+  monthlyRateRwf?: number;
 
   @IsOptional()
   @IsString()

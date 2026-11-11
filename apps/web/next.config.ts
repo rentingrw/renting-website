@@ -15,6 +15,7 @@ const nextConfig: NextConfig = {
       { protocol: 'https', hostname: 'res.cloudinary.com', pathname: '/**' },
       { protocol: 'https', hostname: 'img.clerk.com', pathname: '/**' },
       { protocol: 'https', hostname: 'images.unsplash.com', pathname: '/**' },
+      { protocol: 'http', hostname: 'localhost', port: '3001', pathname: '/dev-media/**' },
     ],
   },
 };

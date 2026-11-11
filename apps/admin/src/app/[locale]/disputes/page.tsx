@@ -21,7 +21,7 @@ const PAGE_SIZE = 20;
 
 const PRIORITY_STYLE: Record<string, string> = {
   high: 'bg-red-500 text-white border-red-700',
-  medium: 'bg-amber-400 text-neutral-900 border-amber-600',
+  medium: 'bg-sun text-ink border-amber-600',
   low: 'bg-blue-100 text-blue-900 border-blue-300',
 };
 
@@ -88,14 +88,16 @@ export default function AdminDisputesPage() {
   };
 
   const totalPages = Math.ceil(data.total / PAGE_SIZE) || 1;
-  const inputClass = 'h-9 rounded border-2 border-neutral-900 bg-white px-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-amber-400';
+  const inputClass = 'h-9 rounded-xl border border-border bg-card px-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-brand/20';
 
   return (
-    <main className="mx-auto max-w-7xl space-y-6 p-6">
+    <main className="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-neutral-900">Disputes</h1>
-          <p className="text-sm font-medium text-neutral-500">Review open disputes and take moderation actions.</p>
+          <h1 className="text-2xl font-black tracking-tight text-ink">Disputes</h1>
+          <p className="text-sm font-medium text-muted-foreground">
+            Moderate booking disputes between renters, hosts, drivers, and taxi providers
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <label className="flex items-center gap-2 cursor-pointer">
@@ -103,7 +105,7 @@ export default function AdminDisputesPage() {
               type="checkbox"
               checked={filters.openOnly ?? true}
               onChange={(e) => setFilters((f) => ({ ...f, openOnly: e.target.checked, page: 1 }))}
-              className="h-4 w-4 rounded border-2 border-neutral-900 accent-amber-400"
+              className="h-4 w-4 rounded border border-border accent-amber-400"
             />
             <span className="text-sm font-bold">Open only</span>
           </label>
@@ -117,7 +119,7 @@ export default function AdminDisputesPage() {
           </select>
           <button
             type="button"
-            className="h-9 rounded border-2 border-neutral-900 bg-neutral-900 px-4 text-sm font-black text-white shadow-brutal-sm hover:bg-neutral-800 hover:translate-x-px hover:translate-y-px hover:shadow-none transition-all"
+            className="h-9 rounded border border-border bg-brand px-4 text-sm font-black text-white shadow-brutal-sm hover:bg-brand-hover transition-all"
             onClick={() => void loadDisputes()}
           >
             Filter
@@ -126,16 +128,16 @@ export default function AdminDisputesPage() {
       </header>
 
       {error ? (
-        <div className="rounded border-2 border-red-700 bg-red-50 p-3 text-sm font-semibold text-red-700 shadow-[3px_3px_0_#991b1b]">
+        <div className="rounded border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700 shadow-brutal-red">
           {error}
         </div>
       ) : null}
 
-      <section className="rounded-md border-2 border-neutral-900 bg-white shadow-brutal overflow-hidden">
+      <section className="rounded-2xl border border-border bg-card shadow-soft overflow-hidden">
         <div className="overflow-auto">
           <table className="min-w-full text-left text-sm">
             <thead>
-              <tr className="bg-neutral-900 text-white">
+              <tr className="bg-brand text-white">
                 <th className="px-4 py-3 text-xs font-black uppercase tracking-wider">Priority</th>
                 <th className="px-4 py-3 text-xs font-black uppercase tracking-wider">Reason</th>
                 <th className="px-4 py-3 text-xs font-black uppercase tracking-wider">Parties</th>
@@ -148,24 +150,24 @@ export default function AdminDisputesPage() {
                 Array.from({ length: 5 }).map((_, i) => <TableRowSkeleton key={i} cols={5} />)
               ) : data.items.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-8 font-semibold text-neutral-400 text-center" colSpan={5}>
+                  <td className="px-4 py-8 font-semibold text-muted-foreground text-center" colSpan={5}>
                     No disputes found.
                   </td>
                 </tr>
               ) : (
                 data.items.map((dispute) => (
-                  <tr key={dispute.id} className="border-t-2 border-neutral-900 hover:bg-amber-50 transition-colors">
+                  <tr key={dispute.id} className="border-t border-border hover:bg-brand-soft transition-colors">
                     <td className="px-4 py-3">
-                      <span className={`rounded border-2 px-2 py-0.5 text-xs font-black capitalize ${PRIORITY_STYLE[dispute.priority] ?? 'bg-neutral-100 border-neutral-400 text-neutral-700'}`}>
+                      <span className={`rounded border px-2 py-0.5 text-xs font-black capitalize ${PRIORITY_STYLE[dispute.priority] ?? 'bg-muted border-border text-ink/80'}`}>
                         {dispute.priority}
                       </span>
                     </td>
-                    <td className="px-4 py-3 font-semibold text-neutral-900">{dispute.reason}</td>
-                    <td className="px-4 py-3 text-neutral-600 font-medium">
+                    <td className="px-4 py-3 font-semibold text-ink">{dispute.reason}</td>
+                    <td className="px-4 py-3 text-muted-foreground font-medium">
                       {dispute.openedBy.fullName} <span className="font-black text-xs">vs</span> {dispute.againstUser.fullName}
                     </td>
                     <td className="px-4 py-3">
-                      <span className="rounded border-2 border-neutral-900 px-2 py-0.5 text-xs font-bold capitalize">
+                      <span className="rounded border border-border px-2 py-0.5 text-xs font-bold capitalize">
                         {dispute.status.replace(/_/g, ' ')}
                       </span>
                     </td>
@@ -173,13 +175,13 @@ export default function AdminDisputesPage() {
                       <div className="flex justify-end gap-2">
                         <Link
                           href={`/${locale}/disputes/${dispute.id}`}
-                          className="rounded border-2 border-neutral-900 bg-white px-2.5 py-1 text-xs font-bold shadow-brutal-xs hover:translate-x-px hover:translate-y-px hover:shadow-none transition-all"
+                          className="rounded-xl border border-border bg-card px-2.5 py-1 text-xs font-bold shadow-brutal-xs transition-all"
                         >
                           View
                         </Link>
                         <button
                           type="button"
-                          className="rounded border-2 border-neutral-900 bg-white px-2.5 py-1 text-xs font-bold shadow-brutal-xs hover:translate-x-px hover:translate-y-px hover:shadow-none transition-all disabled:opacity-40"
+                          className="rounded-xl border border-border bg-card px-2.5 py-1 text-xs font-bold shadow-brutal-xs transition disabled:opacity-40"
                           disabled={actingId === dispute.id}
                           onClick={() => void onAction(dispute.id, 'dismiss')}
                         >
@@ -187,7 +189,7 @@ export default function AdminDisputesPage() {
                         </button>
                         <button
                           type="button"
-                          className="rounded border-2 border-neutral-900 bg-neutral-900 px-2.5 py-1 text-xs font-black text-white shadow-brutal-xs hover:bg-neutral-800 disabled:opacity-40"
+                          className="rounded border border-border bg-brand px-2.5 py-1 text-xs font-black text-white shadow-brutal-xs hover:bg-brand-hover disabled:opacity-40"
                           disabled={actingId === dispute.id}
                           onClick={() => void onAction(dispute.id, 'resolve')}
                         >
@@ -202,14 +204,14 @@ export default function AdminDisputesPage() {
           </table>
         </div>
         {totalPages > 1 && (
-          <div className="flex items-center justify-between border-t-2 border-neutral-900 px-4 py-3 bg-neutral-50">
-            <p className="text-sm font-semibold text-neutral-500">
+          <div className="flex items-center justify-between border-t border-border px-4 py-3 bg-muted">
+            <p className="text-sm font-semibold text-muted-foreground">
               Page {data.page} of {totalPages} · {data.total} total
             </p>
             <div className="flex gap-2">
               <button
                 type="button"
-                className="rounded border-2 border-neutral-900 px-3 py-1.5 text-sm font-bold shadow-brutal-xs hover:translate-x-px hover:translate-y-px hover:shadow-none transition-all disabled:opacity-40"
+                className="rounded border border-border px-3 py-1.5 text-sm font-bold shadow-brutal-xs transition disabled:opacity-40"
                 disabled={data.page <= 1}
                 onClick={() => setFilters((f) => ({ ...f, page: Math.max(1, f.page ?? 1) - 1 }))}
               >
@@ -217,7 +219,7 @@ export default function AdminDisputesPage() {
               </button>
               <button
                 type="button"
-                className="rounded border-2 border-neutral-900 px-3 py-1.5 text-sm font-bold shadow-brutal-xs hover:translate-x-px hover:translate-y-px hover:shadow-none transition-all disabled:opacity-40"
+                className="rounded border border-border px-3 py-1.5 text-sm font-bold shadow-brutal-xs transition disabled:opacity-40"
                 disabled={data.page >= totalPages}
                 onClick={() => setFilters((f) => ({ ...f, page: Math.min(totalPages, (f.page ?? 1) + 1) }))}
               >

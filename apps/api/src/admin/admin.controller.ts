@@ -7,16 +7,21 @@ import {
   Patch,
   Post,
   Query,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { memoryStorage } from 'multer';
 
 import { AdminJwtGuard } from '../auth/guards/admin-jwt.guard';
 import { DismissDisputeDto } from '../disputes/dto/dismiss-dispute.dto';
 import { ResolveDisputeDto } from '../disputes/dto/resolve-dispute.dto';
-import { AdminService } from './admin.service';
-import { UsersService } from '../users/users.service';
 import { CarsService } from '../cars/cars.service';
+import { UsersService } from '../users/users.service';
+import { ImageUploadService } from '../uploads/image-upload.service';
+import { AdminService } from './admin.service';
 import { AdjustTrustScoreDto } from './dto/adjust-trust-score.dto';
 import { AdminNoteDto } from './dto/admin-note.dto';
 import { CancelBookingAdminDto } from './dto/cancel-booking-admin.dto';
@@ -27,10 +32,13 @@ import { ListSubscriptionsQueryDto } from './dto/list-subscriptions.query.dto';
 import { ListUsersQueryDto } from './dto/list-users.query.dto';
 import { ListListingsQueryDto } from './dto/list-listings.query.dto';
 import { RejectListingDto } from './dto/reject-listing.dto';
+import { AdminSetListingStatusDto } from './dto/admin-set-listing-status.dto';
 import { ListDriversQueryDto } from './dto/list-drivers.query.dto';
 import { AdminCreateCarDto } from './dto/admin-create-car.dto';
 import { AdminCreateDriverDto } from './dto/admin-create-driver.dto';
+import { AdminSetTaxiStatusDto } from './dto/admin-set-taxi-status.dto';
 import { CreatePromoCodeDto, UpdatePromoCodeDto } from './dto/promo-code.dto';
+import { CreateJobOpeningDto, UpdateJobOpeningDto } from './dto/job-opening.dto';
 
 @ApiTags('Admin')
 @ApiBearerAuth()
@@ -41,6 +49,7 @@ export class AdminController {
     private readonly adminService: AdminService,
     private readonly usersService: UsersService,
     private readonly carsService: CarsService,
+    private readonly imageUploadService: ImageUploadService,
   ) {}
 
   @Get('overview')
@@ -58,7 +67,26 @@ export class AdminController {
   @Get('upload-url')
   @ApiOperation({ summary: 'Get a Cloudinary signed upload URL for admin image uploads' })
   getUploadUrl(@Query('folder') folder?: string) {
-    return this.carsService.getSignedUploadUrl(folder ?? 'rentingi/admin');
+    return this.imageUploadService.getUploadConfig(folder ?? 'rentingi/admin', { admin: true });
+  }
+
+  @Post('uploads/direct')
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { file: { type: 'string', format: 'binary' } },
+    },
+  })
+  @ApiOperation({ summary: 'Local dev image upload when Cloudinary is not configured' })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 10 * 1024 * 1024 },
+    }),
+  )
+  directUpload(@UploadedFile() file: Express.Multer.File) {
+    return this.imageUploadService.saveLocalDevFile(file);
   }
 
   @Get('users')
@@ -116,15 +144,27 @@ export class AdminController {
   }
 
   @Get('listings')
-  @ApiOperation({ summary: 'List car listings (defaults to pending_approval)' })
+  @ApiOperation({ summary: 'List car listings (omit status for all non-deleted)' })
   listListings(@Query() query: ListListingsQueryDto) {
     return this.adminService.listListings(query);
+  }
+
+  @Get('listings/:id')
+  @ApiOperation({ summary: 'Car listing detail for admin review' })
+  getListingDetail(@Param('id') listingId: string) {
+    return this.adminService.getListingDetail(listingId);
   }
 
   @Patch('listings/:id/approve')
   @ApiOperation({ summary: 'Approve a pending car listing and make it active' })
   approveListing(@Param('id') listingId: string) {
     return this.adminService.approveListing(listingId);
+  }
+
+  @Patch('listings/:id/status')
+  @ApiOperation({ summary: 'Set listing visibility: active, inactive, or booked' })
+  setListingStatus(@Param('id') listingId: string, @Body() payload: AdminSetListingStatusDto) {
+    return this.adminService.setListingMarketplaceStatus(listingId, payload.status);
   }
 
   @Post('listings/:id/reject')
@@ -146,7 +186,7 @@ export class AdminController {
   }
 
   @Get('drivers')
-  @ApiOperation({ summary: 'List all driver profiles' })
+  @ApiOperation({ summary: 'List driver profiles (filter by approval status)' })
   listDrivers(@Query() query: ListDriversQueryDto) {
     return this.adminService.listDrivers(query);
   }
@@ -159,6 +199,24 @@ export class AdminController {
     @Query('search') search?: string,
   ) {
     return this.adminService.listDriverOverview(Number(page ?? 1), Number(pageSize ?? 30), search);
+  }
+
+  @Get('drivers/:id')
+  @ApiOperation({ summary: 'Get full driver application details for review' })
+  getDriverDetail(@Param('id') driverProfileId: string) {
+    return this.adminService.getDriverDetail(driverProfileId);
+  }
+
+  @Post('drivers/:id/approve')
+  @ApiOperation({ summary: 'Approve a pending driver application' })
+  approveDriver(@Param('id') driverProfileId: string) {
+    return this.adminService.approveDriver(driverProfileId);
+  }
+
+  @Post('drivers/:id/reject')
+  @ApiOperation({ summary: 'Reject a pending driver application' })
+  rejectDriver(@Param('id') driverProfileId: string, @Body() payload: RejectListingDto) {
+    return this.adminService.rejectDriver(driverProfileId, payload);
   }
 
   @Post('drivers/:userId/activate-subscription')
@@ -177,6 +235,23 @@ export class AdminController {
   @ApiOperation({ summary: 'Create a driver profile on behalf of a user' })
   adminCreateDriver(@Body() payload: AdminCreateDriverDto) {
     return this.adminService.adminCreateDriver(payload);
+  }
+
+  @Get('taxis')
+  @ApiOperation({ summary: 'List taxi drivers' })
+  listTaxis(
+    @Query('search') search?: string,
+    @Query('status') status?: string,
+    @Query('page') page?: number,
+    @Query('pageSize') pageSize?: number,
+  ) {
+    return this.adminService.listTaxis({ search, status, page, pageSize });
+  }
+
+  @Patch('taxis/:id/status')
+  @ApiOperation({ summary: 'Set taxi driver marketplace status' })
+  setTaxiStatus(@Param('id') taxiId: string, @Body() payload: AdminSetTaxiStatusDto) {
+    return this.adminService.setTaxiMarketplaceStatus(taxiId, payload.status as import('@prisma/client').TaxiDriverStatus);
   }
 
   @Get('subscriptions')
@@ -334,5 +409,29 @@ export class AdminController {
   @ApiOperation({ summary: 'Delete a site banner' })
   deleteBanner(@Param('id') id: string) {
     return this.adminService.deleteBanner(id);
+  }
+
+  @Get('jobs')
+  @ApiOperation({ summary: 'List job openings' })
+  listJobOpenings() {
+    return this.adminService.listJobOpenings();
+  }
+
+  @Post('jobs')
+  @ApiOperation({ summary: 'Create a job opening' })
+  createJobOpening(@Body() body: CreateJobOpeningDto) {
+    return this.adminService.createJobOpening(body);
+  }
+
+  @Patch('jobs/:id')
+  @ApiOperation({ summary: 'Update a job opening' })
+  updateJobOpening(@Param('id') id: string, @Body() body: UpdateJobOpeningDto) {
+    return this.adminService.updateJobOpening(id, body);
+  }
+
+  @Delete('jobs/:id')
+  @ApiOperation({ summary: 'Delete a job opening' })
+  deleteJobOpening(@Param('id') id: string) {
+    return this.adminService.deleteJobOpening(id);
   }
 }

@@ -16,7 +16,7 @@ export class UsersService {
         roles: true,
         taxiDriver: { select: { id: true } },
         driverProfile: { select: { id: true } },
-        carOwnerProfile: { select: { companyName: true, workAddress: true, contactPhone: true } },
+        carOwnerProfile: { select: { companyName: true, workAddress: true, contactPhone: true, hostType: true } },
       },
     });
 
@@ -49,6 +49,7 @@ export class UsersService {
       hasDriverProfile: Boolean(user.driverProfile),
       hosterProfile: user.carOwnerProfile
         ? {
+            hostType: user.carOwnerProfile.hostType,
             companyName: user.carOwnerProfile.companyName,
             workAddress: user.carOwnerProfile.workAddress,
             contactPhone: user.carOwnerProfile.contactPhone,
@@ -256,11 +257,13 @@ export class UsersService {
       where: { userId: user.id },
       create: {
         userId: user.id,
+        hostType: payload.hostType,
         companyName: payload.companyName,
         workAddress: payload.workAddress,
         contactPhone: payload.contactPhone,
       },
       update: {
+        ...(payload.hostType !== undefined ? { hostType: payload.hostType } : {}),
         ...(payload.companyName !== undefined ? { companyName: payload.companyName } : {}),
         ...(payload.workAddress !== undefined ? { workAddress: payload.workAddress } : {}),
         ...(payload.contactPhone !== undefined ? { contactPhone: payload.contactPhone } : {}),
@@ -269,6 +272,7 @@ export class UsersService {
 
     return {
       id: profile.id,
+      hostType: profile.hostType,
       companyName: profile.companyName,
       workAddress: profile.workAddress,
       contactPhone: profile.contactPhone,

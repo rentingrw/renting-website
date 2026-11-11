@@ -19,6 +19,7 @@ import {
   bookingCompletedEmailHtml,
   bookingDeskRequestEmailHtml,
 } from '../notifications/email-templates';
+import { adminBookingsDeskUrl, formatAdminDeskWhatsAppMessage } from '../notifications/booking-desk-alert.util';
 import { realtimeEvents } from '../realtime/realtime.events';
 import { TrustScoreService } from '../trust-score/trust-score.service';
 import type { CreateDriverBookingDto } from './dto/create-driver-booking.dto';
@@ -108,6 +109,22 @@ export class DriverBookingsService {
     });
 
     const title = `Driver service (${booking.serviceType})`;
+    const whatsappText = formatAdminDeskWhatsAppMessage({
+      kind: 'driver',
+      title,
+      renterName: booking.renter.fullName,
+      renterPhone,
+      providerName: booking.driver.fullName,
+      providerPhone: booking.driver.phone,
+      start: booking.startAt,
+      end: booking.endAt,
+      pickup: booking.pickupAddress,
+      notes: booking.notes,
+      bookingId: booking.id,
+      adminDeskUrl: adminBookingsDeskUrl(),
+    });
+    const smsText = `Driver booking: ${booking.renter.fullName} ${renterPhone} — ${title}. Desk: ${adminBookingsDeskUrl()}`;
+
     this.notificationsService.queueAdminDeskAlert(
       `Booking desk: ${title}`,
       `${booking.renter.fullName} (${renterPhone}) requested ${title}. Pickup ${booking.pickupAddress}.`,
@@ -120,7 +137,15 @@ export class DriverBookingsService {
         booking.pickupAddress,
         booking.notes,
       ),
+      { whatsappText, smsText },
     );
+    this.notificationsService.emitInAppToAdmin(realtimeEvents.bookingNewRequest, {
+      bookingType: 'driver',
+      bookingId: booking.id,
+      listingTitle: title,
+      renterName: booking.renter.fullName,
+      status: booking.status,
+    });
     this.notificationsService.queueEmailToUsers(
       [booking.renterId],
       'Booking request submitted — renting.rw',

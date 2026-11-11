@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useAuth } from '@clerk/nextjs';
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 
@@ -47,6 +48,7 @@ function Skeleton({ locale }: { locale: SupportedLocale }) {
 
 export default function UserProfilePage({ params }: Props) {
   const t = useTranslations('web.listing');
+  const { getToken, isSignedIn } = useAuth();
   const [locale, setLocale] = useState<SupportedLocale>(routing.defaultLocale);
   const [userId, setUserId] = useState('');
   const [profile, setProfile] = useState<UserPublicProfile | null>(null);
@@ -76,9 +78,10 @@ export default function UserProfilePage({ params }: Props) {
       setLoading(true);
       setError(null);
       try {
+        const token = isSignedIn ? await getToken() : null;
         const [userProfile, carListings, reviews] = await Promise.all([
           getUserPublicProfile(userId),
-          getCarsByOwner(userId),
+          getCarsByOwner(userId, undefined, token),
           getReviewsForUser(userId).catch(() => null),
         ]);
         if (!cancelled) {
@@ -97,7 +100,7 @@ export default function UserProfilePage({ params }: Props) {
     }
     void load();
     return () => { cancelled = true; };
-  }, [userId]);
+  }, [userId, isSignedIn, getToken]);
 
   if (loading) return <Skeleton locale={locale} />;
 

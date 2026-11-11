@@ -13,6 +13,17 @@ type PriceRange = {
   max: number;
 };
 
+export type CarListingRates = {
+  dailyRateInCityRwf: number;
+  dailyRateOutsideCityRwf: number;
+  weeklyRateInCityRwf: number;
+  weeklyRateOutsideCityRwf: number;
+  monthlyRateInCityRwf: number;
+  monthlyRateOutsideCityRwf: number;
+};
+
+import type { CarDailyRateApproxRanges } from '@rentingi/types';
+
 export type MeResponse = {
   id: string;
   email: string;
@@ -27,6 +38,7 @@ export type MeResponse = {
   hasDriverProfile?: boolean;
   isVerified?: boolean;
   hosterProfile?: {
+    hostType?: 'individual' | 'company' | null;
     companyName: string | null;
     workAddress: string | null;
     contactPhone: string | null;
@@ -57,6 +69,7 @@ export type SearchCar = {
   seats: number;
   transmission: string | null;
   fuelType: string | null;
+  color?: string | null;
   locationText: string;
   photos: string[];
   features: string[];
@@ -66,12 +79,12 @@ export type SearchCar = {
   ownerTrustScore?: number | null;
   isBookedNow?: boolean;
   verified?: boolean;
-  dailyRateKigaliRwf?: number;
-  dailyRateCountrysideRwf?: number;
-  approximateDailyRateRangeRwf?: {
-    kigali: PriceRange;
-    countryside: PriceRange;
-  };
+  listingCity?: string;
+  dailyRateInCityRwf?: number;
+  dailyRateOutsideCityRwf?: number;
+  approximateDailyRateRangeRwf?: CarDailyRateApproxRanges;
+  /** Present on owner views and detail payloads; public search omits non-active listings entirely. */
+  status?: string;
 };
 
 export type SearchDriver = {
@@ -109,14 +122,20 @@ export type SearchTaxi = {
   id: string;
   fullName: string;
   phone: string;
+  whatsapp?: string | null;
   city: string;
+  workLocationText?: string | null;
+  languages?: string[];
   seats: number;
   details: string | null;
   carModel: string | null;
   vehicleType: string | null;
+  features?: string[];
   photos: string[];
   photoUrl: string | null;
   profilePhotoUrl: string | null;
+  contactPhoneEnabled?: boolean;
+  contactWhatsappEnabled?: boolean;
   distanceMeters: number | null;
   cityLatitude?: number | null;
   cityLongitude?: number | null;
@@ -156,18 +175,14 @@ export type CarDetail = {
   seats: number;
   transmission: string | null;
   fuelType: string | null;
+  color?: string | null;
+  listingCity?: string;
   locationText: string;
   photos: string[];
   features: string[];
   priceNegotiable?: boolean;
-  dailyRateKigaliRwf?: number;
-  dailyRateCountrysideRwf?: number;
-  weeklyRateRwf?: number | null;
-  monthlyRateRwf?: number | null;
-  approximateDailyRateRangeRwf?: {
-    kigali: PriceRange;
-    countryside: PriceRange;
-  };
+} & Partial<CarListingRates> & {
+  approximateDailyRateRangeRwf?: CarDailyRateApproxRanges;
 };
 
 export type DriverDetail = {
@@ -377,10 +392,12 @@ export type OwnerCar = {
   seats: number;
   transmission: string | null;
   fuelType: string | null;
+  plateNumber?: string | null;
+  color?: string | null;
+  listingCity: string;
   locationText: string;
-  status: 'draft' | 'active' | 'paused' | 'deleted' | 'archived';
-  dailyRateKigaliRwf: number;
-  dailyRateCountrysideRwf: number;
+  status: 'draft' | 'pending_approval' | 'active' | 'inactive' | 'booked' | 'paused' | 'rejected' | 'deleted' | 'archived';
+} & CarListingRates & {
   photos: string[];
   features: string[];
   bookingCounts: {
@@ -402,17 +419,38 @@ export type CarListingPayload = {
   seats: number;
   transmission?: string;
   fuelType?: string;
-  dailyRateKigaliRwf: number;
-  dailyRateCountrysideRwf: number;
-  weeklyRateRwf?: number;
-  monthlyRateRwf?: number;
+  plateNumber: string;
+  color?: string;
+  listingCity?: string;
   priceNegotiable?: boolean;
   locationText: string;
   latitude?: number;
   longitude?: number;
   photos: string[];
   features: string[];
-};
+} & CarListingRates;
+
+function normalizeCarListingPayload<T extends Partial<CarListingPayload>>(payload: T): T {
+  const out = { ...payload } as T & Partial<CarListingRates> & { photos?: string[] };
+  const rateKeys: (keyof CarListingRates)[] = [
+    'dailyRateInCityRwf',
+    'dailyRateOutsideCityRwf',
+    'weeklyRateInCityRwf',
+    'weeklyRateOutsideCityRwf',
+    'monthlyRateInCityRwf',
+    'monthlyRateOutsideCityRwf',
+  ];
+  for (const key of rateKeys) {
+    const value = out[key];
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      out[key] = Math.round(value) as CarListingRates[typeof key];
+    }
+  }
+  if (Array.isArray(out.photos)) {
+    out.photos = out.photos.map((url) => url.trim()).filter((url) => url.length > 0);
+  }
+  return out as T;
+}
 
 export type SubscriptionOverview = {
   subscription: null | {
@@ -538,8 +576,19 @@ export async function addRole(token: string, role: AppRole): Promise<void> {
 
 export async function upsertHosterProfile(
   token: string,
-  payload: { companyName?: string; workAddress?: string; contactPhone?: string },
-): Promise<{ id: string; companyName: string | null; workAddress: string | null; contactPhone: string | null }> {
+  payload: {
+    hostType?: 'individual' | 'company';
+    companyName?: string;
+    workAddress?: string;
+    contactPhone?: string;
+  },
+): Promise<{
+  id: string;
+  hostType: 'individual' | 'company' | null;
+  companyName: string | null;
+  workAddress: string | null;
+  contactPhone: string | null;
+}> {
   const response = await fetch(`${API_BASE_URL}/users/me/hoster-profile`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -663,6 +712,10 @@ export type TaxiDriverPublic = {
   phone: string;
   whatsapp: string | null;
   city: string;
+  workLocationText: string | null;
+  languages: string[];
+  contactPhoneEnabled: boolean;
+  contactWhatsappEnabled: boolean;
   seats: number;
   details: string | null;
   carModel: string | null;
@@ -681,10 +734,17 @@ export async function getTaxiDriverById(id: string): Promise<TaxiDriverPublic> {
   return (await response.json()) as TaxiDriverPublic;
 }
 
-export async function getCarsByOwner(userId: string, excludeId?: string): Promise<SearchCar[]> {
+export async function getCarsByOwner(
+  userId: string,
+  excludeId?: string,
+  token?: string | null,
+): Promise<SearchCar[]> {
   const url = new URL(`${API_BASE_URL}/cars/by-owner/${userId}`);
   if (excludeId) url.searchParams.set('excludeId', excludeId);
-  const response = await fetch(url.toString(), { cache: 'no-store' });
+  const response = await fetch(url.toString(), {
+    cache: 'no-store',
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  });
   if (!response.ok) return [];
   return (await response.json()) as SearchCar[];
 }
@@ -911,6 +971,24 @@ export async function getCarsMine(token: string): Promise<OwnerCar[]> {
   return (await response.json()) as OwnerCar[];
 }
 
+export type CarMarketplaceVisibility = 'active' | 'inactive' | 'booked';
+
+export async function setCarListingStatus(
+  token: string,
+  carId: string,
+  status: CarMarketplaceVisibility,
+): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/cars/${carId}/status`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ status }),
+  });
+  await ensureOk(response, 'Failed to update listing status.');
+}
+
 export async function publishCar(token: string, carId: string): Promise<void> {
   await postBookingAction(token, `/cars/${carId}/publish`, 'Failed to publish car.');
 }
@@ -921,8 +999,17 @@ export async function pauseCar(token: string, carId: string): Promise<void> {
 
 export type CarUploadUrlResponse = {
   uploadUrl: string;
-  fields: { api_key: string; timestamp: number; folder: string; signature: string };
+  fields: Record<string, string | number>;
+  provider?: 'cloudinary' | 'local';
 };
+
+function uploadHeadersForUrl(token: string, uploadUrl: string): HeadersInit | undefined {
+  const apiBase = API_BASE_URL.replace(/\/$/, '');
+  if (uploadUrl.startsWith(apiBase)) {
+    return { Authorization: `Bearer ${token}` };
+  }
+  return undefined;
+}
 
 export async function getCarUploadUrl(token: string, folder?: string): Promise<CarUploadUrlResponse> {
   const response = await fetch(`${API_BASE_URL}/cars/upload-url`, {
@@ -938,13 +1025,14 @@ export async function getCarUploadUrl(token: string, folder?: string): Promise<C
 }
 
 export async function createCarListing(token: string, payload: CarListingPayload): Promise<OwnerCar> {
+  const body = normalizeCarListingPayload(payload);
   const response = await fetch(`${API_BASE_URL}/cars`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(body),
   });
   await ensureOk(response, 'Failed to create listing.');
   return (await response.json()) as OwnerCar;
@@ -955,13 +1043,14 @@ export async function updateCarListing(
   listingId: string,
   payload: Partial<CarListingPayload>,
 ): Promise<OwnerCar> {
+  const body = normalizeCarListingPayload(payload);
   const response = await fetch(`${API_BASE_URL}/cars/${listingId}`, {
     method: 'PATCH',
     headers: {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(body),
   });
   await ensureOk(response, 'Failed to update listing.');
   return (await response.json()) as OwnerCar;
@@ -1176,6 +1265,7 @@ export type DriverProfilePayload = {
   dailyRateRwf: number;
   hourlyRateRwf?: number;
   weeklyRateRwf?: number;
+  monthlyRateRwf?: number;
   primaryCity: string;
   languages: string[];
   categories: DriverCategory[];
@@ -1210,6 +1300,15 @@ export async function updateDriverProfile(token: string, payload: Partial<Driver
   await ensureOk(response, 'Failed to update driver profile.');
 }
 
+export async function submitDriverProfileForReview(token: string): Promise<DriverProfileFull> {
+  const response = await fetch(`${API_BASE_URL}/drivers/profile/submit`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  await ensureOk(response, 'Failed to submit for review.');
+  return (await response.json()) as DriverProfileFull;
+}
+
 export type DriverProfileFull = {
   id: string;
   userId: string;
@@ -1221,6 +1320,7 @@ export type DriverProfileFull = {
   dailyRateRwf: number;
   hourlyRateRwf?: number | null;
   weeklyRateRwf?: number | null;
+  monthlyRateRwf?: number | null;
   primaryCity: string;
   languages: string[];
   categories: string[];
@@ -1235,6 +1335,10 @@ export type DriverProfileFull = {
   phone?: string | null;
   profilePhotoUrl?: string | null;
   availabilityCalendar: Array<{ from: string; to: string }>;
+  status?: 'draft' | 'pending_approval' | 'approved' | 'rejected';
+  rejectionReason?: string | null;
+  submittedAt?: string | null;
+  reviewedAt?: string | null;
   rating: number | null;
   completedTrips: number;
   bookingStats: { total: number; pending: number; confirmed: number; active: number; completed: number };
@@ -1345,6 +1449,10 @@ export type TaxiDriverMe = {
   phone: string;
   whatsapp: string | null;
   city: string;
+  workLocationText: string | null;
+  languages: string[];
+  contactPhoneEnabled: boolean;
+  contactWhatsappEnabled: boolean;
   seats: number;
   details: string | null;
   carModel: string | null;
@@ -1362,6 +1470,10 @@ export type TaxiDriverPayload = {
   phone: string;
   whatsapp?: string;
   city: string;
+  workLocationText?: string;
+  languages: string[];
+  contactPhoneEnabled?: boolean;
+  contactWhatsappEnabled?: boolean;
   seats: number;
   details?: string;
   carModel: string;
@@ -1370,7 +1482,7 @@ export type TaxiDriverPayload = {
   features?: string[];
   photos: string[];
   photoUrl?: string;
-  profilePhotoUrl?: string;
+  profilePhotoUrl: string;
 };
 
 export async function getTaxiDriverMe(token: string): Promise<TaxiDriverMe | null> {
@@ -1403,6 +1515,18 @@ export async function updateTaxiDriverMe(token: string, payload: TaxiDriverPaylo
   return (await response.json()) as TaxiDriverMe;
 }
 
+export type TaxiMarketplaceStatus = 'active' | 'inactive' | 'booked';
+
+export async function setTaxiDriverStatus(token: string, status: TaxiMarketplaceStatus): Promise<TaxiDriverMe> {
+  const response = await fetch(`${API_BASE_URL}/taxi-drivers/me/status`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status }),
+  });
+  await ensureOk(response, 'Failed to update taxi status.');
+  return (await response.json()) as TaxiDriverMe;
+}
+
 export async function uploadImageFile(
   token: string,
   file: File,
@@ -1412,7 +1536,11 @@ export async function uploadImageFile(
   const formData = new FormData();
   Object.entries(fields).forEach(([key, value]) => formData.append(key, String(value)));
   formData.append('file', file);
-  const response = await fetch(uploadUrl, { method: 'POST', body: formData });
+  const response = await fetch(uploadUrl, {
+    method: 'POST',
+    body: formData,
+    headers: uploadHeadersForUrl(token, uploadUrl),
+  });
   if (!response.ok) {
     throw new Error('Photo upload failed.');
   }
@@ -1421,4 +1549,39 @@ export async function uploadImageFile(
     throw new Error('Photo upload failed.');
   }
   return data.secure_url;
+}
+
+export type PublicJobOpening = {
+  id: string;
+  title: string;
+  employmentType: string;
+  location: string;
+  description: string;
+};
+
+export async function listPublicJobs(): Promise<PublicJobOpening[]> {
+  const response = await fetch(`${API_BASE_URL}/jobs`, { cache: 'no-store' });
+  await ensureOk(response, 'Failed to load jobs.');
+  return (await response.json()) as PublicJobOpening[];
+}
+
+export async function applyForJob(payload: {
+  jobId?: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  message: string;
+}): Promise<void> {
+  const path = payload.jobId ? `/jobs/${payload.jobId}/apply` : '/jobs/apply';
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      fullName: payload.fullName,
+      email: payload.email,
+      phone: payload.phone,
+      message: payload.message,
+    }),
+  });
+  await ensureOk(response, 'Could not send your application.');
 }

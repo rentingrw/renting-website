@@ -1,8 +1,9 @@
 'use client';
 
 import { UserButton } from '@clerk/nextjs';
-import { Bell, Search } from 'lucide-react';
+import { Bell, ChevronLeft, Search } from 'lucide-react';
 import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 
@@ -25,18 +26,39 @@ type DashboardHeaderProps = {
 
 export function DashboardHeader({ locale, onLocaleChange, notifications = [], onClearNotifications }: DashboardHeaderProps) {
   const t = useTranslations('web');
+  const pathname = usePathname();
+  const router = useRouter();
   const [searchOpen, setSearchOpen] = useState(false);
+  const appHome = `/${locale}/app`;
+
+  function goBack() {
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      router.back();
+      return;
+    }
+    router.push(pathname === appHome ? `/${locale}` : appHome);
+  }
 
   return (
     <>
       <header className="sticky top-0 z-50 bg-ink text-white">
-        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-2 px-4 py-3 sm:gap-4 sm:px-6">
-          <Link
-            href={`/${locale}`}
-            className="shrink-0 text-lg font-bold text-white transition hover:opacity-90 sm:text-xl"
-          >
-            Renting.rw
-          </Link>
+        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-2 px-3 py-2.5 sm:px-6 sm:py-3">
+          <div className="flex min-w-0 items-center gap-1">
+            <button
+              type="button"
+              onClick={goBack}
+              className="inline-flex shrink-0 items-center rounded-full p-1.5 text-white transition hover:bg-white/10"
+              aria-label={t('nav.back')}
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </button>
+            <Link
+              href={`/${locale}`}
+              className="truncate text-lg font-bold text-white transition hover:opacity-90 sm:text-xl"
+            >
+              Renting.rw
+            </Link>
+          </div>
 
           <div className="flex min-w-0 items-center gap-2 sm:gap-4">
             <button

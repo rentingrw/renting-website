@@ -356,7 +356,7 @@ export class SubscriptionsService {
           if (!stillLive) {
             await tx.carListing.updateMany({
               where: { ownerId: sub.userId, status: ListingStatus.active },
-              data: { status: ListingStatus.paused },
+              data: { status: ListingStatus.inactive },
             });
           }
           await this.syncVerifiedBadge(tx, sub.userId);
@@ -420,7 +420,7 @@ export class SubscriptionsService {
             status: ListingStatus.active,
           },
           data: {
-            status: ListingStatus.paused,
+            status: ListingStatus.inactive,
           },
         });
       });
@@ -523,7 +523,7 @@ export class SubscriptionsService {
       if (subscription.kind === SubscriptionKind.taxi) {
         await tx.taxiDriver.updateMany({
           where: { userId: subscription.userId },
-          data: { status: TaxiDriverStatus.approved },
+          data: { status: TaxiDriverStatus.active },
         });
       }
       return updated;
@@ -815,7 +815,7 @@ export class SubscriptionsService {
         id: { in: listingIdsToPause },
       },
       data: {
-        status: ListingStatus.paused,
+        status: ListingStatus.inactive,
       },
     });
   }
@@ -905,7 +905,7 @@ export class SubscriptionsService {
         if (params.kind === SubscriptionKind.taxi) {
           await tx.taxiDriver.updateMany({
             where: { userId: params.user.id },
-            data: { status: TaxiDriverStatus.approved },
+            data: { status: TaxiDriverStatus.active },
           });
         }
       });

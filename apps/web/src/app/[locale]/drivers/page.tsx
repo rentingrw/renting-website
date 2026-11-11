@@ -35,15 +35,15 @@ type ListingSort = 'rating' | 'price_asc' | 'price_desc' | '';
 
 function DriverCardSkeleton() {
   return (
-    <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-card animate-pulse">
-      <div className="border-b-2 border-border bg-brand-soft p-5 flex flex-col items-center">
-        <div className="h-20 w-20 rounded-full border-2 border-border bg-muted" />
-        <div className="mt-3 h-5 w-32 rounded bg-muted" />
-        <div className="mt-2 h-4 w-24 rounded bg-muted" />
+    <div className="overflow-hidden rounded-xl border border-border bg-card animate-pulse">
+      <div className="flex flex-col items-center border-b border-border bg-brand-soft px-4 py-4">
+        <div className="h-16 w-16 rounded-full bg-muted" />
+        <div className="mt-2 h-4 w-32 rounded bg-muted" />
+        <div className="mt-2 h-3 w-24 rounded bg-muted" />
       </div>
-      <div className="p-4 space-y-2">
-        <div className="h-5 w-20 rounded bg-muted" />
-        <div className="h-4 w-28 rounded bg-muted" />
+      <div className="flex justify-between p-3">
+        <div className="h-4 w-16 rounded bg-muted" />
+        <div className="h-4 w-20 rounded bg-muted" />
       </div>
     </div>
   );
@@ -302,7 +302,7 @@ export default function DriversPage({ params }: { params: Promise<{ locale: stri
             <p className="mt-2 rounded-xl bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{error}</p>
           ) : null}
 
-          <div className="mt-6 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {loading ? (
               [...Array(8)].map((_, i) => <DriverCardSkeleton key={i} />)
             ) : (
@@ -311,6 +311,7 @@ export default function DriversPage({ params }: { params: Promise<{ locale: stri
                   key={driver.id}
                   driver={driver}
                   locale={locale}
+                  size="medium"
                   favorited={driverFavorites.ids.has(driver.id)}
                   onFavoriteChange={(next) => driverFavorites.setFavorited(driver.id, next)}
                 />

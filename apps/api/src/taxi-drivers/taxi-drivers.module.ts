@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common';
 
-import { CarsModule } from '../cars/cars.module';
+import { ImageUploadModule } from '../uploads/image-upload.module';
 import { TaxiDriversController } from './taxi-drivers.controller';
 import { TaxiDriversService } from './taxi-drivers.service';
 
 @Module({
-  imports: [CarsModule],
+  imports: [ImageUploadModule],
   controllers: [TaxiDriversController],
   providers: [TaxiDriversService],
 })

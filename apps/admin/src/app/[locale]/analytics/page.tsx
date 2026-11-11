@@ -6,8 +6,6 @@ import {
   CartesianGrid,
   Cell,
   Legend,
-  Line,
-  LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -64,7 +62,7 @@ export default function AdminAnalyticsPage() {
 
   if (loading) {
     return (
-      <main className="mx-auto max-w-7xl space-y-6 p-6">
+      <main className="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
         <header>
           <h1 className="text-2xl font-bold">Analytics</h1>
           <p className="text-sm text-muted-foreground">User growth, booking volumes, revenue, and trust distribution.</p>
@@ -76,7 +74,7 @@ export default function AdminAnalyticsPage() {
 
   if (error) {
     return (
-      <main className="mx-auto max-w-7xl space-y-6 p-6">
+      <main className="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
         <header>
           <h1 className="text-2xl font-bold">Analytics</h1>
         </header>
@@ -85,7 +83,7 @@ export default function AdminAnalyticsPage() {
           <button
             type="button"
             onClick={() => window.location.reload()}
-            className="rounded border border-red-400 bg-white px-3 py-1.5 font-medium hover:bg-red-100"
+            className="rounded border border-red-400 bg-card px-3 py-1.5 font-medium hover:bg-red-100"
           >
             Retry
           </button>
@@ -95,14 +93,6 @@ export default function AdminAnalyticsPage() {
   }
 
   if (!analytics) return null;
-
-  const revenueData = analytics.subscriptionRevenueByTier.map((entry) => ({
-    month: String(entry.month),
-    Basic: Number(entry.standard ?? entry.basic ?? 0),
-    Premium: Number(entry.premium ?? 0),
-    Enterprise: Number(entry.business ?? entry.enterprise ?? 0),
-    Driver: Number(entry.free ?? entry.driver ?? 0),
-  }));
 
   const bookingVolumeData = analytics.bookingVolume.map((entry) => ({
     month: entry.month,
@@ -127,32 +117,13 @@ export default function AdminAnalyticsPage() {
     <main className="mx-auto max-w-7xl space-y-8 p-6">
       <header>
         <h1 className="text-2xl font-bold">Analytics</h1>
-        <p className="text-sm text-muted-foreground">User growth, booking volumes, revenue, and trust distribution.</p>
+        <p className="text-sm text-muted-foreground">User growth, booking volumes, and trust distribution.</p>
       </header>
 
       <section className="grid gap-4 md:grid-cols-3">
         <MetricCard title="Cancellation rate" value={percent(analytics.cancellationNoShowRates.cancellationRate)} />
         <MetricCard title="No-show rate" value={percent(analytics.cancellationNoShowRates.noShowRate)} />
         <MetricCard title="Tracked bookings" value={String(analytics.cancellationNoShowRates.totalBookings)} />
-      </section>
-
-      <section className="rounded-xl border p-4">
-        <h2 className="mb-4 font-semibold">Subscription revenue by tier (RWF)</h2>
-        <div className="h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={revenueData}>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-              <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-              <YAxis tick={{ fontSize: 12 }} tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}k`} />
-              <Tooltip formatter={(v: number) => [`${v.toLocaleString()} RWF`]} />
-              <Legend />
-              <Line type="monotone" dataKey="Basic" stroke="#3b82f6" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="Premium" stroke="#8b5cf6" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="Enterprise" stroke="#10b981" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="Driver" stroke="#f97316" strokeWidth={2} dot={false} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
       </section>
 
       <section className="rounded-xl border p-4">

@@ -87,8 +87,13 @@ export interface ICarListing {
   seats: number;
   transmission?: string | null;
   fuelType?: string | null;
-  dailyRateKigaliRwf: number;
-  dailyRateCountrysideRwf: number;
+  listingCity: string;
+  dailyRateInCityRwf: number;
+  dailyRateOutsideCityRwf: number;
+  weeklyRateInCityRwf: number;
+  weeklyRateOutsideCityRwf: number;
+  monthlyRateInCityRwf: number;
+  monthlyRateOutsideCityRwf: number;
   locationText: string;
   pickupLocation?: GeoPoint | null;
   photos: string[];

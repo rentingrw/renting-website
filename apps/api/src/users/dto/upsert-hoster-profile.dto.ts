@@ -1,6 +1,11 @@
-import { IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
+import { CarHostType } from '@prisma/client';
 
 export class UpsertHosterProfileDto {
+  @IsOptional()
+  @IsEnum(CarHostType)
+  hostType?: CarHostType;
+
   @IsOptional()
   @IsString()
   @MaxLength(160)

@@ -17,16 +17,21 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ClerkAuthGuard } from '../auth/guards/clerk-auth.guard';
 import { OptionalClerkAuthGuard } from '../auth/guards/optional-clerk-auth.guard';
 import type { AuthenticatedUser } from '../auth/types/authenticated-request.interface';
+import { ImageUploadService } from '../uploads/image-upload.service';
 import { CarsService } from './cars.service';
 import { CreateCarDto } from './dto/create-car.dto';
 import { GetAvailabilityDto } from './dto/get-availability.dto';
 import { GetUploadUrlDto } from './dto/get-upload-url.dto';
 import { UpdateCarDto } from './dto/update-car.dto';
+import { SetListingStatusDto } from './dto/set-listing-status.dto';
 
 @ApiTags('Cars')
 @Controller('cars')
 export class CarsController {
-  constructor(private readonly carsService: CarsService) {}
+  constructor(
+    private readonly carsService: CarsService,
+    private readonly imageUploadService: ImageUploadService,
+  ) {}
 
   @Post()
   @UseGuards(ClerkAuthGuard)
@@ -68,6 +73,18 @@ export class CarsController {
     return this.carsService.pause(user, id);
   }
 
+  @Patch(':id/status')
+  @UseGuards(ClerkAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Set listing visibility: active, inactive, or booked' })
+  setStatus(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() payload: SetListingStatusDto,
+  ) {
+    return this.carsService.setListingStatus(user, id, payload.status);
+  }
+
   @Get('mine')
   @UseGuards(ClerkAuthGuard)
   @ApiBearerAuth()
@@ -81,14 +98,19 @@ export class CarsController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get a signed upload URL for a car image' })
   getUploadUrl(@Body() payload: GetUploadUrlDto) {
-    return this.carsService.getSignedUploadUrl(payload.folder);
+    return this.imageUploadService.getUploadConfig(payload.folder);
   }
 
   @Get('by-owner/:userId')
-  @ApiOperation({ summary: 'Get active listings by owner user ID (public)' })
+  @UseGuards(OptionalClerkAuthGuard)
+  @ApiOperation({ summary: 'Get listings by owner user ID (active only for public; all for owner when signed in)' })
   @Header('Cache-Control', 'public, max-age=120, stale-while-revalidate=60')
-  getByOwner(@Param('userId') userId: string, @Query('excludeId') excludeId?: string) {
-    return this.carsService.getByOwner(userId, excludeId);
+  getByOwner(
+    @Param('userId') userId: string,
+    @Query('excludeId') excludeId?: string,
+    @Req() request?: { user?: AuthenticatedUser },
+  ) {
+    return this.carsService.getByOwner(userId, excludeId, request?.user);
   }
 
   @Get(':id/availability')

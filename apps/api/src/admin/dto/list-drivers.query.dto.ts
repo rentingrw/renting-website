@@ -1,10 +1,15 @@
+import { DriverProfileStatus } from '@prisma/client';
 import { Transform } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsEnum, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class ListDriversQueryDto {
   @IsOptional()
   @IsString()
   search?: string;
+
+  @IsOptional()
+  @IsEnum(DriverProfileStatus)
+  status?: DriverProfileStatus;
 
   @IsOptional()
   @Transform(({ value }) => Number(value))

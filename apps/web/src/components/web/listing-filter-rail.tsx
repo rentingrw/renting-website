@@ -1,15 +1,29 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { ChevronDown } from 'lucide-react';
+import { useTranslations } from 'next-intl';
+import { useState, type ReactNode } from 'react';
 
 type ListingFilterRailProps = {
   children: ReactNode;
 };
 
 export function ListingFilterRail({ children }: ListingFilterRailProps) {
+  const t = useTranslations('web');
+  const [open, setOpen] = useState(false);
+
   return (
-    <aside className="bg-ink p-4 text-white md:sticky md:top-[57px] md:h-[calc(100vh-57px)] md:w-72 md:shrink-0 md:overflow-y-auto">
-      <div className="flex flex-col gap-2">{children}</div>
+    <aside className="bg-ink text-white md:sticky md:top-[57px] md:h-[calc(100vh-57px)] md:w-72 md:shrink-0 md:overflow-y-auto md:p-4">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        className="flex w-full items-center justify-between px-4 py-3 text-sm font-bold md:hidden"
+        aria-expanded={open}
+      >
+        {t('filters.title')}
+        <ChevronDown className={`h-4 w-4 transition ${open ? 'rotate-180' : ''}`} />
+      </button>
+      <div className={`${open ? 'flex' : 'hidden'} flex-col gap-2 px-4 pb-4 md:flex md:px-0 md:pb-0`}>{children}</div>
     </aside>
   );
 }

@@ -16,6 +16,8 @@ export enum ListingStatus {
   draft = 'draft',
   pending_approval = 'pending_approval',
   active = 'active',
+  booked = 'booked',
+  inactive = 'inactive',
   paused = 'paused',
   rejected = 'rejected',
   deleted = 'deleted',

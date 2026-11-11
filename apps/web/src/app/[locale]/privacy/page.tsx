@@ -48,7 +48,7 @@ export default function PrivacyPage({ params }: { params: Promise<{ locale: stri
             <h2 className="mb-3 text-xl font-black text-foreground">2. How We Use Your Information</h2>
             <ul className="list-inside list-disc space-y-2">
               <li>To operate the platform and facilitate bookings between renters, car owners, and drivers.</li>
-              <li>To prevent fraud and keep listings accountable through subscriptions and trust scores.</li>
+              <li>To prevent fraud and keep listings accountable through trust scores and booking history.</li>
               <li>To calculate and display your trust score to other users.</li>
               <li>To send booking confirmations, notifications, and support communications.</li>
               <li>To improve our services through analytics and usage patterns.</li>

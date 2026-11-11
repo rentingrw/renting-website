@@ -3,19 +3,25 @@
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle } from '@rentingi/ui';
 import { LoadingSpinner } from '@/components/web/loading-states';
 import { AddressInput } from '@/components/web/address-input';
+import { RwandaAdminAddressSelect } from '@/components/web/rwanda-admin-address-select';
 import { ImageCropDialog } from '@/components/web/image-crop-dialog';
 import { useTranslations } from 'next-intl';
 import { useEffect, useRef, useState } from 'react';
-import { Camera, Check, ChevronLeft, ChevronRight, MapPin, Minus, Plus, Upload } from 'lucide-react';
+import { Camera, Check, ChevronLeft, ChevronRight, Minus, Plus, Upload } from 'lucide-react';
 
-import { getCarUploadUrl, type CarListingPayload, type OwnerCar, type ServiceType, type VehicleType } from '@/lib/api';
+import { uploadImageFile, type CarListingPayload, type CarListingRates, type OwnerCar, type ServiceType, type VehicleType } from '@/lib/api';
+import { CarListingRatesFields, defaultCarListingRates } from '@/components/web/car-listing-rates-fields';
+import { parseListingCityFromLocationText } from '@/lib/listing-city';
+import { CarVehicleSelect } from '@/components/web/car-vehicle-select';
+import { CAR_BRANDS, CAR_COLORS, CUSTOM_BRAND, CUSTOM_MODEL, MAX_CAR_LISTING_PHOTOS, MIN_CAR_LISTING_PHOTOS, modelsForBrand, resolveBrandModel } from '@/lib/car-catalog';
+import { CarAmenitiesField } from '@/components/web/car-amenities-field';
 
 type OwnerListingWizardProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initialCar?: OwnerCar | null;
   onSubmit: (payload: CarListingPayload, publishNow: boolean) => Promise<void>;
-  canPublish: boolean;
+  canPublish?: boolean;
   getToken: () => Promise<string | null>;
 };
 
@@ -25,22 +31,24 @@ type ListingFormState = {
   vehicleType: VehicleType;
   serviceType: ServiceType;
   brand: string;
+  customBrand: string;
   model: string;
+  customModel: string;
   year: number;
+  color: string;
+  customColor: string;
+  plateNumber: string;
   seats: number;
   transmission: string;
   fuelType: string;
-  dailyRateKigaliRwf: number;
-  dailyRateCountrysideRwf: number;
-  weeklyRateRwf: string;
-  monthlyRateRwf: string;
-  priceNegotiable: boolean;
   locationText: string;
+  listingDistrict: string;
   latitude: string;
   longitude: string;
   photos: string[];
   features: string[];
-};
+  priceNegotiable: boolean;
+} & CarListingRates;
 
 const VEHICLE_TYPE_OPTIONS: { value: VehicleType; label: string; emoji: string }[] = [
   { value: 'sedan', label: 'Sedan', emoji: '🚗' },
@@ -61,18 +69,25 @@ const SERVICE_TYPE_OPTIONS: { value: ServiceType; label: string; desc: string }[
 const TRANSMISSION_OPTIONS = ['Manual', 'Automatic', 'Both'];
 const FUEL_OPTIONS = ['Petrol', 'Diesel', 'Electric', 'Hybrid', 'Other'];
 
-const COMMON_FEATURES = [
-  'Air Conditioning', 'Leather Seats', 'GPS Navigation', 'Bluetooth',
-  'USB Charging', 'Child Seat Available', 'Roof Rack', '4WD / AWD',
-  'Sunroof', 'Backup Camera', 'Insurance Included', 'Airport Pickup',
-  'Extra Driver Allowed', 'Fuel Included',
-];
-
 const CURRENT_YEAR = new Date().getFullYear();
-const YEAR_OPTIONS = Array.from({ length: CURRENT_YEAR - 1999 }, (_, i) => CURRENT_YEAR - i);
 const SEAT_OPTIONS = [2, 4, 5, 6, 7, 8, 9, 10, 12, 14];
 
-const STEPS = ['Details', 'Photos', 'Pricing', 'Location', 'Publish'];
+const STEPS = ['Details', 'Photos', 'Location', 'Pricing', 'Publish'];
+
+function brandFieldsFromListing(brand: string, model: string) {
+  const knownBrand = (CAR_BRANDS as readonly string[]).includes(brand) && brand !== CUSTOM_BRAND;
+  if (!knownBrand) {
+    return { brand: CUSTOM_BRAND, customBrand: brand, model: CUSTOM_MODEL, customModel: model };
+  }
+  const models = modelsForBrand(brand);
+  const knownModel = models.includes(model);
+  return {
+    brand,
+    customBrand: '',
+    model: knownModel ? model : CUSTOM_MODEL,
+    customModel: knownModel ? '' : model,
+  };
+}
 
 function emptyState(): ListingFormState {
   return {
@@ -81,46 +96,60 @@ function emptyState(): ListingFormState {
     vehicleType: 'sedan',
     serviceType: 'self_drive',
     brand: '',
+    customBrand: '',
     model: '',
+    customModel: '',
     year: CURRENT_YEAR,
+    color: '',
+    customColor: '',
+    plateNumber: '',
     seats: 5,
     transmission: 'Automatic',
     fuelType: 'Petrol',
-    dailyRateKigaliRwf: 25000,
-    dailyRateCountrysideRwf: 30000,
-    weeklyRateRwf: '',
-    monthlyRateRwf: '',
     priceNegotiable: false,
     locationText: '',
+    listingDistrict: '',
     latitude: '',
     longitude: '',
     photos: [],
     features: [],
+    ...defaultCarListingRates(),
   };
 }
 
 function fromCar(car: OwnerCar): ListingFormState {
+  const catalog = brandFieldsFromListing(car.brand, car.model);
+  const colorValue = car.color ?? '';
+  const knownColor = (CAR_COLORS as readonly string[]).includes(colorValue);
   return {
     title: car.title,
     description: car.description ?? '',
     vehicleType: car.vehicleType,
     serviceType: car.serviceType,
-    brand: car.brand,
-    model: car.model,
+    brand: catalog.brand,
+    customBrand: catalog.customBrand,
+    model: catalog.model,
+    customModel: catalog.customModel,
     year: car.year,
+    color: knownColor ? colorValue : colorValue ? 'Other' : '',
+    customColor: knownColor ? '' : colorValue,
+    plateNumber: car.plateNumber ?? '',
     seats: car.seats,
     transmission: car.transmission ?? 'Automatic',
     fuelType: car.fuelType ?? 'Petrol',
-    dailyRateKigaliRwf: car.dailyRateKigaliRwf,
-    dailyRateCountrysideRwf: car.dailyRateCountrysideRwf,
-    weeklyRateRwf: '',
-    monthlyRateRwf: '',
     priceNegotiable: false,
     locationText: car.locationText,
+    listingDistrict: car.listingCity ?? parseListingCityFromLocationText(car.locationText),
     latitude: '',
     longitude: '',
     photos: car.photos,
     features: car.features,
+    dailyRateInCityRwf: car.dailyRateInCityRwf,
+    dailyRateOutsideCityRwf: car.dailyRateOutsideCityRwf,
+    weeklyRateInCityRwf: car.weeklyRateInCityRwf,
+    weeklyRateOutsideCityRwf: car.weeklyRateOutsideCityRwf,
+    monthlyRateInCityRwf: car.monthlyRateInCityRwf,
+    monthlyRateOutsideCityRwf: car.monthlyRateOutsideCityRwf,
   };
 }
 
@@ -143,6 +172,7 @@ export function OwnerListingWizard({
   getToken,
 }: OwnerListingWizardProps) {
   const t = useTranslations('web');
+  const allowPublish = canPublish !== false;
   const [step, setStep] = useState(0);
   const [publishNow, setPublishNow] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -151,7 +181,6 @@ export function OwnerListingWizard({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const photoQueueRef = useRef<File[]>([]);
   const [pendingPhoto, setPendingPhoto] = useState<File | null>(null);
-  const [customFeature, setCustomFeature] = useState('');
   const [state, setState] = useState<ListingFormState>(emptyState());
 
   const isEditing = Boolean(initialCar);
@@ -165,7 +194,6 @@ export function OwnerListingWizard({
     setStep(0);
     setError(null);
     setPublishNow(false);
-    setCustomFeature('');
     setState(initialCar ? fromCar(initialCar) : emptyState());
   }, [initialCar, open]);
 
@@ -173,30 +201,24 @@ export function OwnerListingWizard({
     setState((prev) => ({ ...prev, [key]: value }));
   }
 
-  function toggleFeature(feature: string) {
-    setState((prev) => ({
-      ...prev,
-      features: prev.features.includes(feature)
-        ? prev.features.filter((f) => f !== feature)
-        : [...prev.features, feature],
-    }));
-  }
-
-  function addCustomFeature() {
-    const trimmed = customFeature.trim();
-    if (!trimmed || state.features.includes(trimmed)) return;
-    setState((prev) => ({ ...prev, features: [...prev.features, trimmed] }));
-    setCustomFeature('');
-  }
-
   function queuePhotos(files: FileList | null) {
     const images = Array.from(files ?? []).filter((file) => file.type.startsWith('image/'));
     if (!images.length) return;
-    if (pendingPhoto) {
-      photoQueueRef.current.push(...images);
+    const queuedCount = photoQueueRef.current.length + (pendingPhoto ? 1 : 0);
+    const slotsLeft = MAX_CAR_LISTING_PHOTOS - state.photos.length - queuedCount;
+    if (slotsLeft <= 0) {
+      setError(`You can upload at most ${MAX_CAR_LISTING_PHOTOS} photos.`);
       return;
     }
-    const [first, ...rest] = images;
+    const batch = images.slice(0, slotsLeft);
+    if (batch.length < images.length) {
+      setError(`Only ${MAX_CAR_LISTING_PHOTOS} photos allowed. Extra files were skipped.`);
+    }
+    if (pendingPhoto) {
+      photoQueueRef.current.push(...batch);
+      return;
+    }
+    const [first, ...rest] = batch;
     photoQueueRef.current.push(...rest);
     setPendingPhoto(first);
   }
@@ -207,47 +229,138 @@ export function OwnerListingWizard({
       setError('Please sign in to upload photos.');
       return;
     }
+    if (state.photos.length >= MAX_CAR_LISTING_PHOTOS) {
+      setError(`You can upload at most ${MAX_CAR_LISTING_PHOTOS} photos.`);
+      photoQueueRef.current = [];
+      setPendingPhoto(null);
+      return;
+    }
     setUploading(true);
     setError(null);
     try {
-      const { uploadUrl, fields } = await getCarUploadUrl(token);
-      const formData = new FormData();
-      Object.entries(fields).forEach(([k, v]) => formData.append(k, String(v)));
-      formData.append('file', file);
-      const res = await fetch(uploadUrl, { method: 'POST', body: formData });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error((err as { error?: { message?: string } })?.error?.message ?? `Upload failed: ${res.status}`);
-      }
-      const data = (await res.json()) as { secure_url?: string };
-      if (data.secure_url) {
-        setState((prev) => ({ ...prev, photos: [...prev.photos, data.secure_url!] }));
+      const url = await uploadImageFile(token, file, 'rentingi/cars/listings');
+      let countAfterUpload = state.photos.length;
+      setState((prev) => {
+        if (prev.photos.length >= MAX_CAR_LISTING_PHOTOS) return prev;
+        const photos = [...prev.photos, url];
+        countAfterUpload = photos.length;
+        return { ...prev, photos };
+      });
+      if (countAfterUpload >= MAX_CAR_LISTING_PHOTOS) {
+        photoQueueRef.current = [];
+        setPendingPhoto(null);
+      } else {
+        setPendingPhoto(photoQueueRef.current.shift() ?? null);
       }
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : 'Photo upload failed.');
+      setPendingPhoto(photoQueueRef.current.shift() ?? null);
     } finally {
       setUploading(false);
-      const next = photoQueueRef.current.shift() ?? null;
-      setPendingPhoto(next);
     }
   }
 
+  function listingCityLabel() {
+    return state.listingDistrict.trim() || parseListingCityFromLocationText(state.locationText);
+  }
+
+  function applySuggestedTitle() {
+    const { brand: resolvedBrand, model: resolvedModel } = resolveBrandModel(
+      state.brand,
+      state.customBrand,
+      state.model,
+      state.customModel,
+    );
+    const color = resolveColorLabel(state.color, state.customColor);
+    update('title', buildListingTitle(state.year, resolvedBrand, resolvedModel, color));
+  }
+
+  function goToNextStep() {
+    if (step === 0) {
+      const { brand: resolvedBrand, model: resolvedModel } = resolveBrandModel(
+        state.brand,
+        state.customBrand,
+        state.model,
+        state.customModel,
+      );
+      if (!resolvedBrand || !resolvedModel) {
+        setError('Select brand and model (or enter custom names).');
+        return;
+      }
+      if (!state.plateNumber.trim()) {
+        setError('Plate number is required.');
+        return;
+      }
+      if (!state.title.trim()) {
+        setError('Add a listing title or use “Suggest title”.');
+        return;
+      }
+      if (state.features.length === 0) {
+        setError('Select at least one amenity for your car.');
+        return;
+      }
+    }
+    if (step === 1) {
+      if (state.photos.length < MIN_CAR_LISTING_PHOTOS) {
+        setError(`Add at least ${MIN_CAR_LISTING_PHOTOS} photo before continuing.`);
+        return;
+      }
+      if (state.photos.length > MAX_CAR_LISTING_PHOTOS) {
+        setError(`You can upload at most ${MAX_CAR_LISTING_PHOTOS} photos.`);
+        return;
+      }
+    }
+    if (step === 2 && !state.locationText.trim()) {
+      setError('Select your Rwanda address (cell through province).');
+      return;
+    }
+    if (step === 3) {
+      const rateValues = [
+        state.dailyRateInCityRwf,
+        state.dailyRateOutsideCityRwf,
+        state.weeklyRateInCityRwf,
+        state.weeklyRateOutsideCityRwf,
+        state.monthlyRateInCityRwf,
+        state.monthlyRateOutsideCityRwf,
+      ];
+      if (rateValues.some((value) => !Number.isFinite(value) || value < 1000)) {
+        setError('Each rate must be at least 1,000 RWF.');
+        return;
+      }
+    }
+    setError(null);
+    setStep((s) => Math.min(4, s + 1));
+  }
+
   function parsePayload(): CarListingPayload {
+    const { brand: resolvedBrand, model: resolvedModel } = resolveBrandModel(
+      state.brand,
+      state.customBrand,
+      state.model,
+      state.customModel,
+    );
+    const colorResolved =
+      state.color === 'Other' ? state.customColor.trim() : state.color.trim() || undefined;
     return {
       title: state.title.trim(),
       description: state.description.trim() || undefined,
       vehicleType: state.vehicleType,
       serviceType: state.serviceType,
-      brand: state.brand.trim(),
-      model: state.model.trim(),
+      brand: resolvedBrand,
+      model: resolvedModel,
       year: state.year,
       seats: state.seats,
       transmission: state.transmission || undefined,
       fuelType: state.fuelType || undefined,
-      dailyRateKigaliRwf: state.dailyRateKigaliRwf,
-      dailyRateCountrysideRwf: state.dailyRateCountrysideRwf,
-      weeklyRateRwf: state.weeklyRateRwf ? Number(state.weeklyRateRwf) : undefined,
-      monthlyRateRwf: state.monthlyRateRwf ? Number(state.monthlyRateRwf) : undefined,
+      plateNumber: state.plateNumber.trim().toUpperCase(),
+      color: colorResolved,
+      listingCity: listingCityLabel(),
+      dailyRateInCityRwf: state.dailyRateInCityRwf,
+      dailyRateOutsideCityRwf: state.dailyRateOutsideCityRwf,
+      weeklyRateInCityRwf: state.weeklyRateInCityRwf,
+      weeklyRateOutsideCityRwf: state.weeklyRateOutsideCityRwf,
+      monthlyRateInCityRwf: state.monthlyRateInCityRwf,
+      monthlyRateOutsideCityRwf: state.monthlyRateOutsideCityRwf,
       priceNegotiable: state.priceNegotiable,
       locationText: state.locationText.trim(),
       latitude: state.latitude.trim() ? Number(state.latitude) : undefined,
@@ -259,6 +372,13 @@ export function OwnerListingWizard({
 
   async function handleSubmit() {
     setError(null);
+    if (
+      state.photos.length < MIN_CAR_LISTING_PHOTOS ||
+      state.photos.length > MAX_CAR_LISTING_PHOTOS
+    ) {
+      setError(`Listings need ${MIN_CAR_LISTING_PHOTOS}–${MAX_CAR_LISTING_PHOTOS} photos.`);
+      return;
+    }
     try {
       setBusy(true);
       await onSubmit(parsePayload(), publishNow);
@@ -274,7 +394,7 @@ export function OwnerListingWizard({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="text-lg font-black text-foreground">
             {isEditing ? t('app.listingWizard.editTitle') : t('app.listingWizard.createTitle')}
@@ -303,12 +423,21 @@ export function OwnerListingWizard({
           <div className="space-y-5">
             <div>
               <FieldLabel>Listing title</FieldLabel>
-              <input
-                className={inputClass}
-                placeholder="e.g. Toyota RAV4 2022 — Kigali"
-                value={state.title}
-                onChange={(e) => update('title', e.target.value)}
-              />
+              <div className="flex gap-2">
+                <input
+                  className={`${inputClass} flex-1`}
+                  placeholder="e.g. 2022 Toyota RAV4 · Silver"
+                  value={state.title}
+                  onChange={(e) => update('title', e.target.value)}
+                />
+                <button
+                  type="button"
+                  onClick={applySuggestedTitle}
+                  className="shrink-0 rounded-xl border-2 border-border bg-muted px-3 py-2 text-xs font-bold text-foreground hover:bg-brand-soft"
+                >
+                  Suggest title
+                </button>
+              </div>
             </div>
 
             <div>
@@ -363,51 +492,57 @@ export function OwnerListingWizard({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <FieldLabel>Brand</FieldLabel>
-                <input className={inputClass} placeholder="Toyota" value={state.brand} onChange={(e) => update('brand', e.target.value)} />
-              </div>
-              <div>
-                <FieldLabel>Model</FieldLabel>
-                <input className={inputClass} placeholder="RAV4" value={state.model} onChange={(e) => update('model', e.target.value)} />
-              </div>
+            <CarVehicleSelect
+              brand={state.brand}
+              customBrand={state.customBrand}
+              model={state.model}
+              customModel={state.customModel}
+              year={state.year}
+              color={state.color}
+              customColor={state.customColor}
+              onBrandChange={(value) => update('brand', value)}
+              onCustomBrandChange={(value) => update('customBrand', value)}
+              onModelChange={(value) => update('model', value)}
+              onCustomModelChange={(value) => update('customModel', value)}
+              onYearChange={(value) => update('year', value)}
+              onColorChange={(value) => update('color', value)}
+              onCustomColorChange={(value) => update('customColor', value)}
+              inputClass={inputClass}
+              labelClass="mb-1 block text-xs font-black uppercase tracking-widest text-muted-foreground"
+              compact
+            />
+
+            <div>
+              <FieldLabel>Plate number</FieldLabel>
+              <input
+                className={`${inputClass} uppercase`}
+                placeholder="RAB 123 A"
+                value={state.plateNumber}
+                onChange={(e) => update('plateNumber', e.target.value)}
+                maxLength={24}
+              />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <FieldLabel>Year</FieldLabel>
-                <select
-                  className={inputClass}
-                  value={state.year}
-                  onChange={(e) => update('year', Number(e.target.value))}
+            <div>
+              <FieldLabel>Seats</FieldLabel>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => update('seats', Math.max(2, state.seats - 1))}
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded border-2 border-border bg-card hover:bg-muted"
                 >
-                  {YEAR_OPTIONS.map((y) => (
-                    <option key={y} value={y}>{y}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <FieldLabel>Seats</FieldLabel>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => update('seats', Math.max(2, state.seats - 1))}
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded border-2 border-border bg-card hover:bg-muted"
-                  >
-                    <Minus className="h-4 w-4" />
-                  </button>
-                  <div className="flex-1 rounded border-2 border-border py-2 text-center text-sm font-black text-foreground">
-                    {state.seats}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => update('seats', Math.min(14, state.seats + 1))}
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded border-2 border-border bg-card hover:bg-muted"
-                  >
-                    <Plus className="h-4 w-4" />
-                  </button>
+                  <Minus className="h-4 w-4" />
+                </button>
+                <div className="flex-1 rounded border-2 border-border py-2 text-center text-sm font-black text-foreground">
+                  {state.seats}
                 </div>
+                <button
+                  type="button"
+                  onClick={() => update('seats', Math.min(14, state.seats + 1))}
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded border-2 border-border bg-card hover:bg-muted"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
               </div>
             </div>
 
@@ -445,49 +580,10 @@ export function OwnerListingWizard({
               </div>
             </div>
 
-            <div>
-              <FieldLabel>Features & Amenities</FieldLabel>
-              <div className="flex flex-wrap gap-2">
-                {COMMON_FEATURES.map((feature) => {
-                  const selected = state.features.includes(feature);
-                  return (
-                    <button
-                      key={feature}
-                      type="button"
-                      onClick={() => toggleFeature(feature)}
-                      className={`flex items-center gap-1.5 rounded border-2 px-3 py-1.5 text-xs font-bold transition-all ${
-                        selected
-                          ? 'border-brand bg-brand text-white'
-                          : 'border-neutral-300 bg-card text-muted-foreground hover:border-border'
-                      }`}
-                    >
-                      {selected && <Check className="h-3 w-3" />}
-                      {feature}
-                    </button>
-                  );
-                })}
-              </div>
-              {/* Custom feature input */}
-              <div className="mt-3 flex gap-2">
-                <input
-                  className="flex-1 rounded border-2 border-neutral-300 px-3 py-2 text-xs font-semibold text-foreground placeholder:text-muted-foreground focus:border-brand focus:outline-none"
-                  placeholder="Add custom feature..."
-                  value={customFeature}
-                  onChange={(e) => setCustomFeature(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCustomFeature(); } }}
-                />
-                <button
-                  type="button"
-                  onClick={addCustomFeature}
-                  className="rounded border-2 border-border bg-card px-3 py-2 text-xs font-black hover:bg-muted"
-                >
-                  Add
-                </button>
-              </div>
-              {state.features.length > 0 && (
-                <p className="mt-2 text-xs font-medium text-brand">{state.features.length} feature{state.features.length !== 1 ? 's' : ''} selected</p>
-              )}
-            </div>
+            <CarAmenitiesField
+              selected={state.features}
+              onChange={(features) => update('features', features)}
+            />
           </div>
         )}
 
@@ -495,7 +591,10 @@ export function OwnerListingWizard({
         {step === 1 && (
           <div className="space-y-4">
             <div>
-              <FieldLabel>Upload Photos</FieldLabel>
+              <FieldLabel>Upload photos ({MIN_CAR_LISTING_PHOTOS}–{MAX_CAR_LISTING_PHOTOS})</FieldLabel>
+              <p className="mb-2 text-xs font-medium text-muted-foreground">
+                {state.photos.length} / {MAX_CAR_LISTING_PHOTOS} added
+              </p>
               {/* Hidden file input — triggered via ref to avoid Dialog blocking issues */}
               <input
                 ref={fileInputRef}
@@ -503,12 +602,12 @@ export function OwnerListingWizard({
                 accept="image/*"
                 multiple
                 className="absolute opacity-0 w-px h-px pointer-events-none"
-                disabled={uploading}
+                disabled={uploading || state.photos.length >= MAX_CAR_LISTING_PHOTOS}
                 onChange={(e) => { queuePhotos(e.target.files); e.target.value = ''; }}
               />
               <button
                 type="button"
-                disabled={uploading}
+                disabled={uploading || state.photos.length >= MAX_CAR_LISTING_PHOTOS}
                 onClick={() => fileInputRef.current?.click()}
                 className="flex w-full cursor-pointer flex-col items-center gap-3 rounded border-2 border-dashed border-neutral-400 bg-neutral-50 px-6 py-10 transition hover:border-brand hover:bg-brand-soft disabled:cursor-not-allowed disabled:opacity-60"
               >
@@ -522,7 +621,9 @@ export function OwnerListingWizard({
                     <Upload className="h-8 w-8 text-muted-foreground" />
                     <div className="text-center">
                       <p className="text-sm font-black text-foreground">Click to upload photos</p>
-                      <p className="text-xs font-medium text-muted-foreground">JPG or PNG. Crop each photo before it uploads.</p>
+                      <p className="text-xs font-medium text-muted-foreground">
+                        JPG or PNG. Up to {MAX_CAR_LISTING_PHOTOS} photos. Crop each before upload.
+                      </p>
                     </div>
                   </>
                 )}
@@ -554,7 +655,7 @@ export function OwnerListingWizard({
               <div className="flex items-start gap-2 rounded border-2 border-amber-400 bg-amber-50 px-4 py-3">
                 <Camera className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
                 <p className="text-xs font-semibold text-amber-800">
-                  Listings with photos get 3× more bookings. Add at least 3 good photos.
+                  Add at least {MIN_CAR_LISTING_PHOTOS} photo (up to {MAX_CAR_LISTING_PHOTOS}). Listings with photos get more bookings.
                 </p>
               </div>
             )}
@@ -574,99 +675,77 @@ export function OwnerListingWizard({
         )}
 
         {/* ── STEP 2: Pricing ── */}
+        {/* ── STEP 2: Location ── */}
         {step === 2 && (
+          <div className="space-y-4">
+            <div>
+              <FieldLabel>Car location (Rwanda)</FieldLabel>
+              <p className="mb-2 text-xs font-medium text-muted-foreground">
+                Same as list-your-car onboarding: cell, sector, district, province. Rates use the district as your listing city.
+              </p>
+              <RwandaAdminAddressSelect
+                value={state.locationText}
+                onChange={(formatted, district) => {
+                  update('locationText', formatted);
+                  update('listingDistrict', district);
+                  update('latitude', '');
+                  update('longitude', '');
+                }}
+              />
+              {listingCityLabel() ? (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Listing city for rates:{' '}
+                  <span className="font-bold text-foreground">{listingCityLabel()}</span>
+                </p>
+              ) : null}
+            </div>
+
+            <div className="rounded border-2 border-border bg-muted/40 p-4">
+              <FieldLabel>Optional map pin</FieldLabel>
+              <p className="mb-2 text-xs text-muted-foreground">
+                Refine pickup on the map (optional). Structured address above is required.
+              </p>
+              <AddressInput
+                value={state.locationText}
+                onChange={(v) => update('locationText', v)}
+                onPlaceSelected={(p) => {
+                  update('locationText', p.address);
+                  update('latitude', String(p.latitude));
+                  update('longitude', String(p.longitude));
+                  update('listingDistrict', parseListingCityFromLocationText(p.address));
+                }}
+                className={inputClass}
+                placeholder="Search map for exact pickup…"
+              />
+              {state.latitude && state.longitude ? (
+                <p className="mt-1.5 text-xs font-medium text-brand">Map coordinates saved for search distance.</p>
+              ) : null}
+            </div>
+          </div>
+        )}
+
+        {/* ── STEP 3: Pricing ── */}
+        {step === 3 && (
           <div className="space-y-6">
-            <div>
-              <FieldLabel>Daily Rate — Kigali (RWF)</FieldLabel>
-              <div className="relative">
-                <input
-                  type="number"
-                  min={0}
-                  step={500}
-                  className={inputClass}
-                  value={state.dailyRateKigaliRwf}
-                  onChange={(e) => update('dailyRateKigaliRwf', Number(e.target.value))}
-                />
-              </div>
-              <div className="mt-2 flex items-center justify-between">
-                <span className="text-xs font-medium text-muted-foreground">Displayed to renters:</span>
-                <span className="text-sm font-black text-brand">{formatRwf(state.dailyRateKigaliRwf)}/day</span>
-              </div>
-              {/* Quick presets */}
-              <div className="mt-3 flex flex-wrap gap-2">
-                <p className="w-full text-xs font-semibold text-muted-foreground">Quick presets:</p>
-                {[15000, 25000, 40000, 60000, 80000, 120000].map((preset) => (
-                  <button
-                    key={preset}
-                    type="button"
-                    onClick={() => update('dailyRateKigaliRwf', preset)}
-                    className={`rounded border-2 px-2.5 py-1 text-xs font-bold transition-all ${
-                      state.dailyRateKigaliRwf === preset
-                        ? 'border-brand bg-brand text-white'
-                        : 'border-neutral-300 bg-card text-muted-foreground hover:border-border'
-                    }`}
-                  >
-                    {formatRwf(preset)}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <CarListingRatesFields
+              city={listingCityLabel()}
+              rates={{
+                dailyRateInCityRwf: state.dailyRateInCityRwf,
+                dailyRateOutsideCityRwf: state.dailyRateOutsideCityRwf,
+                weeklyRateInCityRwf: state.weeklyRateInCityRwf,
+                weeklyRateOutsideCityRwf: state.weeklyRateOutsideCityRwf,
+                monthlyRateInCityRwf: state.monthlyRateInCityRwf,
+                monthlyRateOutsideCityRwf: state.monthlyRateOutsideCityRwf,
+              }}
+              onChange={(field, value) => update(field, value)}
+              inputClass={inputClass}
+              labelClass="mb-1 block text-xs font-black uppercase tracking-widest text-muted-foreground"
+            />
 
-            <div>
-              <FieldLabel>Daily Rate — Countryside / Upcountry (RWF)</FieldLabel>
-              <input
-                type="number"
-                min={0}
-                step={500}
-                className={inputClass}
-                value={state.dailyRateCountrysideRwf}
-                onChange={(e) => update('dailyRateCountrysideRwf', Number(e.target.value))}
-              />
-              <div className="mt-2 flex items-center justify-between">
-                <span className="text-xs font-medium text-muted-foreground">Displayed to renters:</span>
-                <span className="text-sm font-black text-brand">{formatRwf(state.dailyRateCountrysideRwf)}/day</span>
-              </div>
-            </div>
-
-            {/* Weekly rate */}
-            <div>
-              <FieldLabel>Weekly Rate (RWF) — optional</FieldLabel>
-              <input
-                type="number"
-                min={0}
-                step={500}
-                className={inputClass}
-                value={state.weeklyRateRwf}
-                onChange={(e) => update('weeklyRateRwf', e.target.value)}
-                placeholder="e.g. 150000"
-              />
-              <p className="mt-1 text-xs font-medium text-muted-foreground">
-                Discount for 7+ day bookings. Leave blank to not offer.
-              </p>
-            </div>
-
-            {/* Monthly rate */}
-            <div>
-              <FieldLabel>Monthly Rate (RWF) — optional</FieldLabel>
-              <input
-                type="number"
-                min={0}
-                step={500}
-                className={inputClass}
-                value={state.monthlyRateRwf}
-                onChange={(e) => update('monthlyRateRwf', e.target.value)}
-                placeholder="e.g. 500000"
-              />
-              <p className="mt-1 text-xs font-medium text-muted-foreground">
-                Discount for 30+ day bookings. Leave blank to not offer.
-              </p>
-            </div>
-
-            {/* Negotiable toggle */}
             <div className="flex items-center justify-between rounded border-2 border-border bg-neutral-50 p-4">
               <div>
                 <p className="text-sm font-black text-foreground">Price is negotiable</p>
-                <p className="text-xs font-medium text-muted-foreground">Show a "Negotiable" badge on your listing</p>
+                <p className="text-xs font-medium text-muted-foreground">Show a &quot;Negotiable&quot; badge on your listing</p>
               </div>
               <button
                 type="button"
@@ -683,14 +762,13 @@ export function OwnerListingWizard({
               </button>
             </div>
 
-            {/* Earnings estimate */}
             <div className="rounded border-2 border-border bg-neutral-50 p-4 shadow-brutal-xs">
-              <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Potential Monthly Earnings</p>
+              <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">In-city daily estimate</p>
               <div className="mt-3 grid grid-cols-3 gap-3 text-center">
                 {[
-                  { label: '10 days/month', value: state.dailyRateKigaliRwf * 10 },
-                  { label: '20 days/month', value: state.dailyRateKigaliRwf * 20 },
-                  { label: '30 days/month', value: state.dailyRateKigaliRwf * 30 },
+                  { label: '10 days/month', value: state.dailyRateInCityRwf * 10 },
+                  { label: '20 days/month', value: state.dailyRateInCityRwf * 20 },
+                  { label: '30 days/month', value: state.dailyRateInCityRwf * 30 },
                 ].map(({ label, value }) => (
                   <div key={label} className="rounded border-2 border-border bg-card px-2 py-2">
                     <p className="text-xs font-semibold text-muted-foreground">{label}</p>
@@ -698,40 +776,6 @@ export function OwnerListingWizard({
                   </div>
                 ))}
               </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── STEP 3: Location ── */}
-        {step === 3 && (
-          <div className="space-y-4">
-            <div>
-              <FieldLabel>Pickup Location</FieldLabel>
-              <div className="relative">
-                <MapPin className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <AddressInput
-                  value={state.locationText}
-                  onChange={(v) => update('locationText', v)}
-                  onPlaceSelected={(p) => {
-                    update('locationText', p.address);
-                    update('latitude', String(p.latitude));
-                    update('longitude', String(p.longitude));
-                  }}
-                  className="w-full rounded border-2 border-border bg-card py-2.5 pl-10 pr-4 text-sm font-semibold text-foreground placeholder:font-normal placeholder:text-muted-foreground focus:border-brand focus:outline-none"
-                  placeholder="Start typing your location..."
-                />
-              </div>
-              {state.latitude && state.longitude && (
-                <p className="mt-1.5 text-xs font-medium text-brand">
-                  ✓ Precise location set — renters can find you on the map
-                </p>
-              )}
-            </div>
-
-            <div className="rounded border-2 border-amber-400 bg-amber-50 p-4">
-              <p className="text-xs font-bold text-amber-800">
-                Tip: Select a suggestion from the dropdown for the most accurate location. This helps renters find you on the map.
-              </p>
             </div>
           </div>
         )}
@@ -747,6 +791,18 @@ export function OwnerListingWizard({
                   <span className="font-medium text-muted-foreground">Title</span>
                   <span className="font-bold text-foreground">{state.title || '—'}</span>
                 </div>
+                <div className="flex justify-between gap-4">
+                  <span className="font-medium text-muted-foreground">Plate</span>
+                  <span className="font-bold text-foreground">{state.plateNumber || '—'}</span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="font-medium text-muted-foreground">Location</span>
+                  <span className="max-w-[60%] text-right font-bold text-foreground">{state.locationText || '—'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium text-muted-foreground">Listing city</span>
+                  <span className="font-bold text-foreground">{listingCityLabel()}</span>
+                </div>
                 <div className="flex justify-between">
                   <span className="font-medium text-muted-foreground">Vehicle</span>
                   <span className="font-bold text-foreground">{state.year} {state.brand} {state.model}</span>
@@ -760,8 +816,8 @@ export function OwnerListingWizard({
                   <span className="font-bold text-foreground">{state.seats}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="font-medium text-muted-foreground">Kigali rate</span>
-                  <span className="font-black text-brand">{formatRwf(state.dailyRateKigaliRwf)}/day</span>
+                  <span className="font-medium text-muted-foreground">In-city daily</span>
+                  <span className="font-black text-brand">{formatRwf(state.dailyRateInCityRwf)}/day</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="font-medium text-muted-foreground">Photos</span>
@@ -777,10 +833,10 @@ export function OwnerListingWizard({
             {/* Publish toggle */}
             <button
               type="button"
-              onClick={() => canPublish && setPublishNow((v) => !v)}
-              disabled={!canPublish}
+              onClick={() => allowPublish && setPublishNow((v) => !v)}
+              disabled={!allowPublish}
               className={`w-full rounded border-2 p-4 text-left transition-all ${
-                !canPublish
+                !allowPublish
                   ? 'cursor-not-allowed border-border bg-neutral-50 opacity-60'
                   : publishNow
                     ? 'border-brand bg-brand-soft shadow-[2px_2px_0px_0px_rgba(14,165,233,0.35)]'
@@ -799,14 +855,6 @@ export function OwnerListingWizard({
                 </div>
               </div>
             </button>
-
-            {!canPublish && (
-              <div className="flex items-start gap-2 rounded border-2 border-amber-400 bg-amber-50 p-3">
-                <p className="text-xs font-bold text-amber-800">
-                  You need an active subscription to publish listings. Your listing will be saved as a draft and you can publish it after subscribing.
-                </p>
-              </div>
-            )}
 
             {!publishNow && (
               <div className="rounded border-2 border-border bg-neutral-50 p-3">
@@ -837,7 +885,7 @@ export function OwnerListingWizard({
           {step < 4 ? (
             <button
               type="button"
-              onClick={() => setStep((s) => Math.min(4, s + 1))}
+              onClick={() => goToNextStep()}
               disabled={busy}
               className="flex items-center gap-1 rounded border-2 border-brand-strong bg-brand px-4 py-2 text-sm font-black text-white shadow-brutal-sky-sm transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none"
             >

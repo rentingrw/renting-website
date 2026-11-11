@@ -28,6 +28,7 @@ import {
   bookingCompletedEmailHtml,
   bookingDeskRequestEmailHtml,
 } from '../notifications/email-templates';
+import { adminBookingsDeskUrl, formatAdminDeskWhatsAppMessage } from '../notifications/booking-desk-alert.util';
 
 const BLOCKING_BOOKING_STATUSES = new Set<BookingStatus>([
   BookingStatus.confirmed,
@@ -104,6 +105,29 @@ export class BookingsService {
 
     if (isInstant) {
       await this.notifyCarConfirmed(booking);
+      const instantWa = formatAdminDeskWhatsAppMessage({
+        kind: 'car',
+        title: `${booking.listing.title} (instant)`,
+        renterName: booking.renter.fullName,
+        renterPhone,
+        providerName: booking.owner.fullName,
+        providerPhone: booking.owner.phone,
+        start: booking.startDate,
+        end: booking.endDate,
+        pickup: booking.pickupAddress,
+        notes: booking.notes,
+        bookingId: booking.id,
+        adminDeskUrl: adminBookingsDeskUrl(),
+      });
+      this.notificationsService.queueAdminDeskAlert(
+        `Instant car booking: ${booking.listing.title}`,
+        `${booking.renter.fullName} booked ${booking.listing.title} (instant confirmation).`,
+        undefined,
+        {
+          smsText: `Instant car booking: ${booking.renter.fullName} — ${booking.listing.title}.`,
+          whatsappText: instantWa,
+        },
+      );
       return {
         ...booking,
         fulfillment: 'instant' as const,
@@ -114,6 +138,22 @@ export class BookingsService {
         },
       };
     }
+
+    const whatsappText = formatAdminDeskWhatsAppMessage({
+      kind: 'car',
+      title: booking.listing.title,
+      renterName: booking.renter.fullName,
+      renterPhone,
+      providerName: booking.owner.fullName,
+      providerPhone: booking.owner.phone,
+      start: booking.startDate,
+      end: booking.endDate,
+      pickup: booking.pickupAddress,
+      notes: booking.notes,
+      bookingId: booking.id,
+      adminDeskUrl: adminBookingsDeskUrl(),
+    });
+    const smsText = `Car booking: ${booking.renter.fullName} ${renterPhone} — ${booking.listing.title}. Pickup ${booking.pickupAddress}. Desk: ${adminBookingsDeskUrl()}`;
 
     this.notificationsService.queueAdminDeskAlert(
       `Booking desk: ${booking.listing.title}`,
@@ -127,7 +167,15 @@ export class BookingsService {
         booking.pickupAddress,
         booking.notes,
       ),
+      { whatsappText, smsText },
     );
+    this.notificationsService.emitInAppToAdmin(realtimeEvents.bookingNewRequest, {
+      bookingType: 'car',
+      bookingId: booking.id,
+      listingTitle: booking.listing.title,
+      renterName: booking.renter.fullName,
+      status: booking.status,
+    });
     this.notificationsService.queueEmailToUsers(
       [booking.renterId],
       'Booking request submitted — renting.rw',

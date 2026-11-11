@@ -6,5 +6,5 @@ type SubscriptionPageProps = {
 
 export default async function SubscriptionPage({ params }: SubscriptionPageProps) {
   const { locale } = await params;
-  redirect(`/${locale}/app?section=subscription`);
+  redirect(`/${locale}/app?section=overview`);
 }

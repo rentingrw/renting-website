@@ -2,7 +2,6 @@
 
 import { Button, Card, CardContent, Dialog, DialogContent, DialogHeader, DialogTitle } from '@rentingi/ui';
 import { Search } from 'lucide-react';
-import Image from 'next/image';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useState } from 'react';
@@ -14,12 +13,13 @@ import {
   type SearchTaxi,
   type SearchType,
 } from '@/lib/api';
+import { formatSearchCarDailyPrice } from '@/lib/car-listing-price';
 import { formatCurrencyRwf, formatRange } from '@/lib/format';
 import { stockImages } from '@/lib/stock-images';
 import type { SupportedLocale } from '@/i18n/routing';
 import { InitialsAvatar } from '@/components/web/initials-avatar';
-import { TrustBadge } from '@/components/web/trust-badge';
 import { LoadingSpinner, SearchPopupLoadingSkeleton } from '@/components/web/loading-states';
+import { MediaImage } from '@/components/web/media-image';
 
 type SearchPopupProps = {
   open: boolean;
@@ -205,8 +205,8 @@ export function SearchPopup({ open, onOpenChange, locale }: SearchPopupProps) {
                   >
                     <Card className="overflow-hidden border-border bg-card shadow-sm transition hover:border-sky-500/50 hover:shadow-md">
                       <CardContent className="flex gap-3 p-3">
-                        <div className="h-16 w-24 shrink-0 overflow-hidden rounded-md bg-gray-100">
-                          <Image
+                        <div className="relative h-16 w-24 shrink-0 overflow-hidden rounded-md bg-muted">
+                          <MediaImage
                             src={car.photos?.[0] ?? stockImages.carPlaceholder}
                             alt=""
                             fill
@@ -220,14 +220,7 @@ export function SearchPopup({ open, onOpenChange, locale }: SearchPopupProps) {
                             {car.locationText} • {car.vehicleType}
                           </p>
                           <p className="mt-1 text-sm font-medium text-brand">
-                            {car.dailyRateKigaliRwf
-                              ? formatCurrencyRwf(car.dailyRateKigaliRwf)
-                              : car.approximateDailyRateRangeRwf
-                                ? formatRange(
-                                    car.approximateDailyRateRangeRwf.kigali.min,
-                                    car.approximateDailyRateRangeRwf.kigali.max,
-                                  )
-                                : t('home.priceUnavailable')}
+                            {formatSearchCarDailyPrice(car) ?? t('home.priceUnavailable')}
                           </p>
                         </div>
                       </CardContent>
@@ -249,9 +242,7 @@ export function SearchPopup({ open, onOpenChange, locale }: SearchPopupProps) {
                           <p className="text-xs text-muted-foreground">
                             {driver.primaryCity} • {driver.categories.slice(0, 2).join(' • ')}
                           </p>
-                          <div className="mt-1 flex items-center gap-2">
-                            <TrustBadge score={driver.trustScore} />
-                            <span className="text-sm font-medium text-brand">
+                          <span className="mt-1 text-sm font-medium text-brand">
                               {driver.dailyRateRwf
                                 ? formatCurrencyRwf(driver.dailyRateRwf)
                                 : driver.approximateRateRangeRwf
@@ -261,7 +252,6 @@ export function SearchPopup({ open, onOpenChange, locale }: SearchPopupProps) {
                                     )
                                   : t('home.priceUnavailable')}
                             </span>
-                          </div>
                         </div>
                       </CardContent>
                     </Card>

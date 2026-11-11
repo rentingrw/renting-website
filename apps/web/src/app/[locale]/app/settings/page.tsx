@@ -3,7 +3,7 @@
 import { useAuth, useUser } from '@clerk/nextjs';
 import { Camera } from 'lucide-react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 
 import { isSupportedLocale, type SupportedLocale } from '@/i18n/routing';
@@ -14,6 +14,7 @@ import {
   type MeResponse,
 } from '@/lib/api';
 import { DashboardHeader } from '@/components/web/dashboard-header';
+import { DashboardNav, resolveDashboardNavKey } from '@/components/web/dashboard-nav';
 import { ImageCropDialog } from '@/components/web/image-crop-dialog';
 import { InitialsAvatar } from '@/components/web/initials-avatar';
 
@@ -24,6 +25,7 @@ export default function SettingsPage() {
   const rawLocale = Array.isArray(params.locale) ? params.locale[0] : params.locale;
   const locale: SupportedLocale = isSupportedLocale(rawLocale ?? '') ? (rawLocale as SupportedLocale) : 'en';
 
+  const pathname = usePathname();
   const [profile, setProfile] = useState<MeResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [fullName, setFullName] = useState('');
@@ -92,7 +94,7 @@ export default function SettingsPage() {
   const inputClass = 'h-10 w-full rounded-xl border border-border bg-white px-3 text-sm font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-brand/20 disabled:bg-muted disabled:text-muted-foreground';
   const labelClass = 'mb-1.5 block text-xs font-black uppercase tracking-wide text-muted-foreground';
   const joinLinks = [
-    { href: `/${locale}/onboard/hoster`, label: 'Become a Hoster', desc: 'List cars and earn from rentals.' },
+    { href: `/${locale}/onboard/car`, label: 'List a car', desc: 'Add a car listing and earn from rentals.' },
     { href: `/${locale}/onboard/driver`, label: 'Become a Driver', desc: 'Offer professional driving services.' },
     { href: `/${locale}/onboard/taxi`, label: 'Become a Taxi Driver', desc: 'Get discovered for instant taxi calls.' },
   ];
@@ -100,6 +102,15 @@ export default function SettingsPage() {
   return (
     <main className="min-h-screen bg-background">
       <DashboardHeader locale={locale} />
+      {profile ? (
+        <DashboardNav
+          locale={locale}
+          roles={profile.roles}
+          hasTaxiProfile={profile.hasTaxiProfile}
+          hasDriverProfile={profile.hasDriverProfile}
+          active={resolveDashboardNavKey(pathname, null, null, 'off')}
+        />
+      ) : null}
 
       <div className="mx-auto max-w-3xl space-y-6 px-4 py-8 sm:px-6">
         <div>

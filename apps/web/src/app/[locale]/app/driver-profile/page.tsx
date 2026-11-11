@@ -7,13 +7,16 @@ import {
   addRole,
   createDriverProfile,
   getDriverProfileFull,
+  getMe,
   updateDriverProfile,
   type DriverCategory,
   type DriverProfileFull,
+  type MeResponse,
   type VehicleType,
 } from '@/lib/api';
 import { CheckCircle2, Plus, X } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { DashboardNav, resolveDashboardNavKey } from '@/components/web/dashboard-nav';
+import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 type DriverProfilePageProps = {
@@ -40,6 +43,8 @@ export default function DriverProfilePage({ params }: DriverProfilePageProps) {
   const [locale, setLocale] = useState<SupportedLocale>(routing.defaultLocale);
   const { getToken } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
+  const [profile, setProfile] = useState<MeResponse | null>(null);
   const [existing, setExisting] = useState<DriverProfileFull | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -76,27 +81,30 @@ export default function DriverProfilePage({ params }: DriverProfilePageProps) {
       const token = await getToken();
       if (!token) { setLoading(false); return; }
       try {
-        const profile = await getDriverProfileFull(token);
+        const me = await getMe(token);
         if (cancelled) return;
-        if (!profile) {
+        setProfile(me);
+        const driverProfile = await getDriverProfileFull(token);
+        if (cancelled) return;
+        if (!driverProfile) {
           const routeParams = await params;
           const nextLocale = isSupportedLocale(routeParams.locale) ? routeParams.locale : routing.defaultLocale;
           router.replace(`/${nextLocale}/onboard/driver`);
           return;
         }
-        setExisting(profile);
-        setDriverCategory(profile.driverCategory);
-        setYearsExperience(profile.yearsExperience);
-        setBiography(profile.biography ?? '');
-        setDailyRateRwf(profile.dailyRateRwf);
-        setHourlyRateRwf(profile.hourlyRateRwf != null ? String(profile.hourlyRateRwf) : '');
-        setWeeklyRateRwf(profile.weeklyRateRwf != null ? String(profile.weeklyRateRwf) : '');
-        setPrimaryCity(profile.primaryCity);
-        setLanguages(profile.languages.length ? profile.languages : ['en', 'rw']);
-        setCategories(profile.categories.length ? (profile.categories as DriverCategory[]) : [profile.driverCategory]);
-        setVehicleTypes(profile.vehicleTypes.length ? (profile.vehicleTypes as VehicleType[]) : ['sedan']);
-        setCertifications(profile.certifications);
-        setServiceAreas(profile.serviceAreas.length ? profile.serviceAreas : ['Kigali']);
+        setExisting(driverProfile);
+        setDriverCategory(driverProfile.driverCategory);
+        setYearsExperience(driverProfile.yearsExperience);
+        setBiography(driverProfile.biography ?? '');
+        setDailyRateRwf(driverProfile.dailyRateRwf);
+        setHourlyRateRwf(driverProfile.hourlyRateRwf != null ? String(driverProfile.hourlyRateRwf) : '');
+        setWeeklyRateRwf(driverProfile.weeklyRateRwf != null ? String(driverProfile.weeklyRateRwf) : '');
+        setPrimaryCity(driverProfile.primaryCity);
+        setLanguages(driverProfile.languages.length ? driverProfile.languages : ['en', 'rw']);
+        setCategories(driverProfile.categories.length ? (driverProfile.categories as DriverCategory[]) : [driverProfile.driverCategory]);
+        setVehicleTypes(driverProfile.vehicleTypes.length ? (driverProfile.vehicleTypes as VehicleType[]) : ['sedan']);
+        setCertifications(driverProfile.certifications);
+        setServiceAreas(driverProfile.serviceAreas.length ? driverProfile.serviceAreas : ['Kigali']);
       } catch {
         // silently fail
       } finally {
@@ -170,6 +178,15 @@ export default function DriverProfilePage({ params }: DriverProfilePageProps) {
         notifications={[]}
         onClearNotifications={() => {}}
       />
+      {profile ? (
+        <DashboardNav
+          locale={locale}
+          roles={profile.roles}
+          hasTaxiProfile={profile.hasTaxiProfile}
+          hasDriverProfile={profile.hasDriverProfile}
+          active={resolveDashboardNavKey(pathname, null, null, 'driver-profile')}
+        />
+      ) : null}
 
       <main className="mx-auto max-w-3xl px-4 py-8 md:px-8">
         <div className="mb-6">

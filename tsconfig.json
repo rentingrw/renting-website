@@ -6,19 +6,18 @@
     "strict": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
-    "baseUrl": ".",
     "paths": {
       "@rentingi/types": [
-        "packages/types/index.ts"
+        "./packages/types/index.ts"
       ],
       "@rentingi/db": [
-        "packages/db/index.ts"
+        "./packages/db/index.ts"
       ],
       "@rentingi/ui": [
-        "packages/ui/index.ts"
+        "./packages/ui/index.ts"
       ],
       "@rentingi/*": [
-        "packages/*/index.ts"
+        "./packages/*/index.ts"
       ]
     }
   }

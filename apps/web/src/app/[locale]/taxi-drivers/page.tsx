@@ -2,6 +2,7 @@
 
 import { Car } from 'lucide-react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useEffect, useMemo, useState } from 'react';
 
@@ -45,8 +46,9 @@ const TAXI_TYPE_LABELS: Record<(typeof TAXI_TYPES)[number], string> = {
 
 export default function TaxiDriversPage({ params }: TaxiDriversPageProps) {
   const t = useTranslations('web');
+  const searchParams = useSearchParams();
   const [locale, setLocale] = useState<SupportedLocale>(routing.defaultLocale);
-  const [location, setLocation] = useState('');
+  const [location, setLocation] = useState(searchParams.get('location') ?? '');
   const [seatsMin, setSeatsMin] = useState(1);
   const [vehicleType, setVehicleType] = useState('');
   const [drivers, setDrivers] = useState<TaxiDriver[]>([]);
@@ -155,13 +157,19 @@ export default function TaxiDriversPage({ params }: TaxiDriversPageProps) {
             {loading ? t('search.loading') : t('search.resultsCount', { count: filtered.length })}
           </p>
 
-          <div className="mt-6 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {loading ? (
               Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="h-52 animate-pulse rounded-2xl border border-border bg-muted" />
+                <div key={i} className="overflow-hidden rounded-xl border border-border bg-card animate-pulse">
+                  <div className="flex flex-col items-center border-b border-border bg-red-50/50 px-4 py-4">
+                    <div className="h-16 w-16 rounded-full bg-muted" />
+                    <div className="mt-2 h-4 w-28 rounded bg-muted" />
+                  </div>
+                  <div className="h-10 p-3" />
+                </div>
               ))
             ) : filtered.map((taxi) => (
-              <TaxiListingCard key={taxi.id} taxi={taxi} locale={locale} />
+              <TaxiListingCard key={taxi.id} taxi={taxi} locale={locale} size="medium" />
             ))}
           </div>
 

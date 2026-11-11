@@ -150,7 +150,7 @@ export class SearchQueryDto {
   @Max(60)
   seatsMax?: number;
 
-  @ApiPropertyOptional({ description: 'Minimum daily rate in RWF (cars: Kigali rate, drivers: daily rate).' })
+  @ApiPropertyOptional({ description: 'Minimum daily in-city rate in RWF (cars).' })
   @IsOptional()
   @Transform(({ value }) => toNumber(value))
   @IsInt()

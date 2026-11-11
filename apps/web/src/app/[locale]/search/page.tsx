@@ -1,7 +1,6 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import Image from 'next/image';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
@@ -11,6 +10,7 @@ import { AppHeader } from '@/components/web/app-header';
 import { AddressInput } from '@/components/web/address-input';
 import { FavoriteButton, useFavoriteIds } from '@/components/web/favorite-button';
 import { InitialsAvatar } from '@/components/web/initials-avatar';
+import { MediaImage } from '@/components/web/media-image';
 import { ShareMenu } from '@/components/web/share-menu';
 import { isSupportedLocale, routing, type SupportedLocale } from '@/i18n/routing';
 import {
@@ -23,8 +23,8 @@ import {
   type ServiceType,
   type VehicleType,
 } from '@/lib/api';
-import { TrustBadge } from '@/components/web/trust-badge';
 import { SearchFilterBar } from '@/components/web/search-filter-bar';
+import { formatSearchCarDailyPrice } from '@/lib/car-listing-price';
 import { formatCurrencyRwf, formatRange } from '@/lib/format';
 
 const SearchResultsMap = dynamic(
@@ -196,11 +196,8 @@ export default function SearchPage({ params }: SearchPageProps) {
     const includeTaxis = type === 'all' || type === 'taxis';
     return [
       ...(includeCars ? cars.map((car) => {
-        const priceLabel = car.dailyRateKigaliRwf
-          ? formatCurrencyRwf(car.dailyRateKigaliRwf) + '/day'
-          : car.approximateDailyRateRangeRwf
-            ? formatRange(car.approximateDailyRateRangeRwf.kigali.min, car.approximateDailyRateRangeRwf.kigali.max) + '/day'
-            : null;
+        const dailyPrice = formatSearchCarDailyPrice(car);
+        const priceLabel = dailyPrice ? `${dailyPrice}/day` : null;
         return {
           id: car.id, label: car.title, address: car.locationText, photo: car.photos?.[0] ?? null,
           priceLabel, href: `/${locale}/cars/${car.id}`, kind: 'car' as const,
@@ -248,10 +245,6 @@ export default function SearchPage({ params }: SearchPageProps) {
     { value: 'cars', label: t('tabs.cars') },
     { value: 'drivers', label: t('tabs.drivers') },
     { value: 'taxis', label: t('tabs.taxi') },
-  ];
-
-  const extraTabs = [
-    { href: `/${locale}/stays`, label: t('tabs.stays') },
   ];
 
   const hasMore =
@@ -324,15 +317,6 @@ export default function SearchPage({ params }: SearchPageProps) {
               >
                 {tab.label}
               </button>
-            ))}
-            {extraTabs.map((tab) => (
-              <Link
-                key={tab.href}
-                href={tab.href}
-                className={panelChip(false)}
-              >
-                {tab.label}
-              </Link>
             ))}
           </div>
 
@@ -422,7 +406,7 @@ export default function SearchPage({ params }: SearchPageProps) {
                     >
                       <div className="relative h-16 w-24 shrink-0 overflow-hidden rounded border border-neutral-300 bg-muted">
                         {car.photos?.[0] ? (
-                          <Image
+                          <MediaImage
                             src={car.photos[0]}
                             alt={car.title}
                             fill
@@ -447,11 +431,7 @@ export default function SearchPage({ params }: SearchPageProps) {
                           </p>
                         )}
                         <p className="mt-1 text-sm font-semibold text-brand">
-                          {car.dailyRateKigaliRwf
-                            ? formatCurrencyRwf(car.dailyRateKigaliRwf)
-                            : car.approximateDailyRateRangeRwf
-                              ? formatRange(car.approximateDailyRateRangeRwf.kigali.min, car.approximateDailyRateRangeRwf.kigali.max)
-                              : t('home.priceUnavailable')}
+                          {formatSearchCarDailyPrice(car) ?? t('home.priceUnavailable')}
                           <span className="text-xs font-medium text-muted-foreground"> /day</span>
                         </p>
                       </div>
@@ -489,17 +469,14 @@ export default function SearchPage({ params }: SearchPageProps) {
                             {t('search.kmAway', { km: (driver.distanceMeters / 1000).toFixed(1) })}
                           </p>
                         )}
-                        <div className="mt-1 flex items-center gap-2">
-                          <TrustBadge score={driver.trustScore} />
-                          <p className="text-xs font-black text-brand">
-                            {driver.dailyRateRwf
-                              ? formatCurrencyRwf(driver.dailyRateRwf)
-                              : driver.approximateRateRangeRwf
-                                ? formatRange(driver.approximateRateRangeRwf.daily.min, driver.approximateRateRangeRwf.daily.max)
-                                : t('home.priceUnavailable')}
-                            <span className="font-medium text-muted-foreground"> /day</span>
-                          </p>
-                        </div>
+                        <p className="mt-1 text-xs font-black text-brand">
+                          {driver.dailyRateRwf
+                            ? formatCurrencyRwf(driver.dailyRateRwf)
+                            : driver.approximateRateRangeRwf
+                              ? formatRange(driver.approximateRateRangeRwf.daily.min, driver.approximateRateRangeRwf.daily.max)
+                              : t('home.priceUnavailable')}
+                          <span className="font-medium text-muted-foreground"> /day</span>
+                        </p>
                       </div>
                     </div>
                     </Link>

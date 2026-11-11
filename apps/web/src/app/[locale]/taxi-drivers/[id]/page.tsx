@@ -1,22 +1,27 @@
 'use client';
 
-import { Car, Phone } from 'lucide-react';
-import Image from 'next/image';
+import { Car, Check, MapPin, Phone } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
 import { AppHeader } from '@/components/web/app-header';
+import { MediaImage } from '@/components/web/media-image';
 import { ProfileHeader } from '@/components/web/profile-header';
 import { ShareMenu } from '@/components/web/share-menu';
 import { SiteFooter } from '@/components/web/site-footer';
 import { TaxiListingCard } from '@/components/web/taxi-listing-card';
 import { isSupportedLocale, routing, type SupportedLocale } from '@/i18n/routing';
 import { getTaxiDriverById, searchMarketplace, type SearchTaxi, type TaxiDriverPublic } from '@/lib/api';
+import { TAXI_LANGUAGE_OPTIONS } from '@/lib/taxi-features';
 import { useTranslations } from 'next-intl';
 
 type TaxiDriverPageProps = {
   params: Promise<{ locale: string; id: string }>;
 };
+
+function languageLabel(code: string) {
+  return TAXI_LANGUAGE_OPTIONS.find((item) => item.value === code)?.label ?? code;
+}
 
 export default function TaxiDriverDetailPage({ params }: TaxiDriverPageProps) {
   const t = useTranslations('web.listing');
@@ -71,6 +76,9 @@ export default function TaxiDriverDetailPage({ params }: TaxiDriverPageProps) {
     ? (taxi.photos?.length ? taxi.photos : taxi.photoUrl ? [taxi.photoUrl] : [])
     : [];
   const whatsapp = taxi?.whatsapp?.replace(/\D/g, '') ?? '';
+  const showPhone = taxi?.contactPhoneEnabled !== false && taxi?.phone;
+  const showWhatsapp = taxi?.contactWhatsappEnabled !== false && whatsapp;
+  const locationLine = taxi?.workLocationText?.trim() || taxi?.city;
 
   return (
     <main className="min-h-screen bg-background">
@@ -92,71 +100,97 @@ export default function TaxiDriverDetailPage({ params }: TaxiDriverPageProps) {
         ) : (
           <article className="mt-6 overflow-hidden rounded-2xl border border-border bg-card shadow-card">
             <div className="p-5">
-            <ProfileHeader
-              name={taxi.fullName}
-              photo={taxi.profilePhotoUrl}
-              city={taxi.city}
-              trustScore={100}
-              actions={
-                <>
+              <ProfileHeader
+                name={taxi.fullName}
+                photo={taxi.profilePhotoUrl}
+                city={locationLine}
+                trustScore={100}
+                actions={
                   <ShareMenu
                     url={`/${locale}/taxi-drivers/${taxi.id}`}
                     title={taxi.fullName}
-                    text={`${taxi.fullName} — taxi in ${taxi.city}. Call ${taxi.phone}.`}
+                    text={`${taxi.fullName} — taxi in ${locationLine}.`}
                   />
-                  <a
-                    href={`tel:${taxi.phone.replace(/\s/g, '')}`}
-                    className="inline-flex items-center gap-1 rounded border-2 border-red-800 bg-red-600 px-3 py-1.5 text-xs font-black uppercase tracking-wide text-white"
-                  >
-                    <Phone className="h-3.5 w-3.5" />
-                    {t('contact')}
-                  </a>
-                </>
-              }
-            />
+                }
+              />
             </div>
 
-            <div className="space-y-4 p-5">
+            <div className="space-y-5 p-5">
+              {taxi.languages?.length ? (
+                <div>
+                  <h2 className="mb-2 text-sm font-black uppercase tracking-wide text-muted-foreground">Languages</h2>
+                  <p className="text-sm font-medium text-foreground">
+                    {taxi.languages.map(languageLabel).join(' · ')}
+                  </p>
+                </div>
+              ) : null}
+
               <div className="flex flex-wrap gap-3 text-sm font-semibold text-muted-foreground">
-                <span className="inline-flex items-center gap-1">
+                <span className="inline-flex items-center gap-1 capitalize">
                   <Car className="h-4 w-4 text-red-400" />
-                  {taxi.seats} seats
+                  {taxi.vehicleType?.replace(/_/g, ' ') ?? 'Vehicle'}
                 </span>
-                {taxi.carModel ? <span>{taxi.carModel}</span> : null}
-                {taxi.vehicleType ? <span className="capitalize">{taxi.vehicleType.replace('_', ' ')}</span> : null}
+                {taxi.seats ? <span>{taxi.seats} seats</span> : null}
+                {locationLine ? (
+                  <span className="inline-flex items-center gap-1">
+                    <MapPin className="h-4 w-4 text-brand" />
+                    {locationLine}
+                  </span>
+                ) : null}
               </div>
+
+              {taxi.features?.length ? (
+                <div>
+                  <h2 className="mb-2 text-sm font-black uppercase tracking-wide text-muted-foreground">Car features</h2>
+                  <ul className="flex flex-wrap gap-2">
+                    {taxi.features.map((f) => (
+                      <li
+                        key={f}
+                        className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/50 px-3 py-1 text-xs font-semibold text-foreground"
+                      >
+                        <Check className="h-3 w-3 text-brand" aria-hidden />
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
 
               {taxi.details ? (
                 <p className="text-sm font-medium leading-relaxed text-muted-foreground">{taxi.details}</p>
               ) : null}
 
               {photos.length ? (
-                <div className="grid grid-cols-2 gap-2">
-                  {photos.slice(0, 4).map((src) => (
-                    <div key={src} className="relative h-28 overflow-hidden rounded border border-border">
-                      <Image src={src} alt="" fill sizes="200px" className="object-cover" />
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {photos.slice(0, 5).map((src, index) => (
+                    <div key={`${src}-${index}`} className="relative aspect-[4/3] overflow-hidden rounded border border-border bg-muted">
+                      <MediaImage src={src} alt="" fill sizes="200px" className="object-cover" />
                     </div>
                   ))}
                 </div>
               ) : null}
 
-              <a
-                href={`tel:${taxi.phone.replace(/\s/g, '')}`}
-                className="flex w-full items-center justify-center gap-2 rounded border-2 border-red-800 bg-red-600 px-4 py-3 text-sm font-black text-white transition hover:bg-red-700"
-              >
-                <Phone className="h-4 w-4" />
-                {taxi.phone}
-              </a>
-              {whatsapp ? (
-                <a
-                  href={`https://wa.me/${whatsapp}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex w-full items-center justify-center gap-2 rounded border-2 border-border bg-card px-4 py-3 text-sm font-black text-foreground transition hover:bg-muted"
-                >
-                  WhatsApp
-                </a>
-              ) : null}
+              <div className="flex flex-col gap-2 pt-2">
+                {showPhone ? (
+                  <a
+                    href={`tel:${taxi.phone.replace(/\s/g, '')}`}
+                    className="flex w-full items-center justify-center gap-2 rounded border-2 border-red-800 bg-red-600 px-4 py-3 text-sm font-black text-white transition hover:bg-red-700"
+                  >
+                    <Phone className="h-4 w-4" />
+                    {t('contact')} · {taxi.phone}
+                  </a>
+                ) : null}
+                {showWhatsapp ? (
+                  <a
+                    href={`https://wa.me/${whatsapp}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex w-full items-center justify-center gap-2 rounded border-2 border-border bg-card px-4 py-3 text-sm font-black text-foreground transition hover:bg-muted"
+                  >
+                    WhatsApp
+                  </a>
+                ) : null}
+              </div>
             </div>
           </article>
         )}
@@ -164,9 +198,9 @@ export default function TaxiDriverDetailPage({ params }: TaxiDriverPageProps) {
         {!loading && similar.length > 0 ? (
           <section className="mt-10">
             <h2 className="mb-4 text-lg font-black text-foreground">{t('similarTaxis')}</h2>
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {similar.map((item) => (
-                <TaxiListingCard key={item.id} taxi={item} locale={locale} />
+                <TaxiListingCard key={item.id} taxi={item} locale={locale} size="medium" />
               ))}
             </div>
           </section>

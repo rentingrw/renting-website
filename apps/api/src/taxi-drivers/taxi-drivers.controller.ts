@@ -4,20 +4,21 @@ import { Throttle } from '@nestjs/throttler';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ClerkAuthGuard } from '../auth/guards/clerk-auth.guard';
 import type { AuthenticatedUser } from '../auth/types/authenticated-request.interface';
-import { CarsService } from '../cars/cars.service';
+import { ImageUploadService } from '../uploads/image-upload.service';
 import { RegisterTaxiDriverDto } from './dto/register-taxi-driver.dto';
+import { SetTaxiStatusDto } from './dto/set-taxi-status.dto';
 import { TaxiDriversService } from './taxi-drivers.service';
 
 @Controller('taxi-drivers')
 export class TaxiDriversController {
   constructor(
     private readonly taxiDriversService: TaxiDriversService,
-    private readonly carsService: CarsService,
+    private readonly imageUploadService: ImageUploadService,
   ) {}
 
   @Get('upload-url')
   getUploadUrl(@Query('folder') folder?: string) {
-    return this.carsService.getSignedUploadUrl(folder);
+    return this.imageUploadService.getUploadConfig(folder);
   }
 
   @Get('me')
@@ -30,6 +31,12 @@ export class TaxiDriversController {
   @UseGuards(ClerkAuthGuard)
   updateMine(@CurrentUser() user: AuthenticatedUser, @Body() body: RegisterTaxiDriverDto) {
     return this.taxiDriversService.updateMine(user, body);
+  }
+
+  @Patch('me/status')
+  @UseGuards(ClerkAuthGuard)
+  setMineStatus(@CurrentUser() user: AuthenticatedUser, @Body() body: SetTaxiStatusDto) {
+    return this.taxiDriversService.setMineStatus(user, body.status);
   }
 
   @Get()

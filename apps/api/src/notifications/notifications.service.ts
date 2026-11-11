@@ -4,6 +4,7 @@ import { prisma } from '../database/prisma';
 import type { RealtimeEventName } from '../realtime/realtime.events';
 import { RealtimeEventsService } from '../realtime/realtime-events.service';
 import { welcomeEmailHtml } from './email-templates';
+import { parseAdminWhatsAppRecipients } from './whatsapp.util';
 
 @Injectable()
 export class NotificationsService {
@@ -43,6 +44,14 @@ export class NotificationsService {
     });
   }
 
+  async sendCareersApplication(subject: string, text: string) {
+    if (!process.env.RESEND_API_KEY?.trim()) {
+      throw new Error('Email is not configured.');
+    }
+    const adminEmail = process.env.ADMIN_ALERT_EMAIL?.trim() || 'renting.rw@gmail.com';
+    await this.sendEmailToAddresses([adminEmail], subject, text);
+  }
+
   queueSmsToPhones(phones: string[], message: string) {
     void this.sendSmsToPhones(phones, message).catch((error: unknown) => {
       this.logger.warn(
@@ -51,9 +60,64 @@ export class NotificationsService {
     });
   }
 
-  queueAdminDeskAlert(subject: string, text: string, html?: string) {
+  queueAdminDeskAlert(
+    subject: string,
+    text: string,
+    html?: string,
+    options?: { whatsappText?: string; smsText?: string },
+  ) {
     const adminEmail = process.env.ADMIN_ALERT_EMAIL ?? 'renting.rw@gmail.com';
     this.queueEmailToAddresses([adminEmail], subject, text, html);
+
+    const smsBody = (options?.smsText ?? text).trim();
+    const adminSmsPhone = process.env.ADMIN_ALERT_PHONE?.trim();
+    if (adminSmsPhone && smsBody) {
+      this.queueSmsToPhones([adminSmsPhone], smsBody.slice(0, 480));
+    }
+
+    const whatsappBody = options?.whatsappText ?? options?.smsText ?? text;
+    if (whatsappBody.trim()) {
+      this.queueWhatsAppAdminAlert(whatsappBody.trim());
+    }
+  }
+
+  queueWhatsAppAdminAlert(body: string) {
+    void this.sendWhatsAppAdminAlert(body).catch((error: unknown) => {
+      this.logger.warn(
+        `WhatsApp admin alert failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+    });
+  }
+
+  private async sendWhatsAppAdminAlert(body: string) {
+    const accessToken = process.env.WHATSAPP_CLOUD_ACCESS_TOKEN?.trim();
+    const phoneNumberId = process.env.WHATSAPP_CLOUD_PHONE_NUMBER_ID?.trim();
+    const recipients = parseAdminWhatsAppRecipients(process.env.ADMIN_ALERT_WHATSAPP);
+
+    if (!accessToken || !phoneNumberId || recipients.length === 0) {
+      return;
+    }
+
+    for (const to of recipients) {
+      const response = await fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}/messages`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messaging_product: 'whatsapp',
+          to,
+          type: 'text',
+          text: { body: body.slice(0, 4096) },
+        }),
+      });
+
+      if (!response.ok) {
+        const detail = await response.text().catch(() => '');
+        throw new Error(`WhatsApp Cloud API ${response.status}: ${detail.slice(0, 200)}`);
+      }
+    }
   }
 
   async queueWelcomeEmail(userId: string) {

@@ -14,6 +14,8 @@ import {
   Min,
 } from 'class-validator';
 
+import { LISTING_PHOTO_URL_OPTIONS } from '../../common/listing-photo-url.validator';
+
 export class AdminCreateCarDto {
   @IsString()
   userId!: string;
@@ -66,12 +68,37 @@ export class AdminCreateCarDto {
   @Transform(({ value }) => Number(value))
   @IsInt()
   @Min(1000)
-  dailyRateKigaliRwf!: number;
+  dailyRateInCityRwf!: number;
 
   @Transform(({ value }) => Number(value))
   @IsInt()
   @Min(1000)
-  dailyRateCountrysideRwf!: number;
+  dailyRateOutsideCityRwf!: number;
+
+  @Transform(({ value }) => Number(value))
+  @IsInt()
+  @Min(1000)
+  weeklyRateInCityRwf!: number;
+
+  @Transform(({ value }) => Number(value))
+  @IsInt()
+  @Min(1000)
+  weeklyRateOutsideCityRwf!: number;
+
+  @Transform(({ value }) => Number(value))
+  @IsInt()
+  @Min(1000)
+  monthlyRateInCityRwf!: number;
+
+  @Transform(({ value }) => Number(value))
+  @IsInt()
+  @Min(1000)
+  monthlyRateOutsideCityRwf!: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  listingCity?: string;
 
   @IsString()
   @MaxLength(255)
@@ -93,8 +120,8 @@ export class AdminCreateCarDto {
 
   @IsOptional()
   @IsArray()
-  @ArrayMaxSize(20)
-  @IsUrl({}, { each: true })
+  @ArrayMaxSize(5)
+  @IsUrl(LISTING_PHOTO_URL_OPTIONS, { each: true })
   photos?: string[];
 
   @IsOptional()

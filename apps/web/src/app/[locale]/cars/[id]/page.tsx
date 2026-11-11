@@ -6,6 +6,7 @@ import {
   Car,
   ChevronLeft,
   ChevronRight,
+  Check,
   CreditCard,
   Fuel,
   Gauge,
@@ -15,7 +16,6 @@ import {
   ThumbsUp,
   User,
 } from 'lucide-react';
-import Image from 'next/image';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useEffect, useMemo, useState } from 'react';
@@ -24,10 +24,13 @@ import { AppHeader } from '@/components/web/app-header';
 import { SiteFooter } from '@/components/web/site-footer';
 import { BookingRequestDialog } from '@/components/web/booking-request-dialog';
 import { FavoriteButton, useFavoriteIds } from '@/components/web/favorite-button';
+import { MediaImage } from '@/components/web/media-image';
 import { ShareMenu } from '@/components/web/share-menu';
 import { CarListingCard } from '@/components/web/car-listing-card';
 import { isSupportedLocale, routing, type SupportedLocale } from '@/i18n/routing';
 import { getCarAvailability, getCarById, getCarsByOwner, getFavorites, getReviewsForUser, searchMarketplace, type CarDetail, type SearchCar } from '@/lib/api';
+import { inCityRateLabel, outsideCityRateLabel } from '@/lib/listing-city';
+import { pickInCityDailyApproxRange } from '@rentingi/types';
 import { formatCurrencyRwf, formatRange } from '@/lib/format';
 import { stockImages } from '@/lib/stock-images';
 import { TrustBadge } from '@/components/web/trust-badge';
@@ -108,7 +111,7 @@ export default function CarDetailPage({ params }: CarPageProps) {
           getCarAvailability(carId, new Date().toISOString().slice(0, 7)),
           getReviewsForUser(car.ownerId),
           token ? getFavorites(token).catch(() => []) : Promise.resolve([]),
-          getCarsByOwner(car.ownerId, carId),
+          getCarsByOwner(car.ownerId, carId, token),
           searchMarketplace({ type: 'cars', vehicleType: car.vehicleType, limit: 8 }).catch(() => null),
         ]);
         if (!cancelled) {
@@ -136,17 +139,20 @@ export default function CarDetailPage({ params }: CarPageProps) {
 
   const priceBlock = useMemo(() => {
     if (!detail) return null;
-    if (detail.dailyRateKigaliRwf) {
-      return { display: formatCurrencyRwf(detail.dailyRateKigaliRwf), exact: detail.dailyRateKigaliRwf };
+    if (detail.dailyRateInCityRwf) {
+      return { display: formatCurrencyRwf(detail.dailyRateInCityRwf), exact: detail.dailyRateInCityRwf };
     }
-    if (detail.approximateDailyRateRangeRwf) {
+    const inCity = pickInCityDailyApproxRange(detail.approximateDailyRateRangeRwf);
+    if (inCity) {
       return {
-        display: formatRange(detail.approximateDailyRateRangeRwf.kigali.min, detail.approximateDailyRateRangeRwf.kigali.max),
-        exact: detail.approximateDailyRateRangeRwf.kigali.min,
+        display: formatRange(inCity.min, inCity.max),
+        exact: inCity.min,
       };
     }
     return null;
   }, [detail]);
+
+  const listingCity = detail?.listingCity ?? 'your city';
 
   const displayedFeatures = useMemo(() => {
     if (!detail?.features?.length) return [];
@@ -193,13 +199,14 @@ export default function CarDetailPage({ params }: CarPageProps) {
         <section className="mb-6">
           {/* Main image with prev/next */}
           <div className="relative aspect-[16/9] overflow-hidden rounded-md border-2 border-border bg-muted shadow-brutal">
-            <Image
+            <MediaImage
+              key={mainPhoto}
               src={mainPhoto}
               alt={detail.title}
               fill
               priority
               sizes="(max-width: 768px) 100vw, 1200px"
-              className="object-cover transition-opacity duration-200"
+              className="object-cover"
             />
             {/* Favorite / share */}
             <div className="absolute right-3 top-3 z-10 flex gap-1">
@@ -247,13 +254,13 @@ export default function CarDetailPage({ params }: CarPageProps) {
                   key={`${src}-${i}`}
                   type="button"
                   onClick={() => setSelectedPhotoIndex(i)}
-                  className={`relative h-16 w-24 shrink-0 overflow-hidden rounded-xl border-2 transition ${
+                  className={`relative h-16 w-24 shrink-0 overflow-hidden rounded-xl border-2 bg-muted transition ${
                     i === selectedPhotoIndex
                       ? 'border-brand shadow-soft-sm'
                       : 'border-border hover:border-brand'
                   }`}
                 >
-                  <Image src={src} alt="" fill sizes="96px" className="object-cover" />
+                  <MediaImage src={src} alt="" fill sizes="96px" className="object-cover" />
                 </button>
               ))}
             </div>
@@ -368,14 +375,17 @@ export default function CarDetailPage({ params }: CarPageProps) {
               </div>
             )}
 
-            {/* Vehicle features */}
+            {/* Amenities */}
             {displayedFeatures.length > 0 && (
               <div>
-                <h2 className="mb-3 text-lg font-black text-foreground">{t('detail.features')}</h2>
-                <ul className="grid gap-2 sm:grid-cols-2">
+                <h2 className="mb-3 text-lg font-black text-foreground">{t('detail.amenities')}</h2>
+                <ul className="flex flex-wrap gap-2">
                   {displayedFeatures.map((f) => (
-                    <li key={f} className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                      <ChevronRight className="h-3.5 w-3.5 shrink-0 text-brand" />
+                    <li
+                      key={f}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/50 px-3 py-1.5 text-sm font-medium text-foreground"
+                    >
+                      <Check className="h-3.5 w-3.5 shrink-0 text-brand" aria-hidden />
                       {f}
                     </li>
                   ))}
@@ -453,12 +463,13 @@ export default function CarDetailPage({ params }: CarPageProps) {
             {ownerCars.length > 0 && (
               <div id="more-from-owner">
                 <h2 className="mb-3 text-lg font-black text-foreground">{t('listing.moreFrom', { name: detail.ownerName })}</h2>
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                   {ownerCars.map((car) => (
                     <CarListingCard
                       key={car.id}
                       car={car}
                       locale={locale}
+                      size="medium"
                       favorited={carFavorites.ids.has(car.id)}
                       onFavoriteChange={(next) => carFavorites.setFavorited(car.id, next)}
                     />
@@ -469,12 +480,13 @@ export default function CarDetailPage({ params }: CarPageProps) {
             {similarCars.length > 0 && (
               <div>
                 <h2 className="mb-3 text-lg font-black text-foreground">{t('listing.similarCars')}</h2>
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                   {similarCars.map((car) => (
                     <CarListingCard
                       key={car.id}
                       car={car}
                       locale={locale}
+                      size="medium"
                       favorited={carFavorites.ids.has(car.id)}
                       onFavoriteChange={(next) => carFavorites.setFavorited(car.id, next)}
                     />
@@ -499,19 +511,55 @@ export default function CarDetailPage({ params }: CarPageProps) {
                       </span>
                     )}
                   </div>
-                  <p className="text-sm font-medium text-muted-foreground">/ {t('home.day')} · {t('detail.beforeTaxes')}</p>
-                  {detail.weeklyRateRwf != null && (
-                    <div className="mt-1 flex items-center justify-between text-sm">
-                      <span className="font-semibold text-muted-foreground">{t('listing.weeklyRate')}</span>
-                      <span className="font-black text-brand">{formatCurrencyRwf(detail.weeklyRateRwf)}{t('listing.perWeek')}</span>
+                  <p className="text-sm font-medium text-muted-foreground">/ {t('home.day')} · {inCityRateLabel(listingCity)} · {t('detail.beforeTaxes')}</p>
+                  {detail.dailyRateInCityRwf != null ? (
+                    <div className="mt-3 space-y-3 text-sm">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">{inCityRateLabel(listingCity)}</p>
+                        <div className="mt-1 space-y-1">
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">{t('home.day')}</span>
+                            <span className="font-black text-brand">{formatCurrencyRwf(detail.dailyRateInCityRwf)}</span>
+                          </div>
+                          {detail.weeklyRateInCityRwf != null ? (
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">{t('listing.weeklyRate')}</span>
+                              <span className="font-black text-brand">{formatCurrencyRwf(detail.weeklyRateInCityRwf)}{t('listing.perWeek')}</span>
+                            </div>
+                          ) : null}
+                          {detail.monthlyRateInCityRwf != null ? (
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">{t('listing.monthlyRate')}</span>
+                              <span className="font-black text-brand">{formatCurrencyRwf(detail.monthlyRateInCityRwf)}{t('listing.perMonth')}</span>
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                      {detail.dailyRateOutsideCityRwf != null ? (
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">{outsideCityRateLabel(listingCity)}</p>
+                          <div className="mt-1 space-y-1">
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">{t('home.day')}</span>
+                              <span className="font-black text-brand">{formatCurrencyRwf(detail.dailyRateOutsideCityRwf)}</span>
+                            </div>
+                            {detail.weeklyRateOutsideCityRwf != null ? (
+                              <div className="flex justify-between">
+                                <span className="text-muted-foreground">{t('listing.weeklyRate')}</span>
+                                <span className="font-black text-brand">{formatCurrencyRwf(detail.weeklyRateOutsideCityRwf)}{t('listing.perWeek')}</span>
+                              </div>
+                            ) : null}
+                            {detail.monthlyRateOutsideCityRwf != null ? (
+                              <div className="flex justify-between">
+                                <span className="text-muted-foreground">{t('listing.monthlyRate')}</span>
+                                <span className="font-black text-brand">{formatCurrencyRwf(detail.monthlyRateOutsideCityRwf)}{t('listing.perMonth')}</span>
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
-                  )}
-                  {detail.monthlyRateRwf != null && (
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="font-semibold text-muted-foreground">{t('listing.monthlyRate')}</span>
-                      <span className="font-black text-brand">{formatCurrencyRwf(detail.monthlyRateRwf)}{t('listing.perMonth')}</span>
-                    </div>
-                  )}
+                  ) : null}
                 </div>
 
                 <div className="rounded-xl border border-border bg-muted/60 p-3">

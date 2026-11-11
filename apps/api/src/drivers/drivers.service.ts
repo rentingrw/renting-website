@@ -5,7 +5,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { BookingStatus, Prisma, type User } from '@prisma/client';
+import { BookingStatus, DriverProfileStatus, Prisma, type User } from '@prisma/client';
 
 import type { AuthenticatedUser } from '../auth/types/authenticated-request.interface';
 import { prisma } from '../database/prisma';
@@ -61,6 +61,8 @@ export class DriversService {
             payload.hourlyRateRwf === undefined ? undefined : new Prisma.Decimal(payload.hourlyRateRwf),
           weeklyRateRwf:
             payload.weeklyRateRwf === undefined ? undefined : new Prisma.Decimal(payload.weeklyRateRwf),
+          monthlyRateRwf:
+            payload.monthlyRateRwf === undefined ? undefined : new Prisma.Decimal(payload.monthlyRateRwf),
           primaryCity: payload.primaryCity.trim(),
           languages: payload.languages,
           categories: payload.categories,
@@ -132,6 +134,14 @@ export class DriversService {
       throw new NotFoundException('Driver profile not found. Create one first.');
     }
 
+    if (profile.status === DriverProfileStatus.pending_approval) {
+      throw new BadRequestException('Your application is under review. You can edit again after admin responds.');
+    }
+
+    if (profile.status === DriverProfileStatus.approved) {
+      throw new BadRequestException('Your profile is approved. Contact support if you need to change details.');
+    }
+
     if (payload.availabilityCalendar) {
       this.validateAvailabilityCalendar(payload.availabilityCalendar);
     }
@@ -143,6 +153,7 @@ export class DriversService {
     if (payload.dailyRateRwf !== undefined) updateData.dailyRateRwf = new Prisma.Decimal(payload.dailyRateRwf);
     if (payload.hourlyRateRwf !== undefined) updateData.hourlyRateRwf = new Prisma.Decimal(payload.hourlyRateRwf);
     if (payload.weeklyRateRwf !== undefined) updateData.weeklyRateRwf = new Prisma.Decimal(payload.weeklyRateRwf);
+    if (payload.monthlyRateRwf !== undefined) updateData.monthlyRateRwf = new Prisma.Decimal(payload.monthlyRateRwf);
     if (payload.primaryCity !== undefined) updateData.primaryCity = payload.primaryCity.trim();
     if (payload.languages !== undefined) updateData.languages = payload.languages;
     if (payload.categories !== undefined) updateData.categories = payload.categories;
@@ -202,6 +213,77 @@ export class DriversService {
     if (!updated) {
       throw new NotFoundException('Driver profile not found after update.');
     }
+
+    return this.mapProfile(updated, true);
+  }
+
+  async submitForReview(authUser: AuthenticatedUser) {
+    const user = await this.requireDriver(authUser.clerkUserId);
+    const profile = await prisma.driverProfile.findUnique({
+      where: { userId: user.id },
+      include: {
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            avatarUrl: true,
+            trustScore: true,
+            phone: true,
+          },
+        },
+      },
+    });
+
+    if (!profile) {
+      throw new NotFoundException('Driver profile not found. Complete the form first.');
+    }
+
+    if (profile.status === DriverProfileStatus.pending_approval) {
+      throw new BadRequestException('Your application is already pending review.');
+    }
+
+    if (profile.status === DriverProfileStatus.approved) {
+      throw new BadRequestException('Your driver profile is already approved.');
+    }
+
+    if (!profile.idDocumentUrl || !profile.licenseDocumentUrl) {
+      throw new BadRequestException('Upload your national ID and driving license before submitting.');
+    }
+
+    if (!profile.user.avatarUrl) {
+      throw new BadRequestException('Upload a profile photo before submitting.');
+    }
+
+    if (!profile.user.phone?.trim()) {
+      throw new BadRequestException('Add a phone number before submitting.');
+    }
+
+    const daily = Number(profile.dailyRateRwf);
+    const monthly = profile.monthlyRateRwf ? Number(profile.monthlyRateRwf) : null;
+    if (daily < 1000 && (!monthly || monthly < 1000)) {
+      throw new BadRequestException('Set your daily or monthly rate before submitting.');
+    }
+
+    const updated = await prisma.driverProfile.update({
+      where: { id: profile.id },
+      data: {
+        status: DriverProfileStatus.pending_approval,
+        submittedAt: new Date(),
+        rejectionReason: null,
+        reviewedAt: null,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            avatarUrl: true,
+            trustScore: true,
+            phone: true,
+          },
+        },
+      },
+    });
 
     return this.mapProfile(updated, true);
   }
@@ -278,6 +360,10 @@ export class DriversService {
       throw new NotFoundException('Driver profile not found.');
     }
 
+    if (profile.status !== DriverProfileStatus.approved) {
+      throw new NotFoundException('Driver profile not found.');
+    }
+
     const caller = authUser
       ? await prisma.user.findUnique({ where: { clerkId: authUser.clerkUserId }, select: { id: true } })
       : null;
@@ -332,6 +418,7 @@ export class DriversService {
     const dailyRate = Number(profile.dailyRateRwf);
     const hourlyRate = profile.hourlyRateRwf ? Number(profile.hourlyRateRwf) : null;
     const weeklyRate = profile.weeklyRateRwf ? Number(profile.weeklyRateRwf) : null;
+    const monthlyRate = profile.monthlyRateRwf ? Number(profile.monthlyRateRwf) : null;
     const showContact = extras?.showContact ?? includeExactRates;
 
     return {
@@ -354,8 +441,12 @@ export class DriversService {
       licenseCategories: profile.licenseCategories,
       transmission: profile.transmission,
       addressText: profile.addressText,
-      idDocumentUrl: extras?.showContact ? profile.idDocumentUrl : null,
-      licenseDocumentUrl: extras?.showContact ? profile.licenseDocumentUrl : null,
+      idDocumentUrl: includeExactRates || extras?.showContact ? profile.idDocumentUrl : null,
+      licenseDocumentUrl: includeExactRates || extras?.showContact ? profile.licenseDocumentUrl : null,
+      status: profile.status,
+      rejectionReason: includeExactRates ? profile.rejectionReason : null,
+      submittedAt: includeExactRates ? profile.submittedAt : null,
+      reviewedAt: includeExactRates ? profile.reviewedAt : null,
       availabilityCalendar: profile.availabilityCalendar,
       rating: profile.rating ? Number(profile.rating) : null,
       completedTrips: profile.completedTrips,
@@ -366,6 +457,7 @@ export class DriversService {
             dailyRateRwf: dailyRate,
             hourlyRateRwf: hourlyRate,
             weeklyRateRwf: weeklyRate,
+            monthlyRateRwf: monthlyRate,
           }
         : {
             approximateRateRangeRwf: {

@@ -1,14 +1,16 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import {
   BookingStatus,
   DisputeStatus,
   DriverCategory,
+  DriverProfileStatus,
   Language,
   ListingStatus,
   PaymentMethod,
   Prisma,
   RoleType,
   SubscriptionStatus,
+  TaxiDriverStatus,
   UserStatus,
   VehicleType,
 } from '@prisma/client';
@@ -16,6 +18,7 @@ import { createClerkClient } from '@clerk/backend';
 import { randomUUID } from 'node:crypto';
 
 import { prisma } from '../database/prisma';
+import { resolveListingCity } from '../common/listing-city.util';
 import { BookingsService } from '../bookings/bookings.service';
 import { DriverBookingsService } from '../driver-bookings/driver-bookings.service';
 import { DisputesService } from '../disputes/disputes.service';
@@ -39,6 +42,7 @@ import {
 } from '../notifications/email-templates';
 import { normalizePromoCode } from '../subscriptions/promo-code.util';
 import type { CreatePromoCodeDto, UpdatePromoCodeDto } from './dto/promo-code.dto';
+import type { ApplyJobDto, CreateJobOpeningDto, UpdateJobOpeningDto } from './dto/job-opening.dto';
 import type { ListDriversQueryDto } from './dto/list-drivers.query.dto';
 import type { AdminCreateCarDto } from './dto/admin-create-car.dto';
 import type { AdminCreateDriverDto } from './dto/admin-create-driver.dto';
@@ -85,6 +89,8 @@ export class AdminService {
       openDisputes,
       carActiveToday,
       driverActiveToday,
+      pendingCarDesk,
+      pendingDriverDesk,
       subscriptionRevenueAggregate,
       trustScores,
     ] = await Promise.all([
@@ -121,6 +127,18 @@ export class AdminService {
           endAt: { gte: todayStart },
         },
       }),
+      prisma.carBooking.count({
+        where: {
+          status: BookingStatus.pending,
+          isInstant: false,
+        },
+      }),
+      prisma.driverBooking.count({
+        where: {
+          status: BookingStatus.pending,
+          isInstant: false,
+        },
+      }),
       prisma.subscription.aggregate({
         _sum: { amountRwf: true },
         where: {
@@ -143,6 +161,9 @@ export class AdminService {
         activeBookingsToday: carActiveToday + driverActiveToday,
         openDisputes: openDisputesCount,
         monthlySubscriptionRevenueRwf: subscriptionRevenueAggregate._sum.amountRwf ?? 0,
+        pendingDeskCarBookings: pendingCarDesk,
+        pendingDeskDriverBookings: pendingDriverDesk,
+        pendingDeskBookings: pendingCarDesk + pendingDriverDesk,
       },
       trustScoreDistribution: this.computeTrustDistribution(
         trustScores.map((item) => Number(item.trustScore)),
@@ -328,7 +349,7 @@ export class AdminService {
 
       const pausedListings = await tx.carListing.updateMany({
         where: { ownerId: userId, status: 'active' },
-        data: { status: 'paused' },
+        data: { status: 'inactive' },
       });
 
       const activeCarBookings = await tx.carBooking.findMany({
@@ -556,7 +577,7 @@ export class AdminService {
             ownerId: subscription.userId,
             status: 'active',
           },
-          data: { status: 'paused' },
+          data: { status: 'inactive' },
         });
       }
 
@@ -1042,24 +1063,122 @@ export class AdminService {
   async listListings(query: ListListingsQueryDto) {
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 20;
-    const where: Prisma.CarListingWhereInput = {
-      status: query.status ?? ListingStatus.pending_approval,
-    };
+    const where: Prisma.CarListingWhereInput = query.status
+      ? { status: query.status }
+      : { status: { not: ListingStatus.deleted } };
 
     const [total, listings] = await Promise.all([
       prisma.carListing.count({ where }),
       prisma.carListing.findMany({
         where,
-        include: {
-          owner: { select: { id: true, fullName: true, email: true } },
-        },
-        orderBy: { createdAt: 'asc' },
+        include: this.adminListingInclude(),
+        orderBy: { createdAt: 'desc' },
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),
     ]);
 
-    return { page, pageSize, total, items: listings };
+    return { page, pageSize, total, items: listings.map((listing) => this.mapAdminListing(listing)) };
+  }
+
+  async getListingDetail(listingId: string) {
+    const listing = await prisma.carListing.findUnique({
+      where: { id: listingId },
+      include: this.adminListingInclude(),
+    });
+    if (!listing || listing.status === ListingStatus.deleted) {
+      throw new NotFoundException('Listing not found.');
+    }
+    return this.mapAdminListing(listing);
+  }
+
+  private adminListingInclude() {
+    return {
+      owner: {
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+          phone: true,
+          avatarUrl: true,
+          carOwnerProfile: {
+            select: {
+              hostType: true,
+              companyName: true,
+              workAddress: true,
+              contactPhone: true,
+            },
+          },
+        },
+      },
+    } satisfies Prisma.CarListingInclude;
+  }
+
+  private mapAdminListing(
+    listing: Prisma.CarListingGetPayload<{
+      include: {
+        owner: {
+          select: {
+            id: true;
+            fullName: true;
+            email: true;
+            phone: true;
+            avatarUrl: true;
+            carOwnerProfile: {
+              select: {
+                hostType: true;
+                companyName: true;
+                workAddress: true;
+                contactPhone: true;
+              };
+            };
+          };
+        };
+      };
+    }>,
+  ) {
+    const host = listing.owner.carOwnerProfile;
+    return {
+      id: listing.id,
+      ownerId: listing.ownerId,
+      title: listing.title,
+      description: listing.description,
+      vehicleType: listing.vehicleType,
+      serviceType: listing.serviceType,
+      brand: listing.brand,
+      model: listing.model,
+      year: listing.year,
+      seats: listing.seats,
+      transmission: listing.transmission,
+      fuelType: listing.fuelType,
+      plateNumber: listing.plateNumber,
+      color: listing.color,
+      listingCity: listing.listingCity,
+      locationText: listing.locationText,
+      dailyRateInCityRwf: listing.dailyRateInCityRwf,
+      dailyRateOutsideCityRwf: listing.dailyRateOutsideCityRwf,
+      weeklyRateInCityRwf: listing.weeklyRateInCityRwf,
+      weeklyRateOutsideCityRwf: listing.weeklyRateOutsideCityRwf,
+      monthlyRateInCityRwf: listing.monthlyRateInCityRwf,
+      monthlyRateOutsideCityRwf: listing.monthlyRateOutsideCityRwf,
+      priceNegotiable: listing.priceNegotiable,
+      photos: listing.photos,
+      features: listing.features,
+      status: listing.status,
+      createdAt: listing.createdAt,
+      updatedAt: listing.updatedAt,
+      owner: {
+        id: listing.owner.id,
+        fullName: listing.owner.fullName,
+        email: listing.owner.email,
+        phone: listing.owner.phone,
+        avatarUrl: listing.owner.avatarUrl,
+        hostType: host?.hostType ?? null,
+        companyName: host?.companyName ?? null,
+        workAddress: host?.workAddress ?? null,
+        contactPhone: host?.contactPhone ?? null,
+      },
+    };
   }
 
   async approveListing(listingId: string) {
@@ -1090,6 +1209,29 @@ export class AdminService {
     );
 
     return updated;
+  }
+
+  async setListingMarketplaceStatus(listingId: string, target: 'active' | 'inactive' | 'booked') {
+    const listing = await prisma.carListing.findUnique({ where: { id: listingId } });
+    if (!listing) throw new NotFoundException('Listing not found.');
+    if (listing.status === ListingStatus.deleted || listing.status === ListingStatus.archived) {
+      throw new BadRequestException('Cannot change status of a deleted listing.');
+    }
+
+    const prismaStatus =
+      target === 'active'
+        ? ListingStatus.active
+        : target === 'booked'
+          ? ListingStatus.booked
+          : ListingStatus.inactive;
+
+    const updated = await prisma.carListing.update({
+      where: { id: listingId },
+      data: { status: prismaStatus },
+      include: this.adminListingInclude(),
+    });
+
+    return this.mapAdminListing(updated);
   }
 
   async rejectListing(listingId: string, payload: RejectListingDto) {
@@ -1145,6 +1287,8 @@ export class AdminService {
       });
     }
 
+    const listingCity = resolveListingCity(payload.locationText, payload.listingCity);
+
     const listing = await prisma.carListing.create({
       data: {
         ownerId: owner.id,
@@ -1158,8 +1302,13 @@ export class AdminService {
         seats: payload.seats,
         transmission: payload.transmission,
         fuelType: payload.fuelType,
-        dailyRateKigaliRwf: payload.dailyRateKigaliRwf,
-        dailyRateCountrysideRwf: payload.dailyRateCountrysideRwf,
+        listingCity,
+        dailyRateInCityRwf: payload.dailyRateInCityRwf,
+        dailyRateOutsideCityRwf: payload.dailyRateOutsideCityRwf,
+        weeklyRateInCityRwf: payload.weeklyRateInCityRwf,
+        weeklyRateOutsideCityRwf: payload.weeklyRateOutsideCityRwf,
+        monthlyRateInCityRwf: payload.monthlyRateInCityRwf,
+        monthlyRateOutsideCityRwf: payload.monthlyRateOutsideCityRwf,
         locationText: payload.locationText,
         photos: payload.photos ?? [],
         features: payload.features ?? [],
@@ -1179,20 +1328,130 @@ export class AdminService {
       ? { OR: [{ fullName: { contains: search, mode: 'insensitive' } }, { email: { contains: search, mode: 'insensitive' } }] }
       : {};
 
+    const where: Prisma.DriverProfileWhereInput = {
+      user: userWhere,
+      ...(query.status ? { status: query.status } : {}),
+    };
+
     const [total, profiles] = await Promise.all([
-      prisma.driverProfile.count({ where: { user: userWhere } }),
+      prisma.driverProfile.count({ where }),
       prisma.driverProfile.findMany({
-        where: { user: userWhere },
+        where,
         include: {
-          user: { select: { id: true, fullName: true, email: true, phone: true, status: true } },
+          user: { select: { id: true, fullName: true, email: true, phone: true, status: true, avatarUrl: true } },
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: query.status === DriverProfileStatus.pending_approval ? { submittedAt: 'asc' } : { createdAt: 'desc' },
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),
     ]);
 
-    return { page, pageSize, total, items: profiles };
+    return {
+      page,
+      pageSize,
+      total,
+      items: profiles.map((profile) => ({
+        ...profile,
+        dailyRateRwf: Number(profile.dailyRateRwf),
+      })),
+    };
+  }
+
+  async getDriverDetail(driverProfileId: string) {
+    const profile = await prisma.driverProfile.findUnique({
+      where: { id: driverProfileId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            phone: true,
+            whatsapp: true,
+            avatarUrl: true,
+            trustScore: true,
+            status: true,
+          },
+        },
+      },
+    });
+    if (!profile) throw new NotFoundException('Driver profile not found.');
+    return {
+      ...profile,
+      dailyRateRwf: Number(profile.dailyRateRwf),
+      hourlyRateRwf: profile.hourlyRateRwf ? Number(profile.hourlyRateRwf) : null,
+      weeklyRateRwf: profile.weeklyRateRwf ? Number(profile.weeklyRateRwf) : null,
+      monthlyRateRwf: profile.monthlyRateRwf ? Number(profile.monthlyRateRwf) : null,
+      rating: profile.rating ? Number(profile.rating) : null,
+    };
+  }
+
+  async approveDriver(driverProfileId: string) {
+    const profile = await prisma.driverProfile.findUnique({
+      where: { id: driverProfileId },
+      include: { user: { select: { fullName: true } } },
+    });
+    if (!profile) throw new NotFoundException('Driver profile not found.');
+    if (profile.status !== DriverProfileStatus.pending_approval) {
+      throw new BadRequestException('Only pending driver applications can be approved.');
+    }
+
+    const updated = await prisma.driverProfile.update({
+      where: { id: driverProfileId },
+      data: {
+        status: DriverProfileStatus.approved,
+        reviewedAt: new Date(),
+        rejectionReason: null,
+      },
+    });
+
+    this.notificationsService.emitInAppToUsers(
+      [profile.userId],
+      realtimeEvents.listingApproved,
+      { driverProfileId: profile.id, fullName: profile.user.fullName },
+    );
+    this.notificationsService.queueEmailToUsers(
+      [profile.userId],
+      'Your driver profile is approved — renting.rw',
+      `Hi ${profile.user.fullName}, your driver application has been approved. Customers can now find you in search.`,
+      `<p>Hi ${profile.user.fullName},</p><p>Your driver application has been approved. You are now visible to customers on renting.rw.</p>`,
+    );
+
+    return updated;
+  }
+
+  async rejectDriver(driverProfileId: string, payload: RejectListingDto) {
+    const profile = await prisma.driverProfile.findUnique({
+      where: { id: driverProfileId },
+      include: { user: { select: { fullName: true } } },
+    });
+    if (!profile) throw new NotFoundException('Driver profile not found.');
+    if (profile.status !== DriverProfileStatus.pending_approval) {
+      throw new BadRequestException('Only pending driver applications can be rejected.');
+    }
+
+    const updated = await prisma.driverProfile.update({
+      where: { id: driverProfileId },
+      data: {
+        status: DriverProfileStatus.rejected,
+        reviewedAt: new Date(),
+        rejectionReason: payload.reason.trim(),
+      },
+    });
+
+    this.notificationsService.emitInAppToUsers(
+      [profile.userId],
+      realtimeEvents.listingRejected,
+      { driverProfileId: profile.id, fullName: profile.user.fullName, reason: payload.reason },
+    );
+    this.notificationsService.queueEmailToUsers(
+      [profile.userId],
+      'Driver application not approved — renting.rw',
+      `Hi ${profile.user.fullName}, your driver application was not approved. Reason: ${payload.reason}`,
+      `<p>Hi ${profile.user.fullName},</p><p>Your driver application was not approved.</p><p><strong>Reason:</strong> ${payload.reason}</p><p>You can update your information and submit again from your driver onboarding page.</p>`,
+    );
+
+    return { ...updated, rejectionReason: payload.reason };
   }
 
   async deleteDriver(driverProfileId: string) {
@@ -1236,6 +1495,8 @@ export class AdminService {
         certifications: payload.certifications ?? [],
         serviceAreas: payload.serviceAreas,
         availabilityCalendar: [],
+        status: DriverProfileStatus.approved,
+        reviewedAt: new Date(),
       },
     });
 
@@ -1300,7 +1561,7 @@ export class AdminService {
           email: true,
           phone: true,
           createdAt: true,
-          driverProfile: { select: { id: true, primaryCity: true, driverCategory: true } },
+          driverProfile: { select: { id: true, primaryCity: true, driverCategory: true, status: true } },
           subscriptions: {
             where: { tier: 'free' },
             orderBy: { createdAt: 'desc' },
@@ -1334,7 +1595,7 @@ export class AdminService {
           driverCategory: u.driverProfile?.driverCategory ?? null,
           subscriptionStatus: sub ? sub.status : null,
           subscriptionRenewsAt: sub?.renewsAt ?? null,
-          isVisibleInSearch: isSubActive && u.driverProfile !== null,
+          isVisibleInSearch: u.driverProfile?.status === DriverProfileStatus.approved,
         };
       }),
     };
@@ -1539,6 +1800,84 @@ export class AdminService {
     return prisma.siteBanner.findFirst({ where: { isActive: true }, orderBy: { createdAt: 'desc' } });
   }
 
+  async listJobOpenings() {
+    return prisma.jobOpening.findMany({ orderBy: { createdAt: 'desc' } });
+  }
+
+  async listActiveJobOpenings() {
+    return prisma.jobOpening.findMany({
+      where: { isActive: true },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, title: true, employmentType: true, location: true, description: true },
+    });
+  }
+
+  async createJobOpening(data: CreateJobOpeningDto) {
+    return prisma.jobOpening.create({
+      data: {
+        title: data.title.trim(),
+        employmentType: data.employmentType.trim(),
+        location: data.location.trim(),
+        description: data.description.trim(),
+        isActive: data.isActive ?? true,
+      },
+    });
+  }
+
+  async updateJobOpening(id: string, data: UpdateJobOpeningDto) {
+    const existing = await prisma.jobOpening.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Job opening not found.');
+    return prisma.jobOpening.update({
+      where: { id },
+      data: {
+        ...(data.title !== undefined ? { title: data.title.trim() } : {}),
+        ...(data.employmentType !== undefined ? { employmentType: data.employmentType.trim() } : {}),
+        ...(data.location !== undefined ? { location: data.location.trim() } : {}),
+        ...(data.description !== undefined ? { description: data.description.trim() } : {}),
+        ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),
+      },
+    });
+  }
+
+  async deleteJobOpening(id: string) {
+    const existing = await prisma.jobOpening.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Job opening not found.');
+    await prisma.jobOpening.delete({ where: { id } });
+    return { success: true };
+  }
+
+  async applyToJob(jobId: string | null, payload: ApplyJobDto) {
+    let role = 'Open application';
+    if (jobId) {
+      const job = await prisma.jobOpening.findFirst({ where: { id: jobId, isActive: true } });
+      if (!job) throw new NotFoundException('This job is no longer open.');
+      role = job.title;
+    }
+
+    const subject = (jobId ? `Application: ${role}` : 'Open application').replace(/[\r\n]+/g, ' ');
+    const text = [
+      `Role: ${role}`,
+      `Name: ${payload.fullName.trim()}`,
+      `Email: ${payload.email.trim()}`,
+      `Phone: ${payload.phone.trim()}`,
+      '',
+      payload.message.trim(),
+    ].join('\n');
+
+    try {
+      await this.notificationsService.sendCareersApplication(subject, text);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not send the application.';
+      throw new ServiceUnavailableException(
+        message === 'Email is not configured.'
+          ? 'Applications by email are temporarily unavailable.'
+          : 'Could not send the application email. Try again in a moment.',
+      );
+    }
+
+    return { sent: true };
+  }
+
   private disputePriority(status: DisputeStatus, createdAt: Date): 'low' | 'medium' | 'high' {
     if (status === DisputeStatus.escalated) {
       return 'high';
@@ -1557,6 +1896,50 @@ export class AdminService {
     const year = value.getFullYear();
     const month = String(value.getMonth() + 1).padStart(2, '0');
     return `${year}-${month}`;
+  }
+
+  async listTaxis(query: { search?: string; status?: string; page?: number; pageSize?: number }) {
+    const page = query.page ?? 1;
+    const pageSize = query.pageSize ?? 20;
+    const search = query.search?.trim();
+    const where: Prisma.TaxiDriverWhereInput = {
+      ...(query.status ? { status: query.status as TaxiDriverStatus } : {}),
+      ...(search
+        ? {
+            OR: [
+              { fullName: { contains: search, mode: 'insensitive' } },
+              { phone: { contains: search, mode: 'insensitive' } },
+              { city: { contains: search, mode: 'insensitive' } },
+              { plate: { contains: search, mode: 'insensitive' } },
+              { carModel: { contains: search, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+    };
+    const [total, items] = await Promise.all([
+      prisma.taxiDriver.count({ where }),
+      prisma.taxiDriver.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: {
+          user: { select: { id: true, email: true, fullName: true, phone: true } },
+        },
+      }),
+    ]);
+    return { page, pageSize, total, items };
+  }
+
+  async setTaxiMarketplaceStatus(taxiId: string, status: TaxiDriverStatus) {
+    try {
+      return await prisma.taxiDriver.update({
+        where: { id: taxiId },
+        data: { status },
+      });
+    } catch {
+      throw new NotFoundException('Taxi driver not found.');
+    }
   }
 
   private lastSixMonthKeys(now: Date) {
