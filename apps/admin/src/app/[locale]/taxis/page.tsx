@@ -4,6 +4,8 @@ import { RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 
+import { AdminPageHeader } from '@/components/admin/admin-page-header';
+import { adminBtnGhost, adminInput, adminPage } from '@/components/admin/admin-ui';
 import { TableRowSkeleton } from '@/components/ui/skeleton';
 import { listAdminTaxis, setAdminTaxiStatus, type AdminTaxiItem } from '@/lib/api';
 import { useAuthToken } from '@/lib/use-auth-token';
@@ -63,27 +65,21 @@ export default function AdminTaxisPage() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-black tracking-tight text-ink">Taxi</h1>
-          <p className="mt-0.5 text-sm font-medium text-muted-foreground">
-            Taxi drivers listed on renting.rw · {total} registered
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => void load()}
-          className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-sm font-bold"
-        >
-          <RefreshCw className="h-4 w-4" />
-          Refresh
-        </button>
-      </div>
+    <main className={adminPage}>
+      <AdminPageHeader
+        title="Taxi"
+        description={`Taxi drivers listed on renting.rw · ${total} registered`}
+        actions={
+          <button type="button" onClick={() => void load()} className={adminBtnGhost}>
+            <RefreshCw className="h-4 w-4" />
+            Refresh
+          </button>
+        }
+      />
 
       <div className="flex flex-wrap gap-2">
         <input
-          className="h-10 min-w-[12rem] flex-1 rounded-xl border border-border bg-card px-3 text-sm font-semibold"
+          className={`h-10 min-w-[12rem] flex-1 ${adminInput}`}
           placeholder="Search name, phone, city, plate…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -105,7 +101,7 @@ export default function AdminTaxisPage() {
 
       {error ? <p className="mb-4 text-sm font-semibold text-red-700">{error}</p> : null}
 
-      <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-soft">
+      <div className="overflow-x-auto admin-panel">
         <table className="w-full min-w-[720px] text-left text-sm">
           <thead className="border-b border-border bg-muted text-xs font-black uppercase tracking-wide">
             <tr>

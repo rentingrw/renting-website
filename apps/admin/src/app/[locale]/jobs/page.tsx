@@ -10,6 +10,7 @@ import {
   type JobOpeningItem,
 } from '@/lib/api';
 import { useAuthToken } from '@/lib/use-auth-token';
+import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import {
   adminBadgeLive,
   adminBadgeMuted,
@@ -23,8 +24,6 @@ import {
   adminPanel,
   adminPanelBody,
   adminPanelHeader,
-  adminSubtitle,
-  adminTitle,
 } from '@/components/admin/admin-ui';
 
 const AUTH_ERROR_MSG = 'Session not ready. Please refresh the page or sign out and sign in again.';
@@ -137,12 +136,10 @@ export default function AdminJobsPage() {
 
   return (
     <div className={adminPage}>
-      <div>
-        <h1 className={adminTitle}>Careers</h1>
-        <p className={adminSubtitle}>
-          Roles published here show on renting.rw/careers. Applications are emailed to renting.rw@gmail.com — they are not stored in the admin.
-        </p>
-      </div>
+      <AdminPageHeader
+        title="Careers"
+        description="Roles published here show on renting.rw/careers. Applications are emailed to renting.rw@gmail.com — they are not stored in the admin."
+      />
 
       {error ? <div className={adminError}>{error}</div> : null}
 

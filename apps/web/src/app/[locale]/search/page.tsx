@@ -261,13 +261,13 @@ export default function SearchPage({ params }: SearchPageProps) {
       <AppHeader locale={locale} variant="default" />
 
       {/* Filter bar */}
-      <div className="sticky top-[57px] z-40 border-b-2 border-border bg-card">
+      <div className="sticky top-[57px] z-40 border-b border-white/10 bg-ink/95 backdrop-blur-xl">
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:gap-3">
           <AddressInput
             value={location}
             onChange={(v) => { setLocation(v); setLatitude(null); setLongitude(null); }}
             onPlaceSelected={(p) => { setLocation(p.address); setLatitude(p.latitude); setLongitude(p.longitude); }}
-            className="h-10 min-w-0 flex-1 rounded border-2 border-border bg-card px-4 text-sm font-semibold text-foreground placeholder:font-normal placeholder:text-muted-foreground focus:outline-none"
+            className="date-field h-10 min-w-0 flex-1 rounded-xl border border-white/15 bg-white/10 px-4 text-sm font-semibold text-white placeholder:font-medium placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-sun/40"
             placeholder={t('search.locationPlaceholder')}
             showLocateMe
           />
@@ -276,13 +276,13 @@ export default function SearchPage({ params }: SearchPageProps) {
               type="date"
               value={from}
               onChange={(e) => setFrom(e.target.value)}
-              className="h-10 min-w-0 flex-1 rounded border-2 border-border bg-card px-3 text-sm font-semibold text-foreground sm:flex-initial focus:outline-none"
+              className="date-field h-10 min-w-0 flex-1 rounded-xl border border-white/15 bg-white/10 px-3 text-sm font-semibold text-white sm:flex-initial focus:outline-none focus:ring-2 focus:ring-sun/40 [color-scheme:dark]"
             />
             <input
               type="date"
               value={to}
               onChange={(e) => setTo(e.target.value)}
-              className="h-10 min-w-0 flex-1 rounded border-2 border-border bg-card px-3 text-sm font-semibold text-foreground sm:flex-initial focus:outline-none"
+              className="date-field h-10 min-w-0 flex-1 rounded-xl border border-white/15 bg-white/10 px-3 text-sm font-semibold text-white sm:flex-initial focus:outline-none focus:ring-2 focus:ring-sun/40 [color-scheme:dark]"
             />
           </div>
         </div>

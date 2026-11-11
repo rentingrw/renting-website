@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import { AppHeader } from '@/components/web/app-header';
 import { AddressInput } from '@/components/web/address-input';
 import { DriverListingCard } from '@/components/web/driver-listing-card';
+import { ListingPageHeader } from '@/components/web/listing-page-header';
 import { useFavoriteIds } from '@/components/web/favorite-button';
 import {
   compactRwf,
@@ -35,7 +36,7 @@ type ListingSort = 'rating' | 'price_asc' | 'price_desc' | '';
 
 function DriverCardSkeleton() {
   return (
-    <div className="overflow-hidden rounded-xl border border-border bg-card animate-pulse">
+    <div className="overflow-hidden rounded-[1.35rem] border border-border bg-card animate-pulse">
       <div className="flex flex-col items-center border-b border-border bg-brand-soft px-4 py-4">
         <div className="h-16 w-16 rounded-full bg-muted" />
         <div className="mt-2 h-4 w-32 rounded bg-muted" />
@@ -294,10 +295,11 @@ export default function DriversPage({ params }: { params: Promise<{ locale: stri
         </ListingFilterRail>
 
         <div className="min-w-0 flex-1 px-4 py-6 sm:px-6">
-          <h1 className="text-2xl font-bold text-foreground">{t('home.driversInRwanda')}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {loading ? t('search.loading') : t('search.resultsCount', { count: drivers.length })}
-          </p>
+          <ListingPageHeader
+            icon={UserRound}
+            title={t('home.driversInRwanda')}
+            subtitle={loading ? t('search.loading') : t('search.resultsCount', { count: drivers.length })}
+          />
           {error ? (
             <p className="mt-2 rounded-xl bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{error}</p>
           ) : null}

@@ -54,6 +54,20 @@ input[type='date'] {
   color-scheme: light;
 }
 
+/* Whole date field opens the picker; our own calendar icon replaces the native one */
+.date-field {
+  position: relative;
+}
+
+.date-field::-webkit-calendar-picker-indicator {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: auto;
+  opacity: 0;
+  cursor: pointer;
+}
+
 input[type='range'] {
   -webkit-appearance: none;
   appearance: none;
@@ -109,9 +123,119 @@ input[type='range']::-moz-range-track {
   }
 }
 
+/* Home hero: drifting aurora light over the forest canvas */
+.aurora-blob {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(90px);
+  opacity: 0.5;
+  animation: aurora-drift 18s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+@keyframes aurora-drift {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(8%, -6%, 0) scale(1.15);
+  }
+  100% {
+    transform: translate3d(-6%, 6%, 0) scale(0.95);
+  }
+}
+
+.hero-grid {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse 75% 65% at 50% 35%, #000 25%, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse 75% 65% at 50% 35%, #000 25%, transparent 75%);
+}
+
+.text-aurora {
+  background: linear-gradient(92deg, #f4c84a 0%, #9be7b4 55%, #5fd4c4 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.word-swap {
+  display: inline-block;
+  animation: word-in 0.65s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes word-in {
+  from {
+    opacity: 0;
+    transform: translateY(35%);
+    filter: blur(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+.float-slow {
+  animation: float-y 7s ease-in-out infinite;
+}
+
+.float-slower {
+  animation: float-y 9s ease-in-out infinite;
+  animation-delay: -3s;
+}
+
+@keyframes float-y {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-12px);
+  }
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.detail-gallery {
+  border-radius: 1.5rem;
+  border: 1px solid hsl(150 10% 86% / 0.85);
+  box-shadow: 0 10px 30px rgba(20, 34, 31, 0.08);
+}
+
+.detail-panel {
+  border-radius: 1.35rem;
+  border: 1px solid hsl(150 10% 86% / 0.85);
+  background: hsl(var(--card));
+  box-shadow: 0 10px 30px rgba(20, 34, 31, 0.08);
+}
+
+.detail-chip {
+  border-radius: 9999px;
+  border: 1px solid hsl(150 10% 86% / 0.85);
+  background: hsl(var(--card));
+  box-shadow: 0 2px 8px rgba(20, 34, 31, 0.06);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .media-shimmer {
     animation: none;
     background: hsl(var(--muted));
+  }
+
+  .aurora-blob,
+  .word-swap,
+  .float-slow,
+  .float-slower {
+    animation: none;
   }
 }

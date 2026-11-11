@@ -1,12 +1,13 @@
 'use client';
 
-import { Car } from 'lucide-react';
+import { Truck } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useEffect, useMemo, useState } from 'react';
 
 import { AppHeader } from '@/components/web/app-header';
+import { ListingPageHeader } from '@/components/web/listing-page-header';
 import {
   FilterButton,
   FilterSection,
@@ -152,16 +153,17 @@ export default function TaxiDriversPage({ params }: TaxiDriversPageProps) {
         </ListingFilterRail>
 
         <div className="min-w-0 flex-1 px-4 py-6 sm:px-6">
-          <h1 className="text-2xl font-bold text-foreground">{t('tabs.taxi')}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {loading ? t('search.loading') : t('search.resultsCount', { count: filtered.length })}
-          </p>
+          <ListingPageHeader
+            icon={Truck}
+            title={t('tabs.taxi')}
+            subtitle={loading ? t('search.loading') : t('search.resultsCount', { count: filtered.length })}
+          />
 
           <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {loading ? (
               Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="overflow-hidden rounded-xl border border-border bg-card animate-pulse">
-                  <div className="flex flex-col items-center border-b border-border bg-red-50/50 px-4 py-4">
+                <div key={i} className="overflow-hidden rounded-[1.35rem] border border-border bg-card animate-pulse">
+                  <div className="flex flex-col items-center border-b border-border bg-sun/20 px-4 py-4">
                     <div className="h-16 w-16 rounded-full bg-muted" />
                     <div className="mt-2 h-4 w-28 rounded bg-muted" />
                   </div>
@@ -175,7 +177,7 @@ export default function TaxiDriversPage({ params }: TaxiDriversPageProps) {
 
           {!loading && filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-center">
-              <Car className="h-10 w-10 text-muted-foreground" />
+              <Truck className="h-10 w-10 text-muted-foreground" />
               <h3 className="mt-4 text-lg font-bold text-foreground">{t('search.noResults')}</h3>
               <button
                 type="button"

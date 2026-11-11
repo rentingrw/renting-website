@@ -1,6 +1,8 @@
 'use client';
 
 import { AppHeader } from '@/components/web/app-header';
+import { MarketingCard } from '@/components/web/marketing-card';
+import { MarketingPageHero } from '@/components/web/marketing-page-hero';
 import { SiteFooter } from '@/components/web/site-footer';
 import { IllustrationSafety } from '@/components/web/illustrations';
 import { isSupportedLocale, routing, type SupportedLocale } from '@/i18n/routing';
@@ -34,30 +36,19 @@ export default function SafetyPage({ params }: { params: Promise<{ locale: strin
     <main className="flex min-h-screen flex-col bg-background">
       <AppHeader locale={locale} />
 
-      <section className="bg-background px-4 py-14 text-foreground">
-        <div className="mx-auto flex max-w-5xl flex-col items-center gap-8 md:flex-row md:justify-between">
-          <div className="text-center md:text-left">
-            <div className="mb-4 flex justify-center md:justify-start">
-              <span className="flex h-14 w-14 items-center justify-center rounded-md border-2 border-border bg-muted">
-                <Shield className="h-8 w-8 text-foreground/70" />
-              </span>
-            </div>
-            <h1 className="text-4xl font-black sm:text-5xl">{t('title')}</h1>
-            <p className="mt-4 max-w-lg text-lg font-medium text-muted-foreground">{t('subtitle')}</p>
-          </div>
-          <IllustrationSafety className="w-full max-w-[220px] shrink-0" />
-        </div>
-      </section>
+      <MarketingPageHero eyebrow="Trust & safety" title={t('title')} subtitle={t('subtitle')}>
+        <IllustrationSafety className="w-full opacity-90" />
+      </MarketingPageHero>
 
       <section className="mx-auto max-w-5xl px-4 py-16 sm:px-6">
         <h2 className="mb-10 text-center text-2xl font-black text-foreground">{t('pillarsTitle')}</h2>
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {pillars.map((item) => (
-            <div key={item.title} className="rounded-2xl border border-border bg-card p-5 shadow-card">
+            <MarketingCard key={item.title}>
               <div className="mb-3">{item.icon}</div>
               <h3 className="mb-2 font-black text-foreground">{item.title}</h3>
               <p className="text-sm font-medium text-muted-foreground">{item.desc}</p>
-            </div>
+            </MarketingCard>
           ))}
         </div>
       </section>

@@ -18,6 +18,7 @@ import {
   FilterSlider,
   ListingFilterRail,
 } from '@/components/web/listing-filter-rail';
+import { ListingPageHeader } from '@/components/web/listing-page-header';
 import { SiteFooter } from '@/components/web/site-footer';
 import { isSupportedLocale, routing, type SupportedLocale } from '@/i18n/routing';
 import { searchMarketplace, type SearchCar, type ServiceType, type VehicleType } from '@/lib/api';
@@ -41,7 +42,7 @@ type ListingSort = 'score' | 'price_asc' | 'price_desc' | '';
 
 function CarCardSkeleton() {
   return (
-    <div className="overflow-hidden rounded-xl border border-border bg-card animate-pulse">
+    <div className="overflow-hidden rounded-[1.35rem] border border-border bg-card animate-pulse">
       <div className="aspect-[5/3] bg-muted" />
       <div className="space-y-2 p-3">
         <div className="h-4 w-3/4 rounded bg-muted" />
@@ -304,10 +305,11 @@ export default function CarsPage({ params }: { params: Promise<{ locale: string 
 
         <div className="min-w-0 flex-1 px-4 py-6 sm:px-6">
           <OwnerCarsManageStrip locale={locale} />
-          <h1 className="text-2xl font-bold text-foreground">{t('tabs.cars')}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {loading ? t('search.loading') : t('search.resultsCount', { count: cars.length })}
-          </p>
+          <ListingPageHeader
+            icon={Car}
+            title={t('tabs.cars')}
+            subtitle={loading ? t('search.loading') : t('search.resultsCount', { count: cars.length })}
+          />
           {error ? (
             <p className="mt-2 rounded-xl bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{error}</p>
           ) : null}

@@ -1,6 +1,7 @@
 'use client';
 
 import { AppHeader } from '@/components/web/app-header';
+import { MarketingPageHero } from '@/components/web/marketing-page-hero';
 import { SiteFooter } from '@/components/web/site-footer';
 import { isSupportedLocale, routing, type SupportedLocale } from '@/i18n/routing';
 import { SITE_PHONE_DISPLAY, SITE_WHATSAPP_URL } from '@/lib/site-contact';
@@ -54,18 +55,14 @@ export default function AirportPage({ params }: { params: Promise<{ locale: stri
     <main className="flex min-h-screen flex-col bg-background">
       <AppHeader locale={locale} />
 
-      <section className="bg-background px-4 py-12 text-foreground">
-        <div className="mx-auto max-w-3xl text-center">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-border bg-card text-brand shadow-card">
-            <Plane className="h-7 w-7" />
-          </div>
-          <p className="text-xs font-black uppercase tracking-widest text-brand">Airport</p>
-          <h1 className="mt-2 text-4xl font-black sm:text-5xl">Airport transfers</h1>
-          <p className="mx-auto mt-4 max-w-2xl text-lg font-medium text-muted-foreground">
-            We offer airport pickup and drop-off. Rent a car and we can bring it to you at the airport, send a
-            driver with it, or have it returned to the owner when you leave.
-          </p>
-          <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+      <MarketingPageHero
+        align="center"
+        eyebrow="Airport"
+        title="Airport transfers"
+        subtitle="We offer airport pickup and drop-off. Rent a car and we can bring it to you at the airport, send a driver with it, or have it returned to the owner when you leave."
+      />
+      <section className="border-b border-border bg-background px-4 py-6 sm:px-6">
+        <div className="mx-auto flex max-w-3xl flex-col items-center justify-center gap-3 sm:flex-row">
             <Link
               href={`/${locale}/cars`}
               className="rounded-full bg-brand px-6 py-2.5 text-sm font-semibold text-white hover:bg-brand-hover"
@@ -78,14 +75,13 @@ export default function AirportPage({ params }: { params: Promise<{ locale: stri
             >
               Find a driver
             </Link>
-          </div>
         </div>
       </section>
 
       <section className="mx-auto w-full max-w-5xl px-4 pb-6 sm:px-6">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {SERVICES.map(({ icon: Icon, title, body }) => (
-            <article key={title} className="rounded-2xl border border-border bg-card p-5 shadow-card">
+            <article key={title} className="detail-panel p-5">
               <span className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-brand-soft text-brand">
                 <Icon className="h-5 w-5" />
               </span>

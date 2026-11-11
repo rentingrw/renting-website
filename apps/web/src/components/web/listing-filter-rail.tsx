@@ -13,7 +13,9 @@ export function ListingFilterRail({ children }: ListingFilterRailProps) {
   const [open, setOpen] = useState(false);
 
   return (
-    <aside className="bg-ink text-white md:sticky md:top-[57px] md:h-[calc(100vh-57px)] md:w-72 md:shrink-0 md:overflow-y-auto md:p-4">
+    <aside className="relative isolate overflow-hidden bg-ink text-white md:sticky md:top-[57px] md:h-[calc(100vh-57px)] md:w-72 md:shrink-0 md:overflow-y-auto md:p-4">
+      <div className="pointer-events-none absolute inset-0 hero-grid opacity-[0.22]" aria-hidden />
+      <div className="relative">
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
@@ -24,6 +26,7 @@ export function ListingFilterRail({ children }: ListingFilterRailProps) {
         <ChevronDown className={`h-4 w-4 transition ${open ? 'rotate-180' : ''}`} />
       </button>
       <div className={`${open ? 'flex' : 'hidden'} flex-col gap-2 px-4 pb-4 md:flex md:px-0 md:pb-0`}>{children}</div>
+      </div>
     </aside>
   );
 }

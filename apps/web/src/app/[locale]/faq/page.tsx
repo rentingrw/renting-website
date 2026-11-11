@@ -1,6 +1,7 @@
 'use client';
 
 import { AppHeader } from '@/components/web/app-header';
+import { MarketingPageHero } from '@/components/web/marketing-page-hero';
 import { SiteFooter } from '@/components/web/site-footer';
 import { isSupportedLocale, routing, type SupportedLocale } from '@/i18n/routing';
 import { ChevronDown, ChevronUp } from 'lucide-react';
@@ -10,7 +11,7 @@ import { useEffect, useState } from 'react';
 function FAQItem({ q, a }: { q: string; a: string }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className={`border-b-2 border-border last:border-b-0 ${open ? 'bg-brand-soft' : ''}`}>
+    <div className={`rounded-[1rem] border border-border/80 px-4 last:mb-0 ${open ? 'bg-brand-soft shadow-soft-sm' : 'bg-card'}`}>
       <button
         type="button"
         onClick={() => setOpen(!open)}
@@ -79,11 +80,12 @@ export default function FAQPage({ params }: { params: Promise<{ locale: string }
     <main className="flex min-h-screen flex-col bg-background">
       <AppHeader locale={locale} />
 
-      <section className="bg-background px-4 py-20 text-center text-foreground">
-        <p className="mb-2 text-xs font-black uppercase tracking-widest text-foreground/70">{t('kicker')}</p>
-        <h1 className="text-4xl font-black sm:text-5xl">{t('title')}</h1>
-        <p className="mx-auto mt-4 max-w-xl text-lg font-medium text-muted-foreground">{t('subtitle')}</p>
-      </section>
+      <MarketingPageHero
+        align="center"
+        eyebrow={t('kicker')}
+        title={t('title')}
+        subtitle={t('subtitle')}
+      />
 
       <section className="mx-auto w-full max-w-3xl px-4 py-16 sm:px-6">
         {sections.map((section) => (

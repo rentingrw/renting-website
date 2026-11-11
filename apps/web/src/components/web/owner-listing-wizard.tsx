@@ -10,6 +10,7 @@ import { isSupportedLocale, type SupportedLocale } from '@/i18n/routing';
 import { useLocale, useTranslations } from 'next-intl';
 import { useEffect, useRef, useState } from 'react';
 import { Camera, Check, ChevronLeft, ChevronRight, Minus, Plus, Upload } from 'lucide-react';
+import { buildListingTitle, resolveColorLabel } from '@/lib/build-listing-title';
 
 import { uploadImageFile, type CarListingPayload, type CarListingRates, type OwnerCar, type ServiceType, type VehicleType } from '@/lib/api';
 import { CarListingRatesFields, defaultCarListingRates } from '@/components/web/car-listing-rates-fields';

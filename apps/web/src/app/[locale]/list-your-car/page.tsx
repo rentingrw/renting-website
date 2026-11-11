@@ -1,6 +1,8 @@
 'use client';
 
 import { AppHeader } from '@/components/web/app-header';
+import { MarketingCard } from '@/components/web/marketing-card';
+import { MarketingPageHero } from '@/components/web/marketing-page-hero';
 import { SiteFooter } from '@/components/web/site-footer';
 import { IllustrationListCar } from '@/components/web/illustrations';
 import { isSupportedLocale, routing, type SupportedLocale } from '@/i18n/routing';
@@ -21,36 +23,27 @@ export default function ListYourCarPage({ params }: { params: Promise<{ locale: 
     <main className="flex min-h-screen flex-col bg-background">
       <AppHeader locale={locale} />
 
-      {/* Hero */}
-      <section className="bg-background px-4 py-12 text-foreground">
-        <div className="mx-auto flex max-w-5xl flex-col items-center gap-8 md:flex-row md:justify-between">
-          <div className="text-center md:text-left">
-            <div className="mb-4 flex justify-center md:justify-start">
-              <span className="flex h-14 w-14 items-center justify-center rounded-md border-2 border-border bg-muted">
-                <Car className="h-8 w-8 text-foreground/70" />
-              </span>
-            </div>
-            <h1 className="text-4xl font-black sm:text-5xl">List Your Car on renting.rw</h1>
-            <p className="mt-4 max-w-lg text-lg font-medium text-muted-foreground">
-              Turn your idle vehicle into a source of income. Reach thousands of verified renters across
-              Rwanda with full control over your pricing and availability.
-            </p>
-            <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row md:justify-start sm:justify-center">
-              <Link
-                href={`/${locale}/onboard/car`}
-                className="rounded-full bg-brand px-8 py-3 font-semibold text-white transition hover:bg-brand-hover"
-              >
-                Start hosting
-              </Link>
-              <Link
-                href={`/${locale}/how-it-works`}
-                className="rounded-full border border-border bg-white px-8 py-3 font-semibold text-foreground transition hover:bg-muted"
-              >
-                How It Works
-              </Link>
-            </div>
-          </div>
-          <IllustrationListCar className="w-full max-w-[260px] shrink-0" />
+      <MarketingPageHero
+        eyebrow="Partners"
+        title="List your car on renting.rw"
+        subtitle="Turn your idle vehicle into income. Reach verified renters across Rwanda with full control over pricing and availability."
+      >
+        <IllustrationListCar className="w-full max-w-[260px]" />
+      </MarketingPageHero>
+      <section className="border-b border-border bg-background px-4 py-6 sm:px-6">
+        <div className="mx-auto flex max-w-5xl flex-col items-center justify-center gap-3 sm:flex-row md:justify-start">
+          <Link
+            href={`/${locale}/onboard/car`}
+            className="rounded-full bg-gradient-to-br from-[#1f4a3f] via-brand to-brand-strong px-8 py-3 text-sm font-bold text-white hover:brightness-110"
+          >
+            Start hosting
+          </Link>
+          <Link
+            href={`/${locale}/how-it-works`}
+            className="rounded-full border border-border bg-card px-8 py-3 text-sm font-bold text-foreground transition hover:border-ink hover:bg-ink hover:text-white"
+          >
+            How it works
+          </Link>
         </div>
       </section>
 
@@ -80,11 +73,11 @@ export default function ListYourCarPage({ params }: { params: Promise<{ locale: 
               desc: 'Collect reviews, build your reputation, and get more bookings over time.',
             },
           ].map((item) => (
-            <div key={item.title} className="rounded-2xl border border-border bg-card p-5 shadow-card">
+            <MarketingCard key={item.title}>
               <div className="mb-3">{item.icon}</div>
               <h3 className="mb-2 font-black text-foreground">{item.title}</h3>
               <p className="text-sm font-medium text-muted-foreground">{item.desc}</p>
-            </div>
+            </MarketingCard>
           ))}
         </div>
       </section>

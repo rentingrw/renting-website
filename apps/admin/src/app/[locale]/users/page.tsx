@@ -13,6 +13,8 @@ import {
   type AdminUserListItem,
   type ListUsersFilters,
 } from '@/lib/api';
+import { AdminPageHeader } from '@/components/admin/admin-page-header';
+import { adminBtnPrimary, adminInput, adminPage, adminSelect } from '@/components/admin/admin-ui';
 import { useAuthToken } from '@/lib/use-auth-token';
 import { TableRowSkeleton } from '@/components/ui/skeleton';
 
@@ -116,58 +118,63 @@ export default function AdminUsersPage() {
 
   const totalPages = Math.ceil(data.total / PAGE_SIZE) || 1;
 
-  const inputClass = 'h-9 rounded-xl border border-border bg-card px-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-brand/20';
   const btnGhost = 'rounded-xl border border-border bg-card px-2.5 py-1 text-xs font-bold shadow-brutal-xs disabled:opacity-40';
 
   return (
-    <main className="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-black tracking-tight text-ink">Users</h1>
-          <p className="mt-0.5 text-sm font-medium text-muted-foreground">
-            Renters, car hosts, drivers, and taxi accounts — status, phone verification, and trust score
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <input
-            value={filters.search ?? ''}
-            onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value, page: 1 }))}
-            placeholder="Search name / email / phone"
-            className={inputClass}
-          />
-          <select
-            className={inputClass}
-            value={filters.role ?? ''}
-            onChange={(e) => setFilters((f) => ({ ...f, role: e.target.value || undefined, page: 1 }))}
-          >
-            <option value="">All roles</option>
-            {ROLES.map((r) => <option key={r} value={r}>{r.replace('_', ' ')}</option>)}
-          </select>
-          <select
-            className={inputClass}
-            value={filters.status ?? ''}
-            onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value || undefined, page: 1 }))}
-          >
-            <option value="">All statuses</option>
-            {STATUSES.map((s) => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
-          </select>
-          <select
-            className={inputClass}
-            value={filters.trustTier ?? ''}
-            onChange={(e) => setFilters((f) => ({ ...f, trustTier: e.target.value || undefined, page: 1 }))}
-          >
-            <option value="">All trust tiers</option>
-            {TRUST_TIERS.map((t) => <option key={t} value={t}>{t}</option>)}
-          </select>
-          <button
-            type="button"
-            className="h-9 rounded border border-border bg-brand px-4 text-sm font-black text-white shadow-brutal-sm hover:bg-brand-hover transition-all"
-            onClick={() => void loadUsers()}
-          >
-            Search
-          </button>
-        </div>
-      </header>
+    <main className={adminPage}>
+      <AdminPageHeader
+        title="Users"
+        description="Renters, car hosts, drivers, and taxi accounts — status, phone verification, and trust score"
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              value={filters.search ?? ''}
+              onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value, page: 1 }))}
+              placeholder="Search name / email / phone"
+              className={`h-9 min-w-[12rem] ${adminInput}`}
+            />
+            <select
+              className={adminSelect}
+              value={filters.role ?? ''}
+              onChange={(e) => setFilters((f) => ({ ...f, role: e.target.value || undefined, page: 1 }))}
+            >
+              <option value="">All roles</option>
+              {ROLES.map((r) => (
+                <option key={r} value={r}>
+                  {r.replace('_', ' ')}
+                </option>
+              ))}
+            </select>
+            <select
+              className={adminSelect}
+              value={filters.status ?? ''}
+              onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value || undefined, page: 1 }))}
+            >
+              <option value="">All statuses</option>
+              {STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {s.replace('_', ' ')}
+                </option>
+              ))}
+            </select>
+            <select
+              className={adminSelect}
+              value={filters.trustTier ?? ''}
+              onChange={(e) => setFilters((f) => ({ ...f, trustTier: e.target.value || undefined, page: 1 }))}
+            >
+              <option value="">All trust tiers</option>
+              {TRUST_TIERS.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+            <button type="button" className={`h-9 ${adminBtnPrimary}`} onClick={() => void loadUsers()}>
+              Search
+            </button>
+          </div>
+        }
+      />
 
       {error ? (
         <div className="rounded border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700 shadow-brutal-red">
@@ -175,7 +182,7 @@ export default function AdminUsersPage() {
         </div>
       ) : null}
 
-      <section className="rounded-2xl border border-border bg-card shadow-soft overflow-hidden">
+      <section className="admin-panel">
         <div className="overflow-auto">
           <table className="min-w-full text-left text-sm">
             <thead>

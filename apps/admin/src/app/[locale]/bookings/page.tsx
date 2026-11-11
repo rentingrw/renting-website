@@ -14,6 +14,8 @@ import {
   type DeskDriverAlternative,
   type ListBookingsFilters,
 } from '@/lib/api';
+import { AdminPageHeader } from '@/components/admin/admin-page-header';
+import { adminBtnPrimary, adminInput, adminPage, adminSelect } from '@/components/admin/admin-ui';
 import { useAuthToken } from '@/lib/use-auth-token';
 import { TableRowSkeleton } from '@/components/ui/skeleton';
 
@@ -181,68 +183,65 @@ export default function AdminBookingsPage() {
   };
 
   const totalPages = Math.ceil(data.total / PAGE_SIZE) || 1;
-  const inputClass = 'h-9 rounded-xl border border-border bg-card px-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-brand/20';
   const deskPending = data.items.filter((item) => item.status === 'pending' && !item.isInstant).length;
 
   return (
-    <main className="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-black tracking-tight text-ink">Booking desk</h1>
-          <p className="text-sm font-medium text-muted-foreground">
-            Call the host or driver (cars, chauffeurs, taxi, airport trips), then confirm or reject. {deskPending} pending desk request{deskPending === 1 ? '' : 's'} on this page.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <select
-            className={inputClass}
-            value={filters.type ?? ''}
-            onChange={(e) => {
-              const v = e.target.value as '' | 'car' | 'driver' | 'all';
-              setFilters((f) => ({ ...f, type: v || undefined, page: 1 }));
-            }}
-          >
-            <option value="">All types</option>
-            <option value="car">Car</option>
-            <option value="driver">Driver</option>
-            <option value="all">All</option>
-          </select>
-          <select
-            className={inputClass}
-            value={filters.status ?? ''}
-            onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value || undefined, page: 1 }))}
-          >
-            <option value="">All statuses</option>
-            {STATUSES.map((s) => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
-          </select>
-          <input
-            className={inputClass}
-            value={filters.userId ?? ''}
-            onChange={(e) => setFilters((f) => ({ ...f, userId: e.target.value, page: 1 }))}
-            placeholder="User ID"
-            type="text"
-          />
-          <input
-            className={inputClass}
-            type="date"
-            value={filters.dateFrom ?? ''}
-            onChange={(e) => setFilters((f) => ({ ...f, dateFrom: e.target.value || undefined, page: 1 }))}
-          />
-          <input
-            className={inputClass}
-            type="date"
-            value={filters.dateTo ?? ''}
-            onChange={(e) => setFilters((f) => ({ ...f, dateTo: e.target.value || undefined, page: 1 }))}
-          />
-          <button
-            type="button"
-            className="h-9 rounded border border-border bg-brand px-4 text-sm font-black text-white shadow-brutal-sm hover:bg-brand-hover transition-all"
-            onClick={() => void loadBookings()}
-          >
-            Filter
-          </button>
-        </div>
-      </header>
+    <main className={adminPage}>
+      <AdminPageHeader
+        title="Booking desk"
+        description={`Call the host or driver (cars, chauffeurs, taxi, airport trips), then confirm or reject. ${deskPending} pending desk request${deskPending === 1 ? '' : 's'} on this page.`}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              className={adminSelect}
+              value={filters.type ?? ''}
+              onChange={(e) => {
+                const v = e.target.value as '' | 'car' | 'driver' | 'all';
+                setFilters((f) => ({ ...f, type: v || undefined, page: 1 }));
+              }}
+            >
+              <option value="">All types</option>
+              <option value="car">Car</option>
+              <option value="driver">Driver</option>
+              <option value="all">All</option>
+            </select>
+            <select
+              className={adminSelect}
+              value={filters.status ?? ''}
+              onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value || undefined, page: 1 }))}
+            >
+              <option value="">All statuses</option>
+              {STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {s.replace(/_/g, ' ')}
+                </option>
+              ))}
+            </select>
+            <input
+              className={`h-9 ${adminInput}`}
+              value={filters.userId ?? ''}
+              onChange={(e) => setFilters((f) => ({ ...f, userId: e.target.value, page: 1 }))}
+              placeholder="User ID"
+              type="text"
+            />
+            <input
+              className={`h-9 ${adminInput}`}
+              type="date"
+              value={filters.dateFrom ?? ''}
+              onChange={(e) => setFilters((f) => ({ ...f, dateFrom: e.target.value || undefined, page: 1 }))}
+            />
+            <input
+              className={`h-9 ${adminInput}`}
+              type="date"
+              value={filters.dateTo ?? ''}
+              onChange={(e) => setFilters((f) => ({ ...f, dateTo: e.target.value || undefined, page: 1 }))}
+            />
+            <button type="button" className={`h-9 ${adminBtnPrimary}`} onClick={() => void loadBookings()}>
+              Filter
+            </button>
+          </div>
+        }
+      />
 
       {error ? (
         <div className="rounded border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700 shadow-brutal-red">
@@ -300,7 +299,7 @@ export default function AdminBookingsPage() {
         </section>
       ) : null}
 
-      <section className="rounded-2xl border border-border bg-card shadow-soft overflow-hidden">
+      <section className="admin-panel">
         <div className="overflow-auto">
           <table className="min-w-full text-left text-sm">
             <thead>

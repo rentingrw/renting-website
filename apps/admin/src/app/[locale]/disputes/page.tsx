@@ -11,6 +11,8 @@ import {
   type AdminDisputeItem,
   type ListDisputesFilters,
 } from '@/lib/api';
+import { AdminPageHeader } from '@/components/admin/admin-page-header';
+import { adminBtnPrimary, adminPage, adminSelect } from '@/components/admin/admin-ui';
 import { useAuthToken } from '@/lib/use-auth-token';
 import { TableRowSkeleton } from '@/components/ui/skeleton';
 
@@ -88,44 +90,40 @@ export default function AdminDisputesPage() {
   };
 
   const totalPages = Math.ceil(data.total / PAGE_SIZE) || 1;
-  const inputClass = 'h-9 rounded-xl border border-border bg-card px-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-brand/20';
-
   return (
-    <main className="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-black tracking-tight text-ink">Disputes</h1>
-          <p className="text-sm font-medium text-muted-foreground">
-            Moderate booking disputes between renters, hosts, drivers, and taxi providers
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={filters.openOnly ?? true}
-              onChange={(e) => setFilters((f) => ({ ...f, openOnly: e.target.checked, page: 1 }))}
-              className="h-4 w-4 rounded border border-border accent-amber-400"
-            />
-            <span className="text-sm font-bold">Open only</span>
-          </label>
-          <select
-            className={inputClass}
-            value={filters.status ?? ''}
-            onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value || undefined, page: 1 }))}
-          >
-            <option value="">All statuses</option>
-            {STATUSES.map((s) => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
-          </select>
-          <button
-            type="button"
-            className="h-9 rounded border border-border bg-brand px-4 text-sm font-black text-white shadow-brutal-sm hover:bg-brand-hover transition-all"
-            onClick={() => void loadDisputes()}
-          >
-            Filter
-          </button>
-        </div>
-      </header>
+    <main className={adminPage}>
+      <AdminPageHeader
+        title="Disputes"
+        description="Moderate booking disputes between renters, hosts, drivers, and taxi providers"
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="flex cursor-pointer items-center gap-2">
+              <input
+                type="checkbox"
+                checked={filters.openOnly ?? true}
+                onChange={(e) => setFilters((f) => ({ ...f, openOnly: e.target.checked, page: 1 }))}
+                className="h-4 w-4 rounded border border-border accent-amber-400"
+              />
+              <span className="text-sm font-bold">Open only</span>
+            </label>
+            <select
+              className={adminSelect}
+              value={filters.status ?? ''}
+              onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value || undefined, page: 1 }))}
+            >
+              <option value="">All statuses</option>
+              {STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {s.replace(/_/g, ' ')}
+                </option>
+              ))}
+            </select>
+            <button type="button" className={`h-9 ${adminBtnPrimary}`} onClick={() => void loadDisputes()}>
+              Filter
+            </button>
+          </div>
+        }
+      />
 
       {error ? (
         <div className="rounded border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700 shadow-brutal-red">
@@ -133,7 +131,7 @@ export default function AdminDisputesPage() {
         </div>
       ) : null}
 
-      <section className="rounded-2xl border border-border bg-card shadow-soft overflow-hidden">
+      <section className="admin-panel">
         <div className="overflow-auto">
           <table className="min-w-full text-left text-sm">
             <thead>

@@ -1,6 +1,7 @@
 'use client';
 
 import { AppHeader } from '@/components/web/app-header';
+import { MarketingPageHero } from '@/components/web/marketing-page-hero';
 import { SiteFooter } from '@/components/web/site-footer';
 import { IllustrationDriver } from '@/components/web/illustrations';
 import { isSupportedLocale, routing, type SupportedLocale } from '@/i18n/routing';
@@ -23,21 +24,15 @@ export default function DriveWithUsPage({ params }: { params: Promise<{ locale: 
     <main className="flex min-h-screen flex-col bg-background">
       <AppHeader locale={locale} />
 
-      {/* Hero */}
-      <section className="bg-background px-4 py-12 text-foreground">
-        <div className="mx-auto flex max-w-5xl flex-col items-center gap-8 md:flex-row md:justify-between">
-          <div className="text-center md:text-left">
-            <div className="mb-4 flex justify-center md:justify-start">
-              <span className="flex h-14 w-14 items-center justify-center rounded-md border-2 border-border bg-muted">
-                <UserRound className="h-8 w-8 text-foreground/70" />
-              </span>
-            </div>
-            <h1 className="text-4xl font-black sm:text-5xl">Drive With renting.rw</h1>
-            <p className="mt-4 max-w-lg text-lg font-medium text-muted-foreground">
-              Set your own hours, choose your service categories, and connect with clients who need a
-              professional driver across Rwanda.
-            </p>
-            <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row md:justify-start sm:justify-center">
+      <MarketingPageHero
+        eyebrow="Partners"
+        title="Drive with renting.rw"
+        subtitle="Set your hours, choose your service categories, and connect with clients who need a professional driver across Rwanda."
+      >
+        <IllustrationDriver className="w-full max-w-[220px] opacity-90" />
+      </MarketingPageHero>
+      <section className="border-b border-border bg-background px-4 py-6 sm:px-6">
+        <div className="mx-auto flex max-w-5xl flex-col items-center gap-3 sm:flex-row md:justify-start">
               {isSignedIn ? (
                 <Link
                   href={`/${locale}/onboard/driver`}
@@ -53,9 +48,6 @@ export default function DriveWithUsPage({ params }: { params: Promise<{ locale: 
                   Apply to Drive
                 </Link>
               )}
-            </div>
-          </div>
-          <IllustrationDriver className="w-full max-w-[220px] shrink-0" />
         </div>
       </section>
 

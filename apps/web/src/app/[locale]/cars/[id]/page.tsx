@@ -34,6 +34,7 @@ import { pickInCityDailyApproxRange } from '@rentingi/types';
 import { formatCurrencyRwf, formatRange } from '@/lib/format';
 import { stockImages } from '@/lib/stock-images';
 import { TrustBadge } from '@/components/web/trust-badge';
+import { listingActionChrome } from '@/components/web/listing-action-chrome';
 
 type CarPageProps = {
   params: Promise<{ locale: string; id: string }>;
@@ -198,7 +199,7 @@ export default function CarDetailPage({ params }: CarPageProps) {
         {/* Image gallery */}
         <section className="mb-6">
           {/* Main image with prev/next */}
-          <div className="relative aspect-[16/9] overflow-hidden rounded-md border-2 border-border bg-muted shadow-brutal">
+          <div className="detail-gallery relative aspect-[16/9] overflow-hidden bg-muted">
             <MediaImage
               key={mainPhoto}
               src={mainPhoto}
@@ -209,14 +210,19 @@ export default function CarDetailPage({ params }: CarPageProps) {
               className="object-cover"
             />
             {/* Favorite / share */}
-            <div className="absolute right-3 top-3 z-10 flex gap-1">
+            <div className="absolute right-3 top-3 z-10 flex gap-1.5">
               <FavoriteButton
                 kind="car"
                 id={detail.id}
                 favorited={isFavorited}
                 onChanged={setIsFavorited}
+                className={listingActionChrome}
               />
-              <ShareMenu url={`/${locale}/cars/${detail.id}`} title={detail.title} />
+              <ShareMenu
+                url={`/${locale}/cars/${detail.id}`}
+                title={detail.title}
+                className={listingActionChrome}
+              />
             </div>
             {/* Photo counter */}
             {photoList.length > 1 && (
@@ -498,7 +504,7 @@ export default function CarDetailPage({ params }: CarPageProps) {
 
           {/* Right column — sticky booking summary */}
           <div className="lg:sticky lg:top-24 lg:self-start">
-            <div className="rounded-2xl border border-border bg-card shadow-card">
+            <div className="detail-panel">
               <div className="space-y-4 p-5">
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
@@ -586,7 +592,7 @@ export default function CarDetailPage({ params }: CarPageProps) {
                   type="button"
                   onClick={() => setBookingOpen(true)}
                   disabled={bookedNow}
-                  className="w-full rounded-full bg-brand py-3 text-sm font-semibold text-white transition hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
+                  className="w-full rounded-full bg-gradient-to-br from-[#1f4a3f] via-brand to-brand-strong py-3 text-sm font-bold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {bookLabel}
                 </button>

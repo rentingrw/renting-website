@@ -1,10 +1,19 @@
 'use client';
 
 import { AppHeader } from '@/components/web/app-header';
+import { MarketingCard } from '@/components/web/marketing-card';
+import { MarketingPageHero } from '@/components/web/marketing-page-hero';
 import { SiteFooter } from '@/components/web/site-footer';
 import { IllustrationAbout, IllustrationCarRental } from '@/components/web/illustrations';
 import { isSupportedLocale, routing, type SupportedLocale } from '@/i18n/routing';
-import { SITE_EMAIL, SITE_INSTAGRAM_URL, SITE_PHONE_DISPLAY, SITE_PHONE_TEL, SITE_WHATSAPP_URL } from '@/lib/site-contact';
+import {
+  SITE_EMAIL,
+  SITE_INSTAGRAM_URL,
+  SITE_PHONE_DISPLAY,
+  SITE_PHONE_TEL,
+  SITE_TIKTOK_URL,
+  SITE_WHATSAPP_URL,
+} from '@/lib/site-contact';
 import { Car, MapPin, ShieldCheck, Star, Users } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
@@ -21,20 +30,13 @@ export default function AboutPage({ params }: { params: Promise<{ locale: string
     <main className="flex min-h-screen flex-col bg-background">
       <AppHeader locale={locale} />
 
-      {/* Hero */}
-      <section className="bg-background px-4 py-16 text-foreground">
-        <div className="mx-auto flex max-w-5xl flex-col items-center gap-8 md:flex-row md:justify-between">
-          <div className="text-center md:text-left">
-            <p className="mb-2 text-xs font-black uppercase tracking-widest text-foreground/70">Our Story</p>
-            <h1 className="text-4xl font-black sm:text-5xl">About renting.rw</h1>
-            <p className="mt-4 max-w-xl text-lg font-medium text-muted-foreground">
-              Rwanda&apos;s most trusted marketplace for car rentals and professional drivers — built by
-              CARIRWA LTD to make mobility seamless, safe, and accessible.
-            </p>
-          </div>
-          <IllustrationAbout className="w-full max-w-xs shrink-0 md:max-w-sm" />
-        </div>
-      </section>
+      <MarketingPageHero
+        eyebrow="Our Story"
+        title="About renting.rw"
+        subtitle="Rwanda's most trusted marketplace for car rentals and professional drivers — built by CARIRWA LTD to make mobility seamless, safe, and accessible."
+      >
+        <IllustrationAbout className="w-full opacity-90" />
+      </MarketingPageHero>
 
       {/* Mission */}
       <section className="mx-auto max-w-4xl px-4 py-16 sm:px-6">
@@ -94,14 +96,11 @@ export default function AboutPage({ params }: { params: Promise<{ locale: string
                 desc: 'We empower car owners and drivers to build sustainable income through our platform.',
               },
             ].map((v) => (
-              <div
-                key={v.title}
-                className="rounded-2xl border border-border bg-card p-5 shadow-card"
-              >
+              <MarketingCard key={v.title}>
                 <div className="mb-3">{v.icon}</div>
                 <h3 className="mb-2 font-black text-foreground">{v.title}</h3>
                 <p className="text-sm font-medium text-muted-foreground">{v.desc}</p>
-              </div>
+              </MarketingCard>
             ))}
           </div>
         </div>
@@ -137,6 +136,10 @@ export default function AboutPage({ params }: { params: Promise<{ locale: string
           {' · '}
           <a href={SITE_INSTAGRAM_URL} target="_blank" rel="noreferrer" className="font-black text-brand hover:underline">
             Instagram
+          </a>
+          {' · '}
+          <a href={SITE_TIKTOK_URL} target="_blank" rel="noreferrer" className="font-black text-brand hover:underline">
+            TikTok
           </a>
         </p>
       </section>

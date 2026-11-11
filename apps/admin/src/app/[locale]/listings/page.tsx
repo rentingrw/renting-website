@@ -17,6 +17,8 @@ import {
   type AdminListingItem,
   type ListListingsFilters,
 } from '@/lib/api';
+import { AdminPageHeader } from '@/components/admin/admin-page-header';
+import { adminBtnGhost, adminBtnPrimary, adminPage, adminSelect } from '@/components/admin/admin-ui';
 import { useAuthToken } from '@/lib/use-auth-token';
 import { Skeleton, TableRowSkeleton } from '@/components/ui/skeleton';
 import { ListingReviewModal } from '@/components/listing-review-modal';
@@ -177,7 +179,7 @@ function AddCarModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="flex w-full max-w-2xl flex-col rounded-2xl border border-border bg-card shadow-soft">
+      <div className="flex w-full max-w-2xl flex-col admin-panel">
         <div className="flex items-center justify-between border-b border-border px-6 py-4 bg-neutral-900">
           <div>
             <h2 className="font-black text-white">Add Car Listing</h2>
@@ -360,67 +362,56 @@ export default function AdminListingsPage() {
   };
 
   const totalPages = Math.ceil(data.total / PAGE_SIZE) || 1;
-  const inputClass = 'h-9 rounded-xl border border-border bg-card px-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-brand/20';
+  const totalLabel = !loading ? ` · ${data.total} total` : '';
 
   return (
-    <main className="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-black tracking-tight text-ink">
+    <main className={adminPage}>
+      <AdminPageHeader
+        title={
+          <span className="flex flex-wrap items-center gap-2">
             Cars
-            {filters.status === 'pending_approval' && data.total > 0 && !loading && (
+            {filters.status === 'pending_approval' && data.total > 0 && !loading ? (
               <span className="rounded-full border border-sun/60 bg-sun px-2 py-0.5 text-sm font-black text-ink">
                 {data.total} pending
               </span>
-            )}
-          </h1>
-          <p className="mt-0.5 text-sm font-medium text-muted-foreground">
-            Review self-drive, with-driver, and airport delivery cars. Hosts keep 90% of each rental.
-            {!loading ? (
-              <span className="ml-2 font-black text-ink">{data.total} total</span>
             ) : null}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <select
-            className={inputClass}
-            value={filters.status ?? ''}
-            onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value || undefined, page: 1 }))}
-          >
-            <option value="">All (excl. deleted)</option>
-            {STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {s.replace(/_/g, ' ')}
-              </option>
-            ))}
-          </select>
-          <button
-            type="button"
-            onClick={() => exportCsv(data.items)}
-            disabled={data.items.length === 0}
-            className="flex items-center gap-1.5 rounded-xl border border-border bg-card px-3 py-2 text-sm font-bold shadow-brutal-xs transition disabled:opacity-40"
-          >
-            <Download className="h-4 w-4" />
-            Export CSV
-          </button>
-          <button
-            type="button"
-            onClick={() => void loadListings()}
-            className="flex items-center gap-1.5 rounded-xl border border-border bg-card px-3 py-2 text-sm font-bold shadow-brutal-xs transition-all"
-          >
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowAddCar(true)}
-            className="flex items-center gap-1.5 rounded border border-border bg-brand px-3 py-2 text-sm font-black text-white shadow-brutal-sm hover:bg-brand-hover transition-all"
-          >
-            <Plus className="h-4 w-4" />
-            Add Car
-          </button>
-        </div>
-      </div>
+          </span>
+        }
+        description={`Review self-drive, with-driver, and airport delivery cars. Hosts keep 90% of each rental.${totalLabel}`}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              className={adminSelect}
+              value={filters.status ?? ''}
+              onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value || undefined, page: 1 }))}
+            >
+              <option value="">All (excl. deleted)</option>
+              {STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {s.replace(/_/g, ' ')}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={() => exportCsv(data.items)}
+              disabled={data.items.length === 0}
+              className={adminBtnGhost}
+            >
+              <Download className="h-4 w-4" />
+              Export CSV
+            </button>
+            <button type="button" onClick={() => void loadListings()} className={adminBtnGhost}>
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+            <button type="button" onClick={() => setShowAddCar(true)} className={adminBtnPrimary}>
+              <Plus className="h-4 w-4" />
+              Add Car
+            </button>
+          </div>
+        }
+      />
 
       {showAddCar && <AddCarModal onClose={() => setShowAddCar(false)} onCreated={() => void loadListings()} />}
 
@@ -440,7 +431,7 @@ export default function AdminListingsPage() {
         <div className="rounded border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 shadow-brutal-red">{error}</div>
       )}
 
-      <div className="rounded-2xl border border-border bg-card shadow-soft overflow-hidden">
+      <div className="admin-panel">
         <div className="overflow-auto">
           <table className="min-w-full text-left text-sm">
             <thead>

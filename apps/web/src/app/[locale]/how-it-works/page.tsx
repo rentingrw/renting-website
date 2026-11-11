@@ -1,6 +1,8 @@
 'use client';
 
 import { AppHeader } from '@/components/web/app-header';
+import { MarketingCard } from '@/components/web/marketing-card';
+import { MarketingPageHero } from '@/components/web/marketing-page-hero';
 import { SiteFooter } from '@/components/web/site-footer';
 import { IllustrationHowItWorks, IllustrationDriver, IllustrationSearch } from '@/components/web/illustrations';
 import { isSupportedLocale, routing, type SupportedLocale } from '@/i18n/routing';
@@ -36,16 +38,9 @@ export default function HowItWorksPage({ params }: { params: Promise<{ locale: s
     <main className="flex min-h-screen flex-col bg-background">
       <AppHeader locale={locale} />
 
-      <section className="bg-background px-4 py-12 text-foreground">
-        <div className="mx-auto flex max-w-5xl flex-col items-center gap-6 md:flex-row md:justify-between">
-          <div className="text-center md:text-left">
-            <p className="mb-2 text-xs font-black uppercase tracking-widest text-foreground/70">{t('kicker')}</p>
-            <h1 className="text-4xl font-black sm:text-5xl">{t('title')}</h1>
-            <p className="mt-4 max-w-lg text-lg font-medium text-muted-foreground">{t('subtitle')}</p>
-          </div>
-          <IllustrationHowItWorks className="w-full max-w-xs shrink-0 md:max-w-sm" />
-        </div>
-      </section>
+      <MarketingPageHero eyebrow={t('kicker')} title={t('title')} subtitle={t('subtitle')}>
+        <IllustrationHowItWorks className="w-full opacity-90" />
+      </MarketingPageHero>
 
       <section className="mx-auto w-full max-w-5xl px-4 py-16 sm:px-6">
         <div className="mb-6 flex flex-col items-start gap-6 md:flex-row md:items-center md:justify-between">
@@ -59,12 +54,12 @@ export default function HowItWorksPage({ params }: { params: Promise<{ locale: s
         </div>
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {renterSteps.map((step, i) => (
-            <div key={step.title} className="relative rounded-2xl border border-border bg-card p-5 shadow-card">
+            <MarketingCard key={step.title} className="relative">
               <span className="absolute right-4 top-4 text-3xl font-black text-neutral-100">{i + 1}</span>
               <div className="mb-3">{step.icon}</div>
               <h3 className="mb-2 font-black text-foreground">{step.title}</h3>
               <p className="text-sm font-medium text-muted-foreground">{step.desc}</p>
-            </div>
+            </MarketingCard>
           ))}
         </div>
       </section>
@@ -85,23 +80,24 @@ export default function HowItWorksPage({ params }: { params: Promise<{ locale: s
         </div>
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {ownerSteps.map((step, i) => (
-            <div key={step.title} className="relative rounded-2xl border border-border bg-card p-5 shadow-card">
+            <MarketingCard key={step.title} className="relative">
               <span className="absolute right-4 top-4 text-3xl font-black text-neutral-100">{i + 1}</span>
               <div className="mb-3">{step.icon}</div>
               <h3 className="mb-2 font-black text-foreground">{step.title}</h3>
               <p className="text-sm font-medium text-muted-foreground">{step.desc}</p>
-            </div>
+            </MarketingCard>
           ))}
         </div>
       </section>
 
-      <section className="border-t border-border bg-background px-4 py-12 sm:px-6">
-        <div className="mx-auto max-w-3xl text-center text-foreground">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-md border-2 border-border bg-muted">
-            <CheckCircle className="h-7 w-7 text-foreground" />
+      <section className="relative overflow-hidden bg-ink px-4 py-12 text-white sm:px-6">
+        <div className="hero-grid pointer-events-none absolute inset-0 opacity-40" aria-hidden />
+        <div className="relative mx-auto max-w-3xl text-center">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10 text-sun ring-1 ring-white/15">
+            <CheckCircle className="h-7 w-7" />
           </div>
           <h2 className="mb-2 text-xl font-black">{t('trustTitle')}</h2>
-          <p className="font-medium text-muted-foreground">{t('trustDesc')}</p>
+          <p className="font-medium text-white/70">{t('trustDesc')}</p>
         </div>
       </section>
 

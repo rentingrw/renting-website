@@ -46,6 +46,19 @@ import {
   type DriverOverviewItem,
   type Paginated,
 } from '@/lib/api';
+import { AdminPageHeader } from '@/components/admin/admin-page-header';
+import {
+  adminBtnGhost,
+  adminBtnPrimary,
+  adminError,
+  adminMetricCard,
+  adminPage,
+  adminPanelHeader,
+  adminTabActive,
+  adminTabIdle,
+  adminTabs,
+  adminTableHead,
+} from '@/components/admin/admin-ui';
 import { useAuthToken } from '@/lib/use-auth-token';
 import { Skeleton, TableRowSkeleton } from '@/components/ui/skeleton';
 
@@ -238,37 +251,34 @@ export default function AdminHomePage() {
   };
 
   return (
-    <main className="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-black tracking-tight text-ink">Dashboard</h1>
-          <p className="mt-0.5 text-sm font-medium text-muted-foreground">
-            Cars, drivers, taxi, airport transfers, bookings, and careers
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => void loadData()}
-          disabled={isLoading}
-          className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-sm font-bold shadow-brutal-sm disabled:opacity-40"
-        >
-          <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-          Refresh
-        </button>
-      </div>
+    <main className={adminPage}>
+      <AdminPageHeader
+        title="Dashboard"
+        description="Cars, drivers, taxi, airport transfers, bookings, and careers"
+        actions={
+          <button
+            type="button"
+            onClick={() => void loadData()}
+            disabled={isLoading}
+            className={`${adminBtnGhost} !px-4 !py-2`}
+          >
+            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+        }
+      />
 
-      {/* Error */}
-      {error && (
-        <div className="flex items-center gap-3 rounded border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700 shadow-brutal-red">
+      {error ? (
+        <div className={adminError}>
           <AlertCircle className="h-4 w-4 shrink-0" />
           <span className="flex-1">{error}</span>
-          <button type="button" onClick={() => void loadData()} className="font-black underline">Retry</button>
+          <button type="button" onClick={() => void loadData()} className="font-black underline">
+            Retry
+          </button>
         </div>
-      )}
+      ) : null}
 
-      {/* Tabs */}
-      <div className="flex w-fit max-w-full flex-wrap gap-1 rounded-full border border-border bg-card p-1 shadow-soft-sm">
+      <div className={adminTabs}>
         {([
           { id: 'overview', label: 'Overview', icon: LayoutDashboard },
           { id: 'analytics', label: 'Analytics', icon: BarChart3 },
@@ -280,9 +290,7 @@ export default function AdminHomePage() {
             type="button"
             onClick={() => setTab(id)}
             className={`flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-bold transition ${
-              tab === id
-                ? 'bg-brand text-white'
-                : 'text-muted-foreground hover:bg-brand-soft hover:text-ink'
+              tab === id ? adminTabActive : adminTabIdle
             }`}
           >
             <Icon className="h-3.5 w-3.5" />
@@ -305,10 +313,7 @@ export default function AdminHomePage() {
                   Desk requests need a call to the provider.
                 </p>
               </div>
-              <Link
-                href={`/${locale}/bookings?status=pending`}
-                className="rounded border border-border bg-brand px-4 py-2 text-sm font-black text-white shadow-brutal-sm hover:bg-brand-hover"
-              >
+              <Link href={`/${locale}/bookings?status=pending`} className={adminBtnPrimary}>
                 Open booking desk
               </Link>
             </div>
@@ -345,8 +350,8 @@ export default function AdminHomePage() {
           </div>
 
           {/* Open disputes table */}
-          <div className="rounded-2xl border border-border bg-card shadow-soft overflow-hidden">
-            <div className="flex items-center justify-between border-b border-border px-5 py-3.5 bg-white">
+          <div className="admin-panel">
+            <div className={`flex items-center justify-between ${adminPanelHeader}`}>
               <div>
                 <h2 className="font-black text-ink">Open Disputes</h2>
                 <p className="text-xs text-muted-foreground font-medium mt-0.5">Requiring moderation action</p>
@@ -360,7 +365,7 @@ export default function AdminHomePage() {
             <div className="overflow-auto">
               <table className="min-w-full text-left text-sm">
                 <thead>
-                  <tr className="bg-brand text-white">
+                  <tr className={adminTableHead}>
                     <th className="px-5 py-3 text-xs font-black uppercase tracking-wider">Priority</th>
                     <th className="px-5 py-3 text-xs font-black uppercase tracking-wider">Reason</th>
                     <th className="px-5 py-3 text-xs font-black uppercase tracking-wider">Parties</th>
@@ -441,7 +446,7 @@ export default function AdminHomePage() {
           )}
 
           {/* Create / Edit form */}
-          <div className="rounded-2xl border border-border bg-card shadow-soft">
+          <div className="admin-panel">
             <div className="border-b border-border px-5 py-3.5">
               <h2 className="font-black text-ink">{editingBannerId ? 'Edit Banner' : 'Create Banner'}</h2>
               <p className="text-xs text-muted-foreground font-medium mt-0.5">This banner appears at the top of the website for all visitors</p>
@@ -516,7 +521,7 @@ export default function AdminHomePage() {
           </div>
 
           {/* Banners list */}
-          <div className="rounded-2xl border border-border bg-card shadow-soft overflow-hidden">
+          <div className="admin-panel">
             <div className="border-b border-border px-5 py-3.5 flex items-center justify-between">
               <h2 className="font-black text-ink">All Banners</h2>
               <button
@@ -618,7 +623,7 @@ export default function AdminHomePage() {
             </button>
           </div>
 
-          <div className="rounded-2xl border border-border bg-card shadow-soft overflow-hidden">
+          <div className="admin-panel">
             <div className="border-b border-border px-5 py-3.5">
               <h2 className="font-black text-ink">All Driver-Role Users</h2>
               <p className="text-xs font-medium text-muted-foreground mt-0.5">
@@ -711,7 +716,7 @@ function MetricCard({
     highlight === 'danger' ? 'text-red-600' : highlight === 'warn' ? 'text-[#8a6a10]' : 'text-ink';
 
   return (
-    <div className={`rounded-2xl border ${borderColor} bg-card p-4 ${shadowColor}`}>
+    <div className={`${adminMetricCard} border ${borderColor} ${shadowColor === 'shadow-brutal-red' ? 'shadow-[0_6px_18px_rgba(220,38,38,0.12)]' : ''}`}>
       <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">{title}</p>
       <div className={`mt-2 text-2xl font-black ${valueColor}`}>
         {loading ? <Skeleton className="h-7 w-20" /> : value}
@@ -728,7 +733,7 @@ function AnalyticsTab({ analytics, loading }: { analytics: AdminAnalytics | null
       <div className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-3">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="rounded-2xl border border-border bg-card p-4 shadow-brutal">
+            <div key={i} className="admin-panel p-4">
               <Skeleton className="h-3 w-24 mb-3" />
               <Skeleton className="h-7 w-16" />
             </div>
@@ -736,7 +741,7 @@ function AnalyticsTab({ analytics, loading }: { analytics: AdminAnalytics | null
         </div>
         <div className="grid gap-4 lg:grid-cols-2">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="rounded-2xl border border-border bg-card p-5 shadow-brutal">
+            <div key={i} className="admin-panel p-5">
               <Skeleton className="h-4 w-40 mb-4" />
               <Skeleton className="h-56 w-full" />
             </div>
@@ -774,7 +779,7 @@ function AnalyticsTab({ analytics, loading }: { analytics: AdminAnalytics | null
           { label: 'No-show rate', value: `${(analytics.cancellationNoShowRates.noShowRate * 100).toFixed(1)}%`, icon: TrendingUp },
           { label: 'Tracked bookings', value: String(analytics.cancellationNoShowRates.totalBookings), icon: BarChart3 },
         ].map(({ label, value, icon: Icon }) => (
-          <div key={label} className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4 shadow-soft">
+          <div key={label} className="flex items-center gap-3 admin-panel p-4">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-sun/20">
               <Icon className="h-4 w-4 text-ink" />
             </div>
@@ -853,7 +858,7 @@ function AnalyticsTab({ analytics, loading }: { analytics: AdminAnalytics | null
 
 function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl border border-border bg-card p-5 shadow-brutal">
+    <div className="admin-panel p-5 shadow-soft-sm">
       <h3 className="mb-4 font-black text-sm uppercase tracking-wide text-ink">{title}</h3>
       <div className="h-56">
         <ResponsiveContainer width="100%" height="100%">

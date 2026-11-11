@@ -1,6 +1,7 @@
 'use client';
 
 import { AppHeader } from '@/components/web/app-header';
+import { MarketingPageHero } from '@/components/web/marketing-page-hero';
 import { SiteFooter } from '@/components/web/site-footer';
 import { isSupportedLocale, routing, type SupportedLocale } from '@/i18n/routing';
 import { useEffect, useState } from 'react';
@@ -18,10 +19,12 @@ export default function PrivacyPage({ params }: { params: Promise<{ locale: stri
     <main className="flex min-h-screen flex-col bg-background">
       <AppHeader locale={locale} />
 
-      <section className="bg-background px-4 py-16 text-center text-foreground">
-        <h1 className="text-4xl font-black">Privacy Policy</h1>
-        <p className="mt-2 text-sm font-medium text-foreground/70">Last updated: April 2025</p>
-      </section>
+      <MarketingPageHero
+        align="center"
+        eyebrow="Legal"
+        title="Privacy Policy"
+        subtitle="Last updated: April 2025"
+      />
 
       <section className="mx-auto max-w-3xl px-4 py-14 sm:px-6">
         <div className="space-y-8 text-sm font-medium leading-relaxed text-muted-foreground">
