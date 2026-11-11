@@ -11,11 +11,14 @@ import {
   LogOut,
   Menu,
   MessageSquareWarning,
+  Shield,
   Truck,
   UserCheck,
   Users,
   X,
 } from 'lucide-react';
+
+import { clearAdminSessionCache, useAuthToken } from '@/lib/use-auth-token';
 
 const ITEMS = [
   { href: '', label: 'Overview', icon: Home },
@@ -33,6 +36,7 @@ export function AdminNav() {
   const params = useParams<{ locale?: string }>();
   const locale = params.locale ?? 'en';
   const router = useRouter();
+  const { isLoaded, isSignedIn, profile } = useAuthToken();
   const [open, setOpen] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
 
@@ -66,6 +70,7 @@ export function AdminNav() {
 
   const onSignOut = async () => {
     await fetch('/api/auth/logout', { method: 'POST' });
+    clearAdminSessionCache();
     router.push('/login');
     router.refresh();
   };
@@ -155,9 +160,26 @@ export function AdminNav() {
         </nav>
 
         <div className="relative border-t border-white/10 p-2">
-          <p className="px-3 pb-2 text-[10px] font-medium leading-snug text-white/40">
-            Cars, drivers, taxi &amp; airport transfers · hosts keep 90%
-          </p>
+          {isLoaded && isSignedIn && profile ? (
+            <div className="mb-2 rounded-xl border border-white/10 bg-white/5 p-3">
+              <div className="flex items-center gap-3">
+                <div
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#2f8f5b] via-brand to-brand-strong text-sm font-black text-white shadow-md"
+                  aria-hidden
+                >
+                  {profile.initials}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-bold text-white">{profile.displayName}</p>
+                  <p className="truncate text-[11px] font-medium text-white/55">{profile.email}</p>
+                  <span className="mt-1.5 inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-sun">
+                    <Shield className="h-3 w-3" aria-hidden />
+                    {profile.role}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ) : null}
           <button
             type="button"
             onClick={() => void onSignOut()}

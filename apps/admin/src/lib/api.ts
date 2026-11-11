@@ -59,6 +59,8 @@ export type AdminUserListItem = {
   createdAt: string;
   bookingCount: number;
   listingCount: number;
+  hasClerkAccount?: boolean;
+  isPlatformAdmin?: boolean;
 };
 
 export type AdminSubscriptionItem = {

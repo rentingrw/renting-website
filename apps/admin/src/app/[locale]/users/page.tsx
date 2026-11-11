@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 
 import {
@@ -14,7 +16,16 @@ import {
   type ListUsersFilters,
 } from '@/lib/api';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
-import { adminBtnPrimary, adminInput, adminPage, adminSelect } from '@/components/admin/admin-ui';
+import {
+  adminBtnDanger,
+  adminBtnGhost,
+  adminBtnPrimary,
+  adminError,
+  adminInput,
+  adminPage,
+  adminSelect,
+  adminTableHead,
+} from '@/components/admin/admin-ui';
 import { useAuthToken } from '@/lib/use-auth-token';
 import { TableRowSkeleton } from '@/components/ui/skeleton';
 
@@ -24,6 +35,9 @@ const ROLES = ['renter', 'car_owner', 'driver'] as const;
 const STATUSES = ['active', 'suspended', 'pending_verification', 'deactivated', 'banned'] as const;
 const TRUST_TIERS = ['platinum', 'gold', 'silver', 'bronze', 'standard', 'warning', 'suspended'] as const;
 const PAGE_SIZE = 20;
+const SUSPENDED_ACCOUNT_STATUSES = new Set(['suspended', 'deactivated', 'banned']);
+
+type UserActionKey = 'suspend' | 'reinstate' | 'verify' | 'trust' | 'grant-admin' | 'revoke-admin';
 
 const TRUST_COLORS: Record<string, string> = {
   platinum: 'bg-emerald-100 text-emerald-900 border-emerald-400',
@@ -35,7 +49,37 @@ const TRUST_COLORS: Record<string, string> = {
   suspended: 'bg-red-900 text-white border-red-950',
 };
 
+function userModerationActions(
+  user: AdminUserListItem,
+): Array<{ key: UserActionKey; label: string; tone: 'default' | 'danger' }> {
+  const actions: Array<{ key: UserActionKey; label: string; tone: 'default' | 'danger' }> = [
+    { key: 'trust', label: 'Adjust trust', tone: 'default' },
+  ];
+
+  if (!user.isVerified) {
+    actions.push({ key: 'verify', label: 'Verify phone', tone: 'default' });
+  }
+
+  if (user.status === 'active' || user.status === 'pending_verification') {
+    actions.push({ key: 'suspend', label: 'Suspend', tone: 'danger' });
+  } else if (SUSPENDED_ACCOUNT_STATUSES.has(user.status)) {
+    actions.push({ key: 'reinstate', label: 'Reinstate', tone: 'default' });
+  }
+
+  if (user.hasClerkAccount !== false) {
+    if (user.isPlatformAdmin === true) {
+      actions.push({ key: 'revoke-admin', label: 'Revoke admin', tone: 'danger' });
+    } else {
+      actions.push({ key: 'grant-admin', label: 'Grant admin', tone: 'default' });
+    }
+  }
+
+  return actions;
+}
+
 export default function AdminUsersPage() {
+  const params = useParams<{ locale?: string }>();
+  const locale = params.locale ?? 'en';
   const { fetchToken, isLoaded, isSignedIn } = useAuthToken();
   const [data, setData] = useState<{ items: AdminUserListItem[]; total: number; page: number }>({
     items: [],
@@ -75,12 +119,11 @@ export default function AdminUsersPage() {
     }
   }, [fetchToken, isLoaded, isSignedIn, filters.page, filters.search, filters.role, filters.status, filters.trustTier]);
 
-  useEffect(() => { void loadUsers(); }, [loadUsers]);
+  useEffect(() => {
+    void loadUsers();
+  }, [loadUsers]);
 
-  const onUserAction = async (
-    action: 'suspend' | 'reinstate' | 'verify' | 'trust' | 'grant-admin' | 'revoke-admin',
-    userId: string,
-  ) => {
+  const onUserAction = async (action: UserActionKey, userId: string) => {
     setActingId(userId);
     setError(null);
     try {
@@ -117,8 +160,6 @@ export default function AdminUsersPage() {
   };
 
   const totalPages = Math.ceil(data.total / PAGE_SIZE) || 1;
-
-  const btnGhost = 'rounded-xl border border-border bg-card px-2.5 py-1 text-xs font-bold shadow-brutal-xs disabled:opacity-40';
 
   return (
     <main className={adminPage}>
@@ -176,88 +217,122 @@ export default function AdminUsersPage() {
         }
       />
 
-      {error ? (
-        <div className="rounded border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700 shadow-brutal-red">
-          {error}
-        </div>
-      ) : null}
+      {error ? <div className={adminError}>{error}</div> : null}
 
       <section className="admin-panel">
-        <div className="overflow-auto">
+        <div className="overflow-x-auto">
           <table className="min-w-full text-left text-sm">
             <thead>
-              <tr className="bg-brand text-white">
+              <tr className={adminTableHead}>
                 <th className="px-4 py-3 text-xs font-black uppercase tracking-wider">User</th>
                 <th className="px-4 py-3 text-xs font-black uppercase tracking-wider">Roles</th>
                 <th className="px-4 py-3 text-xs font-black uppercase tracking-wider">Trust</th>
                 <th className="px-4 py-3 text-xs font-black uppercase tracking-wider">Status</th>
-                <th className="px-4 py-3 text-xs font-black uppercase tracking-wider text-right">Actions</th>
+                <th className="px-4 py-3 text-xs font-black uppercase tracking-wider">Activity</th>
+                <th className="min-w-[17rem] px-4 py-3 text-xs font-black uppercase tracking-wider text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                Array.from({ length: 5 }).map((_, i) => <TableRowSkeleton key={i} cols={5} />)
+                Array.from({ length: 5 }).map((_, i) => <TableRowSkeleton key={i} cols={6} />)
               ) : data.items.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-8 font-semibold text-muted-foreground text-center" colSpan={5}>
+                  <td className="px-4 py-8 text-center font-semibold text-muted-foreground" colSpan={6}>
                     No users found.
                   </td>
                 </tr>
               ) : (
-                data.items.map((user) => (
-                  <tr key={user.id} className="border-t border-border hover:bg-brand-soft transition-colors">
-                    <td className="px-4 py-3">
-                      <div className="font-bold text-ink">{user.fullName}</div>
-                      <div className="text-xs font-medium text-muted-foreground">{user.email}</div>
-                    </td>
-                    <td className="px-4 py-3 text-xs font-semibold text-muted-foreground">{user.roles.join(', ')}</td>
-                    <td className="px-4 py-3">
-                      <span className={`rounded border px-2 py-0.5 text-xs font-black capitalize ${TRUST_COLORS[user.trustTier] ?? 'bg-muted border-border text-ink/80'}`}>
-                        {user.trustTier}
-                      </span>
-                      <span className="ml-1.5 text-xs font-bold text-muted-foreground">({user.trustScore})</span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="font-semibold capitalize text-ink/80">{user.status}</span>
-                      {!user.isVerified ? <span className="ml-2 text-xs font-bold text-amber-700">unverified</span> : null}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap justify-end gap-1.5">
-                        {[
-                          { key: 'trust' as const, label: 'Trust ±' },
-                          { key: 'verify' as const, label: 'Verify phone' },
-                          { key: 'reinstate' as const, label: 'Reinstate' },
-                          { key: 'suspend' as const, label: 'Suspend' },
-                          { key: 'grant-admin' as const, label: 'Grant admin' },
-                          { key: 'revoke-admin' as const, label: 'Revoke admin' },
-                        ].map(({ key, label }) => (
-                          <button
-                            key={key}
-                            type="button"
-                            className={btnGhost}
-                            disabled={actingId === user.id}
-                            onClick={() => void onUserAction(key, user.id)}
-                          >
-                            {label}
-                          </button>
-                        ))}
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                data.items.map((user) => {
+                  const moderation = userModerationActions(user);
+                  return (
+                    <tr key={user.id} className="border-t border-border hover:bg-brand-soft transition-colors">
+                      <td className="px-4 py-3">
+                        <div className="font-bold text-ink">{user.fullName}</div>
+                        <div className="text-xs font-medium text-muted-foreground">{user.email}</div>
+                        {user.phone ? (
+                          <div className="text-xs font-medium text-muted-foreground">{user.phone}</div>
+                        ) : null}
+                        {user.isPlatformAdmin === true ? (
+                          <span className="mt-1 inline-block rounded-full border border-sun/40 bg-[#fbf4e0] px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-[#8a6a10]">
+                            Platform admin
+                          </span>
+                        ) : null}
+                      </td>
+                      <td className="px-4 py-3 text-xs font-semibold text-muted-foreground">{user.roles.join(', ')}</td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`rounded border px-2 py-0.5 text-xs font-black capitalize ${TRUST_COLORS[user.trustTier] ?? 'bg-muted border-border text-ink/80'}`}
+                        >
+                          {user.trustTier}
+                        </span>
+                        <span className="ml-1.5 text-xs font-bold text-muted-foreground">({user.trustScore})</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="font-semibold capitalize text-ink/80">{user.status.replace(/_/g, ' ')}</span>
+                        {!user.isVerified ? (
+                          <span className="ml-2 text-xs font-bold text-amber-700">unverified</span>
+                        ) : null}
+                      </td>
+                      <td className="px-4 py-3 text-xs font-semibold text-muted-foreground">
+                        <div>{user.bookingCount} booking{user.bookingCount === 1 ? '' : 's'}</div>
+                        <div>{user.listingCount} car listing{user.listingCount === 1 ? '' : 's'}</div>
+                      </td>
+                      <td className="px-4 py-3 align-top">
+                        <div className="flex min-w-[16rem] flex-col items-end gap-2">
+                          <div className="flex flex-wrap justify-end gap-1.5">
+                            <Link
+                              href={`/${locale}/bookings?userId=${encodeURIComponent(user.id)}`}
+                              className={adminBtnGhost}
+                            >
+                              Bookings
+                            </Link>
+                            {user.roles.includes('driver') ? (
+                              <Link
+                                href={`/${locale}/drivers?search=${encodeURIComponent(user.email)}`}
+                                className={adminBtnGhost}
+                              >
+                                Driver profile
+                              </Link>
+                            ) : null}
+                            {(user.listingCount > 0 || user.roles.includes('car_owner')) ? (
+                              <Link href={`/${locale}/listings`} className={adminBtnGhost}>
+                                Cars
+                              </Link>
+                            ) : null}
+                          </div>
+                          {moderation.length > 0 ? (
+                            <div className="flex flex-wrap justify-end gap-1.5">
+                              {moderation.map(({ key, label, tone }) => (
+                                <button
+                                  key={key}
+                                  type="button"
+                                  className={tone === 'danger' ? adminBtnDanger : adminBtnGhost}
+                                  disabled={actingId === user.id}
+                                  onClick={() => void onUserAction(key, user.id)}
+                                >
+                                  {label}
+                                </button>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
         </div>
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between border-t border-border px-4 py-3 bg-muted">
+        {totalPages > 1 ? (
+          <div className="flex items-center justify-between border-t border-border bg-muted/40 px-4 py-3">
             <p className="text-sm font-semibold text-muted-foreground">
               Page {data.page} of {totalPages} · {data.total} total
             </p>
             <div className="flex gap-2">
               <button
                 type="button"
-                className="rounded border border-border px-3 py-1.5 text-sm font-bold shadow-brutal-xs transition disabled:opacity-40"
+                className={`${adminBtnGhost} disabled:opacity-40`}
                 disabled={data.page <= 1}
                 onClick={() => setFilters((f) => ({ ...f, page: Math.max(1, f.page ?? 1) - 1 }))}
               >
@@ -265,7 +340,7 @@ export default function AdminUsersPage() {
               </button>
               <button
                 type="button"
-                className="rounded border border-border px-3 py-1.5 text-sm font-bold shadow-brutal-xs transition disabled:opacity-40"
+                className={`${adminBtnGhost} disabled:opacity-40`}
                 disabled={data.page >= totalPages}
                 onClick={() => setFilters((f) => ({ ...f, page: Math.min(totalPages, (f.page ?? 1) + 1) }))}
               >
@@ -273,7 +348,7 @@ export default function AdminUsersPage() {
               </button>
             </div>
           </div>
-        )}
+        ) : null}
       </section>
     </main>
   );

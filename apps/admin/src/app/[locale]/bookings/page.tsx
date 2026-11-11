@@ -1,5 +1,6 @@
 'use client';
 
+import { useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 
 import {
@@ -77,20 +78,35 @@ function formatWhen(value: string) {
 }
 
 export default function AdminBookingsPage() {
+  const searchParams = useSearchParams();
   const { fetchToken, isLoaded, isSignedIn } = useAuthToken();
   const [data, setData] = useState<{ items: AdminBookingItem[]; total: number; page: number }>({
     items: [],
     total: 0,
     page: 1,
   });
-  const [filters, setFilters] = useState<ListBookingsFilters>({
-    type: 'car',
-    status: 'pending',
-    userId: undefined,
-    dateFrom: undefined,
-    dateTo: undefined,
-    page: 1,
-    pageSize: PAGE_SIZE,
+  const [filters, setFilters] = useState<ListBookingsFilters>(() => {
+    const userId = searchParams.get('userId')?.trim();
+    if (userId) {
+      return {
+        type: 'all',
+        status: undefined,
+        userId,
+        dateFrom: undefined,
+        dateTo: undefined,
+        page: 1,
+        pageSize: PAGE_SIZE,
+      };
+    }
+    return {
+      type: 'car',
+      status: 'pending',
+      userId: undefined,
+      dateFrom: undefined,
+      dateTo: undefined,
+      page: 1,
+      pageSize: PAGE_SIZE,
+    };
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

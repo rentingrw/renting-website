@@ -16,8 +16,10 @@ export async function GET() {
   }
 
   try {
-    await jwtVerify(token, new TextEncoder().encode(secret));
-    return NextResponse.json({ token });
+    const { payload } = await jwtVerify(token, new TextEncoder().encode(secret));
+    const email = typeof payload.email === 'string' ? payload.email : '';
+    const role = typeof payload.role === 'string' ? payload.role : 'admin';
+    return NextResponse.json({ token, email, role });
   } catch {
     return NextResponse.json({ message: 'Session expired.' }, { status: 401 });
   }

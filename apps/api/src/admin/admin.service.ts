@@ -233,11 +233,15 @@ export class AdminService {
       }),
     ]);
 
+    const platformAdminFlags = await Promise.all(
+      users.map((user) => (user.clerkId ? this.userHasClerkAdminRole(user.clerkId) : Promise.resolve(false))),
+    );
+
     return {
       page,
       pageSize,
       total,
-      items: users.map((user) => ({
+      items: users.map((user, index) => ({
         id: user.id,
         email: user.email,
         phone: user.phone,
@@ -249,6 +253,8 @@ export class AdminService {
         trustScore: Number(user.trustScore),
         trustTier: this.deriveTrustTier(Number(user.trustScore)),
         createdAt: user.createdAt,
+        hasClerkAccount: Boolean(user.clerkId),
+        isPlatformAdmin: platformAdminFlags[index] ?? false,
         bookingCount:
           user._count.carBookingsAsOwner +
           user._count.carBookingsAsRenter +
@@ -1629,6 +1635,18 @@ export class AdminService {
     }
 
     return { expired: stale.length };
+  }
+
+  private async userHasClerkAdminRole(clerkId: string): Promise<boolean> {
+    const secretKey = process.env.CLERK_SECRET_KEY;
+    if (!secretKey) return false;
+    try {
+      const clerk = createClerkClient({ secretKey });
+      const clerkUser = await clerk.users.getUser(clerkId);
+      return clerkUser.publicMetadata?.role === 'admin';
+    } catch {
+      return false;
+    }
   }
 
   async grantAdminRole(userId: string) {

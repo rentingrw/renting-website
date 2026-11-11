@@ -1,6 +1,7 @@
 'use client';
 
 import { Download, Plus, RefreshCw, Trash2, X } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 
 import {
@@ -430,9 +431,18 @@ function DriverReviewModal({
 }
 
 export default function AdminDriversPage() {
+  const searchParams = useSearchParams();
   const { fetchToken, isLoaded, isSignedIn } = useAuthToken();
   const [data, setData] = useState<{ items: AdminDriverItem[]; total: number; page: number }>({ items: [], total: 0, page: 1 });
-  const [filters, setFilters] = useState<ListDriversFilters>({ search: '', status: 'pending_approval', page: 1, pageSize: PAGE_SIZE });
+  const [filters, setFilters] = useState<ListDriversFilters>(() => {
+    const search = searchParams.get('search')?.trim() ?? '';
+    return {
+      search,
+      status: search ? '' : 'pending_approval',
+      page: 1,
+      pageSize: PAGE_SIZE,
+    };
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actingId, setActingId] = useState<string | null>(null);
