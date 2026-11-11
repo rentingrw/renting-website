@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import {
   Bar,
@@ -65,6 +66,8 @@ type Tab = 'overview' | 'analytics' | 'banners' | 'drivers';
 const EMPTY_BANNER_FORM = { message: '', ctaText: '', ctaUrl: '', isActive: true };
 
 export default function AdminHomePage() {
+  const params = useParams<{ locale?: string }>();
+  const locale = params.locale ?? 'en';
   const { fetchToken, isLoaded, isSignedIn } = useAuthToken();
   const [tab, setTab] = useState<Tab>('overview');
   const [overview, setOverview] = useState<AdminOverview | null>(null);
@@ -303,7 +306,7 @@ export default function AdminHomePage() {
                 </p>
               </div>
               <Link
-                href="/bookings?status=pending"
+                href={`/${locale}/bookings?status=pending`}
                 className="rounded border border-border bg-brand px-4 py-2 text-sm font-black text-white shadow-brutal-sm hover:bg-brand-hover"
               >
                 Open booking desk
@@ -710,9 +713,9 @@ function MetricCard({
   return (
     <div className={`rounded-2xl border ${borderColor} bg-card p-4 ${shadowColor}`}>
       <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">{title}</p>
-      <p className={`mt-2 text-2xl font-black ${valueColor}`}>
+      <div className={`mt-2 text-2xl font-black ${valueColor}`}>
         {loading ? <Skeleton className="h-7 w-20" /> : value}
-      </p>
+      </div>
       {sub && !loading && <p className="mt-1.5 text-xs font-medium text-muted-foreground">{sub}</p>}
       {sub && loading && <Skeleton className="mt-1.5 h-3 w-32" />}
     </div>

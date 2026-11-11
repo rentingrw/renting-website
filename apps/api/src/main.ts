@@ -4,6 +4,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import express from 'express';
 
 import { AppModule } from './app.module';
+import { PrismaExceptionFilter } from './common/prisma-exception.filter';
 import { buildCorsOptions } from './cors';
 import { ImageUploadService } from './uploads/image-upload.service';
 import { RedisIoAdapter } from './realtime/redis-io.adapter';
@@ -34,6 +35,7 @@ async function bootstrap() {
 
   app.use('/webhooks/clerk', express.raw({ type: 'application/json' }));
 
+  app.useGlobalFilters(new PrismaExceptionFilter());
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,

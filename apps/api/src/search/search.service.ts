@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ListingStatus, Prisma, SubscriptionKind, TaxiDriverStatus } from '@prisma/client';
 
 import type { AuthenticatedUser } from '../auth/types/authenticated-request.interface';
@@ -6,6 +6,23 @@ import { prisma } from '../database/prisma';
 import { liveSubscriptionWhere } from '../subscriptions/subscription-tier.util';
 import { SearchSort, SearchType, type SearchQueryDto } from './dto/search-query.dto';
 import { coordsForRwandaCity, distanceMeters } from './rwanda-city-coords';
+
+function rethrowSchemaDrift(error: unknown): never {
+  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  if (
+    message.includes('does not exist') ||
+    message.includes('invalid input value for enum') ||
+    message.includes('undefined_column') ||
+    message.includes('undefined_table') ||
+    (error instanceof Prisma.PrismaClientKnownRequestError &&
+      (error.code === 'P2010' || error.code === 'P2021' || error.code === 'P2022'))
+  ) {
+    throw new ServiceUnavailableException(
+      'Database schema is outdated. Apply pending Prisma migrations on the production database, then redeploy the API.',
+    );
+  }
+  throw error;
+}
 
 interface SearchCarRow {
   id: string;
@@ -85,25 +102,31 @@ export class SearchService {
     const limit = query.limit ?? 20;
     const offset = query.offset ?? 0;
 
-    const [cars, drivers, taxis] = await Promise.all([
-      shouldSearchCars ? this.searchCars(query, coordinates, includeExactRates) : Promise.resolve([]),
-      shouldSearchDrivers ? this.searchDrivers(query, coordinates, includeExactRates) : Promise.resolve([]),
-      shouldSearchTaxis ? this.searchTaxis(query, coordinates) : Promise.resolve([]),
-    ]);
+    try {
+      const [cars, drivers, taxis] = await Promise.all([
+        shouldSearchCars ? this.searchCars(query, coordinates, includeExactRates) : Promise.resolve([]),
+        shouldSearchDrivers
+          ? this.searchDrivers(query, coordinates, includeExactRates)
+          : Promise.resolve([]),
+        shouldSearchTaxis ? this.searchTaxis(query, coordinates) : Promise.resolve([]),
+      ]);
 
-    return {
-      type,
-      cars,
-      drivers,
-      taxis,
-      pagination: {
-        limit,
-        offset,
-        hasMoreCars: shouldSearchCars ? cars.length === limit : false,
-        hasMoreDrivers: shouldSearchDrivers ? drivers.length === limit : false,
-        hasMoreTaxis: shouldSearchTaxis ? taxis.length === limit : false,
-      },
-    };
+      return {
+        type,
+        cars,
+        drivers,
+        taxis,
+        pagination: {
+          limit,
+          offset,
+          hasMoreCars: shouldSearchCars ? cars.length === limit : false,
+          hasMoreDrivers: shouldSearchDrivers ? drivers.length === limit : false,
+          hasMoreTaxis: shouldSearchTaxis ? taxis.length === limit : false,
+        },
+      };
+    } catch (error) {
+      rethrowSchemaDrift(error);
+    }
   }
 
   private async searchCars(

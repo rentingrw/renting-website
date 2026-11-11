@@ -4,6 +4,7 @@ import {
   ArrayMaxSize,
   ArrayMinSize,
   ArrayNotEmpty,
+  Equals,
   IsArray,
   IsBoolean,
   IsEnum,
@@ -175,4 +176,12 @@ export class CreateCarDto {
   @IsString({ each: true })
   @MaxLength(50, { each: true })
   features!: string[];
+
+  @IsBoolean()
+  @Equals(true, { message: 'You must agree to the Terms of Service and Privacy Policy.' })
+  acceptedTerms!: boolean;
+
+  @IsBoolean()
+  @Equals(true, { message: 'You must agree to pay 10% of the rental amount.' })
+  acceptedPlatformFee!: boolean;
 }

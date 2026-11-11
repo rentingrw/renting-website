@@ -4,6 +4,7 @@ import { TaxiDriverStatus } from '@prisma/client';
 import type { AuthenticatedUser } from '../auth/types/authenticated-request.interface';
 import { prisma } from '../database/prisma';
 import { taxiDriverRegisteredEmailHtml, taxiDriverAdminAlertEmailHtml } from '../notifications/email-templates';
+import { assertAndRecordProviderAgreement } from '../common/provider-agreement.util';
 import type { RegisterTaxiDriverDto } from './dto/register-taxi-driver.dto';
 
 const ADMIN_EMAIL = process.env.ADMIN_ALERT_EMAIL ?? 'renting.rw@gmail.com';
@@ -91,6 +92,8 @@ export class TaxiDriversService {
     if (user.taxiDriver) {
       throw new ConflictException('You already have a taxi driver profile.');
     }
+
+    await assertAndRecordProviderAgreement(user.id, payload);
 
     const normalized = normalizePayload(payload);
 

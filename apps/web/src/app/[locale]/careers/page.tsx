@@ -12,10 +12,6 @@ type ApplyTarget = { id: string | null; title: string };
 
 const EMPTY_APPLICATION = { fullName: '', email: '', phone: '', message: '' };
 
-function mailtoHref(subject: string, body: string) {
-  return `mailto:${SITE_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-}
-
 export default function CareersPage({ params }: { params: Promise<{ locale: string }> }) {
   const [locale, setLocale] = useState<SupportedLocale>(routing.defaultLocale);
   const [jobs, setJobs] = useState<PublicJobOpening[]>([]);
@@ -69,9 +65,6 @@ export default function CareersPage({ params }: { params: Promise<{ locale: stri
       return;
     }
 
-    const subject = target.id ? `Application: ${target.title}` : 'Open application';
-    const body = [`Role: ${target.title}`, `Name: ${fullName}`, `Email: ${email}`, `Phone: ${phone}`, '', message].join('\n');
-
     setSending(true);
     setFormError('');
     try {
@@ -84,8 +77,8 @@ export default function CareersPage({ params }: { params: Promise<{ locale: stri
       });
       setSentTitle(target.title);
       setTarget(null);
-    } catch {
-      window.location.href = mailtoHref(subject, body);
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : 'Could not send application. Please try again.');
     } finally {
       setSending(false);
     }

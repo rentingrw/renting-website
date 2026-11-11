@@ -121,7 +121,7 @@ export default function TaxiOnboardPage({ params }: { params: Promise<{ locale: 
     return listingDistrict.trim() || workLocationText.split(',').map((p) => p.trim()).filter(Boolean).slice(-2)[0] || workLocationText.trim();
   }
 
-  function payload(): TaxiDriverPayload {
+  function payload(includeAgreement = false): TaxiDriverPayload {
     const photos = carPhotos.slice(0, MAX_TAXI_CAR_PHOTOS);
     return {
       fullName: fullName.trim() || 'Taxi driver',
@@ -140,15 +140,18 @@ export default function TaxiOnboardPage({ params }: { params: Promise<{ locale: 
       photos,
       photoUrl: photos[0],
       profilePhotoUrl: profilePhotoUrl.trim(),
+      ...(includeAgreement
+        ? { acceptedTerms: agreedToPolicy, acceptedPlatformFee: agreedToFee }
+        : {}),
     };
   }
 
-  async function saveProfile() {
+  async function saveProfile(includeAgreement = false) {
     const token = await getToken();
     if (!token) throw new Error('Please sign in.');
-    if (hasProfile) await updateTaxiDriverMe(token, payload());
+    if (hasProfile) await updateTaxiDriverMe(token, payload(includeAgreement));
     else {
-      await registerTaxiDriver(token, payload());
+      await registerTaxiDriver(token, payload(true));
       setHasProfile(true);
     }
   }
@@ -207,7 +210,7 @@ export default function TaxiOnboardPage({ params }: { params: Promise<{ locale: 
     setBusy(true);
     try {
       if (step === STEPS.length - 1) {
-        await saveProfile();
+        await saveProfile(true);
         setDone(true);
         return;
       }

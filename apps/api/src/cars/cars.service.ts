@@ -13,6 +13,7 @@ import { liveSubscriptionWhere } from '../subscriptions/subscription-tier.util';
 import { getContactVisibility } from '../subscriptions/contact-visibility.util';
 import { listingIsBookedNow } from '../bookings/booking-desk.util';
 import { resolveListingCity } from '../common/listing-city.util';
+import { assertAndRecordProviderAgreement } from '../common/provider-agreement.util';
 import type { CreateCarDto } from './dto/create-car.dto';
 import type { UpdateCarDto } from './dto/update-car.dto';
 import type { OwnerListingMarketplaceStatus } from './dto/set-listing-status.dto';
@@ -34,6 +35,7 @@ export class CarsService {
   async create(authUser: AuthenticatedUser, payload: CreateCarDto) {
     const owner = await this.requireCarOwner(authUser.clerkUserId);
     this.validateCoordinatePair(payload.latitude, payload.longitude);
+    await assertAndRecordProviderAgreement(owner.id, payload);
 
     const listingCity = resolveListingCity(payload.locationText, payload.listingCity);
 

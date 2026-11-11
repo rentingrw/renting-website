@@ -8,6 +8,8 @@ import {
 import { BookingStatus, DriverProfileStatus, Prisma, type User } from '@prisma/client';
 
 import type { AuthenticatedUser } from '../auth/types/authenticated-request.interface';
+import type { ProviderAgreementDto } from '../common/dto/provider-agreement.dto';
+import { assertAndRecordProviderAgreement } from '../common/provider-agreement.util';
 import { prisma } from '../database/prisma';
 import { driverIsBookedNow } from '../bookings/booking-desk.util';
 import { CreateDriverProfileDto, UpdateDriverProfileDto } from './dto/upsert-driver-profile.dto';
@@ -217,8 +219,9 @@ export class DriversService {
     return this.mapProfile(updated, true);
   }
 
-  async submitForReview(authUser: AuthenticatedUser) {
+  async submitForReview(authUser: AuthenticatedUser, agreement: ProviderAgreementDto) {
     const user = await this.requireDriver(authUser.clerkUserId);
+    await assertAndRecordProviderAgreement(user.id, agreement);
     const profile = await prisma.driverProfile.findUnique({
       where: { userId: user.id },
       include: {

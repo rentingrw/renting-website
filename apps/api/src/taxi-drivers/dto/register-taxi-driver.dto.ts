@@ -100,4 +100,12 @@ export class RegisterTaxiDriverDto {
   @IsString()
   @IsNotEmpty()
   profilePhotoUrl!: string;
+
+  @IsOptional()
+  @IsBoolean()
+  acceptedTerms?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  acceptedPlatformFee?: boolean;
 }

@@ -227,6 +227,8 @@ export default function CarListOnboardPage({ params }: { params: Promise<{ local
         locationText: address.trim(),
         photos: carPhotos,
         features: amenities,
+        acceptedTerms: agreedToPolicy,
+        acceptedPlatformFee: agreedToFee,
       });
       setDone(true);
     } catch (submitError) {
@@ -242,7 +244,7 @@ export default function CarListOnboardPage({ params }: { params: Promise<{ local
         <OnboardWizardShell
           locale={locale}
           title="Listing saved"
-          subtitle="Your car is saved as a draft. Choose a hosting plan to publish it for renters."
+          subtitle="Your car is saved as a draft. You can publish it anytime from your dashboard."
           steps={['Done']}
           step={0}
           hideNext

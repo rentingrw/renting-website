@@ -428,6 +428,8 @@ export type CarListingPayload = {
   longitude?: number;
   photos: string[];
   features: string[];
+  acceptedTerms?: boolean;
+  acceptedPlatformFee?: boolean;
 } & CarListingRates;
 
 function normalizeCarListingPayload<T extends Partial<CarListingPayload>>(payload: T): T {
@@ -1300,10 +1302,14 @@ export async function updateDriverProfile(token: string, payload: Partial<Driver
   await ensureOk(response, 'Failed to update driver profile.');
 }
 
-export async function submitDriverProfileForReview(token: string): Promise<DriverProfileFull> {
+export async function submitDriverProfileForReview(
+  token: string,
+  agreement: { acceptedTerms: boolean; acceptedPlatformFee: boolean },
+): Promise<DriverProfileFull> {
   const response = await fetch(`${API_BASE_URL}/drivers/profile/submit`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(agreement),
   });
   await ensureOk(response, 'Failed to submit for review.');
   return (await response.json()) as DriverProfileFull;
@@ -1483,6 +1489,8 @@ export type TaxiDriverPayload = {
   photos: string[];
   photoUrl?: string;
   profilePhotoUrl: string;
+  acceptedTerms?: boolean;
+  acceptedPlatformFee?: boolean;
 };
 
 export async function getTaxiDriverMe(token: string): Promise<TaxiDriverMe | null> {

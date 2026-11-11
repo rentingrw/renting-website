@@ -158,6 +158,8 @@ model User {
   trustScore             Decimal           @default(100.0) @map("trust_score") @db.Decimal(5, 2)
   languagePreference     Language          @default(en) @map("language_preference")
   isVerified             Boolean           @default(false) @map("is_verified")
+  providerPolicyAcceptedAt DateTime?       @map("provider_policy_accepted_at")
+  providerFeeAcceptedAt  DateTime?         @map("provider_fee_accepted_at")
   createdAt              DateTime          @default(now()) @map("created_at")
   updatedAt              DateTime          @updatedAt @map("updated_at")
   deletedAt              DateTime?         @map("deleted_at")

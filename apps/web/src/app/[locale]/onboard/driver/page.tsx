@@ -261,7 +261,10 @@ export default function DriverOnboardPage({ params }: { params: Promise<{ locale
         await saveProfile();
         const token = await getToken();
         if (!token) throw new Error('Please sign in.');
-        const submitted = await submitDriverProfileForReview(token);
+        const submitted = await submitDriverProfileForReview(token, {
+          acceptedTerms: agreedToPolicy,
+          acceptedPlatformFee: agreedToFee,
+        });
         setApprovalStatus(submitted.status ?? 'pending_approval');
         setRejectionReason('');
         setEditingAfterReject(false);

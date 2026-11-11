@@ -4,6 +4,7 @@ import { ExpressAdapter } from '@nestjs/platform-express';
 import express from 'express';
 
 import { AppModule } from '../src/app.module';
+import { PrismaExceptionFilter } from '../src/common/prisma-exception.filter';
 import { buildCorsOptions } from '../src/cors';
 
 const server = express();
@@ -22,6 +23,7 @@ async function bootstrap() {
   app.use('/webhooks/clerk', express.raw({ type: 'application/json' }));
   app.use('/subscriptions/webhook/flutterwave', express.json());
 
+  app.useGlobalFilters(new PrismaExceptionFilter());
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
 
   await app.init();

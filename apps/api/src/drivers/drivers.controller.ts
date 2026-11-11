@@ -6,6 +6,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ClerkAuthGuard } from '../auth/guards/clerk-auth.guard';
 import { OptionalClerkAuthGuard } from '../auth/guards/optional-clerk-auth.guard';
 import type { AuthenticatedUser } from '../auth/types/authenticated-request.interface';
+import { ProviderAgreementDto } from '../common/dto/provider-agreement.dto';
 import { DriversService } from './drivers.service';
 import { CreateDriverProfileDto, UpdateDriverProfileDto } from './dto/upsert-driver-profile.dto';
 
@@ -34,8 +35,8 @@ export class DriversController {
   @UseGuards(ClerkAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Submit driver profile for admin review' })
-  submitProfile(@CurrentUser() user: AuthenticatedUser) {
-    return this.driversService.submitForReview(user);
+  submitProfile(@CurrentUser() user: AuthenticatedUser, @Body() payload: ProviderAgreementDto) {
+    return this.driversService.submitForReview(user, payload);
   }
 
   @Get('profile/me')

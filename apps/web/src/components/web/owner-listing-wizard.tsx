@@ -5,7 +5,9 @@ import { LoadingSpinner } from '@/components/web/loading-states';
 import { AddressInput } from '@/components/web/address-input';
 import { RwandaAdminAddressSelect } from '@/components/web/rwanda-admin-address-select';
 import { ImageCropDialog } from '@/components/web/image-crop-dialog';
-import { useTranslations } from 'next-intl';
+import { RegistrationAgreement, registrationAgreementError } from '@/components/web/registration-agreement';
+import { isSupportedLocale, type SupportedLocale } from '@/i18n/routing';
+import { useLocale, useTranslations } from 'next-intl';
 import { useEffect, useRef, useState } from 'react';
 import { Camera, Check, ChevronLeft, ChevronRight, Minus, Plus, Upload } from 'lucide-react';
 
@@ -172,12 +174,16 @@ export function OwnerListingWizard({
   getToken,
 }: OwnerListingWizardProps) {
   const t = useTranslations('web');
+  const rawLocale = useLocale();
+  const locale: SupportedLocale = isSupportedLocale(rawLocale) ? rawLocale : 'en';
   const allowPublish = canPublish !== false;
   const [step, setStep] = useState(0);
   const [publishNow, setPublishNow] = useState(false);
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [agreedToPolicy, setAgreedToPolicy] = useState(false);
+  const [agreedToFee, setAgreedToFee] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const photoQueueRef = useRef<File[]>([]);
   const [pendingPhoto, setPendingPhoto] = useState<File | null>(null);
@@ -194,6 +200,8 @@ export function OwnerListingWizard({
     setStep(0);
     setError(null);
     setPublishNow(false);
+    setAgreedToPolicy(false);
+    setAgreedToFee(false);
     setState(initialCar ? fromCar(initialCar) : emptyState());
   }, [initialCar, open]);
 
@@ -367,6 +375,9 @@ export function OwnerListingWizard({
       longitude: state.longitude.trim() ? Number(state.longitude) : undefined,
       photos: state.photos,
       features: state.features,
+      ...(!isEditing
+        ? { acceptedTerms: agreedToPolicy, acceptedPlatformFee: agreedToFee }
+        : {}),
     };
   }
 
@@ -378,6 +389,13 @@ export function OwnerListingWizard({
     ) {
       setError(`Listings need ${MIN_CAR_LISTING_PHOTOS}–${MAX_CAR_LISTING_PHOTOS} photos.`);
       return;
+    }
+    if (!isEditing) {
+      const agreementError = registrationAgreementError(agreedToPolicy, agreedToFee);
+      if (agreementError) {
+        setError(agreementError);
+        return;
+      }
     }
     try {
       setBusy(true);
@@ -863,6 +881,16 @@ export function OwnerListingWizard({
                 </p>
               </div>
             )}
+
+            {!isEditing ? (
+              <RegistrationAgreement
+                locale={locale}
+                agreedToPolicy={agreedToPolicy}
+                agreedToFee={agreedToFee}
+                onPolicyChange={setAgreedToPolicy}
+                onFeeChange={setAgreedToFee}
+              />
+            ) : null}
           </div>
         )}
 
@@ -896,7 +924,7 @@ export function OwnerListingWizard({
             <Button
               type="button"
               onClick={handleSubmit}
-              disabled={busy}
+              disabled={busy || (!isEditing && (!agreedToPolicy || !agreedToFee))}
               className="rounded border-2 border-brand-strong bg-brand px-5 py-2 text-sm font-black text-white shadow-brutal-sky-sm transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none"
             >
               {busy ? (
