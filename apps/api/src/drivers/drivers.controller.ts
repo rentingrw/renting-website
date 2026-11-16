@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { SkipThrottle } from '@nestjs/throttler';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
@@ -8,6 +8,7 @@ import { OptionalClerkAuthGuard } from '../auth/guards/optional-clerk-auth.guard
 import type { AuthenticatedUser } from '../auth/types/authenticated-request.interface';
 import { ProviderAgreementDto } from '../common/dto/provider-agreement.dto';
 import { SetMarketplaceVisibilityDto } from '../common/dto/marketplace-visibility.dto';
+import { GetAvailabilityDto } from '../cars/dto/get-availability.dto';
 import { DriversService } from './drivers.service';
 import { CreateDriverProfileDto, UpdateDriverProfileDto } from './dto/upsert-driver-profile.dto';
 
@@ -54,6 +55,13 @@ export class DriversController {
   @ApiOperation({ summary: 'Set driver visibility in search: active, inactive, or booked' })
   setMarketplaceVisibility(@CurrentUser() user: AuthenticatedUser, @Body() body: SetMarketplaceVisibilityDto) {
     return this.driversService.setMarketplaceVisibility(user, body.status);
+  }
+
+  @Get(':id/availability')
+  @SkipThrottle()
+  @ApiOperation({ summary: 'Get driver availability for a given month (bookings + blocked dates)' })
+  getAvailability(@Param('id') profileId: string, @Query() query: GetAvailabilityDto) {
+    return this.driversService.getAvailability(profileId, query.month);
   }
 
   @Get(':id')

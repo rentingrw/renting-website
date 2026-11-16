@@ -377,6 +377,82 @@ export class DriversService {
     return this.mapProfile(updated, true);
   }
 
+  async getAvailability(profileId: string, month: string) {
+    const profile = await prisma.driverProfile.findUnique({
+      where: { id: profileId },
+      select: {
+        id: true,
+        userId: true,
+        status: true,
+        availabilityCalendar: true,
+      },
+    });
+
+    if (!profile || profile.status !== DriverProfileStatus.approved) {
+      throw new NotFoundException('Driver profile not found.');
+    }
+
+    const [yearPart, monthPart] = month.split('-');
+    const year = Number(yearPart);
+    const monthIndex = Number(monthPart) - 1;
+    const monthStart = new Date(Date.UTC(year, monthIndex, 1, 0, 0, 0));
+    const monthEnd = new Date(Date.UTC(year, monthIndex + 1, 1, 0, 0, 0));
+
+    const bookings = await prisma.driverBooking.findMany({
+      where: {
+        driverId: profile.userId,
+        status: { in: [BookingStatus.confirmed, BookingStatus.active] },
+        startAt: { lt: monthEnd },
+        endAt: { gt: monthStart },
+      },
+      select: {
+        id: true,
+        startAt: true,
+        endAt: true,
+        status: true,
+      },
+      orderBy: { startAt: 'asc' },
+    });
+
+    type BlockRange = { from?: string; to?: string; startDate?: string; endDate?: string };
+    const calendarRaw = profile.availabilityCalendar;
+    const calendarBlocks = Array.isArray(calendarRaw) ? (calendarRaw as BlockRange[]) : [];
+
+    const blockedFromProfile = calendarBlocks
+      .map((block) => {
+        const startIso = block.from ?? block.startDate;
+        const endIso = block.to ?? block.endDate;
+        if (!startIso || !endIso) return null;
+        const start = new Date(startIso);
+        const end = new Date(endIso);
+        if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) return null;
+        if (end <= monthStart || start >= monthEnd) return null;
+        return {
+          bookingId: `block-${startIso}-${endIso}`,
+          startDate: start.toISOString(),
+          endDate: end.toISOString(),
+          status: 'blocked',
+        };
+      })
+      .filter((row): row is NonNullable<typeof row> => row !== null);
+
+    const bookedRanges = [
+      ...bookings.map((booking) => ({
+        bookingId: booking.id,
+        startDate: booking.startAt.toISOString(),
+        endDate: booking.endAt.toISOString(),
+        status: booking.status,
+      })),
+      ...blockedFromProfile,
+    ].sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+
+    return {
+      driverProfileId: profileId,
+      month,
+      bookedRanges,
+    };
+  }
+
   async getById(profileId: string, authUser?: AuthenticatedUser) {
     const profile = await prisma.driverProfile.findUnique({
       where: { id: profileId },

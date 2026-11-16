@@ -73,7 +73,7 @@ export function DashboardOverview({
   canSetCarVisibility,
 }: DashboardOverviewProps) {
   const t = useTranslations('web.app.overview');
-  const isCarOwner = profile.roles.includes('car_owner');
+  const isCarOwner = profile.roles.includes('car_owner') || cars.length > 0;
   const isDriver = profile.roles.includes('driver') || profile.hasDriverProfile;
   const isTaxi = Boolean(profile.hasTaxiProfile || taxiProfile);
 
@@ -87,6 +87,16 @@ export function DashboardOverview({
 
   return (
     <div className="space-y-6">
+      {isCarOwner || isDriver || isTaxi ? (
+        <div className="rounded-xl border border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+          <p className="text-xs font-bold uppercase tracking-wide text-foreground">{t('accountLimitsTitle')}</p>
+          <ul className="mt-2 list-inside list-disc space-y-1 text-xs font-medium">
+            <li>{t('accountLimitsCars')}</li>
+            <li>{t('accountLimitsDriver')}</li>
+            <li>{t('accountLimitsTaxi')}</li>
+          </ul>
+        </div>
+      ) : null}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <button
           type="button"
@@ -187,9 +197,12 @@ export function DashboardOverview({
       {isCarOwner ? (
         <section className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <Car className="h-4 w-4 text-brand" aria-hidden />
-              <h2 className="text-base font-bold text-foreground">{t('carsTitle')}</h2>
+            <div>
+              <div className="flex items-center gap-2">
+                <Car className="h-4 w-4 text-brand" aria-hidden />
+                <h2 className="text-base font-bold text-foreground">{t('carsTitle')}</h2>
+              </div>
+              <p className="mt-0.5 text-xs text-muted-foreground">{t('carsLimitHint')}</p>
             </div>
             <div className="flex items-center gap-2">
               {onNewListing ? (
@@ -280,9 +293,12 @@ export function DashboardOverview({
       {isDriver ? (
         <section className="space-y-3">
           <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <UserRound className="h-4 w-4 text-brand" aria-hidden />
-              <h2 className="text-base font-bold text-foreground">{t('driverTitle')}</h2>
+            <div>
+              <div className="flex items-center gap-2">
+                <UserRound className="h-4 w-4 text-brand" aria-hidden />
+                <h2 className="text-base font-bold text-foreground">{t('driverTitle')}</h2>
+              </div>
+              <p className="mt-0.5 text-xs text-muted-foreground">{t('singleProfileHint')}</p>
             </div>
             <Link
               href={`/${locale}/app/driver-profile`}
@@ -339,9 +355,12 @@ export function DashboardOverview({
       {isTaxi ? (
         <section className="space-y-3">
           <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <CarTaxiFront className="h-4 w-4 text-brand" aria-hidden />
-              <h2 className="text-base font-bold text-foreground">{t('taxiTitle')}</h2>
+            <div>
+              <div className="flex items-center gap-2">
+                <CarTaxiFront className="h-4 w-4 text-brand" aria-hidden />
+                <h2 className="text-base font-bold text-foreground">{t('taxiTitle')}</h2>
+              </div>
+              <p className="mt-0.5 text-xs text-muted-foreground">{t('singleProfileHint')}</p>
             </div>
             <Link
               href={`/${locale}/app/taxi`}

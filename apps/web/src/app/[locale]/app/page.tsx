@@ -299,7 +299,7 @@ export default function AppPage({ params }: AppPageProps) {
       const [carData, driverData, carMine, driverFull, taxiMe] = await Promise.all([
         getCarBookingsMine(token),
         getDriverBookingsMine(token),
-        profile.roles.includes('car_owner') ? getCarsMine(token) : Promise.resolve([]),
+        getCarsMine(token).catch(() => []),
         loadDriver ? getDriverProfileFull(token).catch(() => null) : Promise.resolve(null),
         loadTaxi ? getTaxiDriverMe(token).catch(() => null) : Promise.resolve(null),
       ]);

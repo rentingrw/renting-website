@@ -3,16 +3,28 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
-import { getCarAvailability } from '@/lib/api';
+import { getCarAvailability, getDriverAvailability } from '@/lib/api';
 
 type BookedRange = { startDate: string; endDate: string };
 
+export type CalendarStatusLabels = {
+  pickStart: string;
+  pickReturn: (pickupLabel: string) => string;
+  rangeSummary: (start: string, end: string, days: number) => string;
+  clear: string;
+  selected: string;
+  booked: string;
+  unavailable: string;
+};
+
 export type Props = {
-  carId: string;
+  kind: 'car' | 'driver';
+  entityId: string;
   initialBookedRanges: BookedRange[];
   selectedStart: Date | null;
   selectedEnd: Date | null;
   onSelect: (start: Date, end: Date | null) => void;
+  statusLabels?: CalendarStatusLabels;
 };
 
 const DAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
@@ -35,7 +47,26 @@ function toMonthKey(y: number, m: number): string {
   return `${y}-${String(m + 1).padStart(2, '0')}`;
 }
 
-export function AvailabilityCalendar({ carId, initialBookedRanges, selectedStart, selectedEnd, onSelect }: Props) {
+const DEFAULT_STATUS: CalendarStatusLabels = {
+  pickStart: 'Click a day to set your pick-up date.',
+  pickReturn: (pickupLabel) => `Pick-up: ${pickupLabel} — now click your return date.`,
+  rangeSummary: (start, end, days) => `${start} → ${end} · ${days} day(s)`,
+  clear: 'clear',
+  selected: 'Selected',
+  booked: 'Already booked',
+  unavailable: 'Unavailable',
+};
+
+export function AvailabilityCalendar({
+  kind,
+  entityId,
+  initialBookedRanges,
+  selectedStart,
+  selectedEnd,
+  onSelect,
+  statusLabels,
+}: Props) {
+  const labels = statusLabels ?? DEFAULT_STATUS;
   const today = dayStart(new Date());
   const initYear = today.getFullYear();
   const initMonth = today.getMonth();
@@ -51,7 +82,10 @@ export function AvailabilityCalendar({ carId, initialBookedRanges, selectedStart
     if (fetchedMonths.current.has(key)) return;
     fetchedMonths.current.add(key);
     try {
-      const data = await getCarAvailability(carId, key);
+      const data =
+        kind === 'car'
+          ? await getCarAvailability(entityId, key)
+          : await getDriverAvailability(entityId, key);
       setAllRanges(prev => {
         const existingKeys = new Set(prev.map(r => r.startDate + '|' + r.endDate));
         const fresh = data.bookedRanges
@@ -241,35 +275,37 @@ export function AvailabilityCalendar({ carId, initialBookedRanges, selectedStart
       {/* Status message + legend */}
       <div className="mt-2 border-t border-neutral-100 pt-2">
         {!selectedStart && (
-          <p className="mb-1.5 text-xs font-medium text-muted-foreground">Click a day to set your pick-up date.</p>
+          <p className="mb-1.5 text-xs font-medium text-muted-foreground">{labels.pickStart}</p>
         )}
         {selectedStart && !selectedEnd && (
           <p className="mb-1.5 text-xs font-medium text-brand">
-            Pick-up: {dayStart(selectedStart).toLocaleDateString('en', { month: 'short', day: 'numeric' })} — now click your return date.
+            {labels.pickReturn(
+              dayStart(selectedStart).toLocaleDateString('en', { month: 'short', day: 'numeric' }),
+            )}
           </p>
         )}
         {selectedStart && selectedEnd && (
           <p className="mb-1.5 text-xs font-medium text-brand">
-            {dayStart(selectedStart).toLocaleDateString('en', { month: 'short', day: 'numeric' })}
-            {' → '}
-            {dayStart(selectedEnd).toLocaleDateString('en', { month: 'short', day: 'numeric' })}
-            {' · '}
-            {Math.max(1, Math.round((dayStart(selectedEnd).getTime() - dayStart(selectedStart).getTime()) / 86400000))} day(s)
+            {labels.rangeSummary(
+              dayStart(selectedStart).toLocaleDateString('en', { month: 'short', day: 'numeric' }),
+              dayStart(selectedEnd).toLocaleDateString('en', { month: 'short', day: 'numeric' }),
+              Math.max(1, Math.round((dayStart(selectedEnd).getTime() - dayStart(selectedStart).getTime()) / 86400000)),
+            )}
             {' '}
             <button type="button" onClick={() => onSelect(selectedStart, null)} className="ml-1 font-black text-muted-foreground underline hover:text-red-600">
-              clear
+              {labels.clear}
             </button>
           </p>
         )}
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] font-medium text-muted-foreground">
           <span className="flex items-center gap-1">
-            <span className="inline-block h-2.5 w-2.5 rounded-sm bg-brand" /> Selected
+            <span className="inline-block h-2.5 w-2.5 rounded-sm bg-brand" /> {labels.selected}
           </span>
           <span className="flex items-center gap-1">
-            <span className="inline-block h-2.5 w-2.5 rounded-sm border border-red-200 bg-red-50" /> Already booked
+            <span className="inline-block h-2.5 w-2.5 rounded-sm border border-red-200 bg-red-50" /> {labels.booked}
           </span>
           <span className="flex items-center gap-1">
-            <span className="inline-block h-2.5 w-2.5 rounded-sm bg-muted" /> Unavailable
+            <span className="inline-block h-2.5 w-2.5 rounded-sm bg-muted" /> {labels.unavailable}
           </span>
         </div>
       </div>

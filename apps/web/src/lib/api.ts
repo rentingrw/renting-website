@@ -214,15 +214,23 @@ export type DriverDetail = {
   };
 };
 
+export type AvailabilityRangeDto = {
+  bookingId: string;
+  startDate: string;
+  endDate: string;
+  status: string;
+};
+
 export type CarAvailabilityResponse = {
   listingId: string;
   month: string;
-  bookedRanges: Array<{
-    bookingId: string;
-    startDate: string;
-    endDate: string;
-    status: string;
-  }>;
+  bookedRanges: AvailabilityRangeDto[];
+};
+
+export type DriverAvailabilityResponse = {
+  driverProfileId: string;
+  month: string;
+  bookedRanges: AvailabilityRangeDto[];
 };
 
 type SearchQuery = {
@@ -778,6 +786,17 @@ export async function getCarAvailability(id: string, month: string): Promise<Car
     throw new Error('Failed to load availability.');
   }
   return (await response.json()) as CarAvailabilityResponse;
+}
+
+export async function getDriverAvailability(profileId: string, month: string): Promise<DriverAvailabilityResponse> {
+  const response = await fetch(
+    `${API_BASE_URL}/drivers/${profileId}/availability?month=${encodeURIComponent(month)}`,
+    { cache: 'no-store' },
+  );
+  if (!response.ok) {
+    throw new Error('Failed to load availability.');
+  }
+  return (await response.json()) as DriverAvailabilityResponse;
 }
 
 export async function createCarBooking(token: string, payload: CarBookingPayload): Promise<CreatedBookingResponse> {

@@ -179,6 +179,25 @@ input[type='range']::-moz-range-track {
   }
 }
 
+.hero-showcase-slide {
+  will-change: opacity;
+}
+
+.hero-showcase-caption {
+  animation: hero-caption-in 0.45s ease-out;
+}
+
+@keyframes hero-caption-in {
+  from {
+    opacity: 0.6;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 .float-slow {
   animation: float-y 7s ease-in-out infinite;
 }
@@ -234,8 +253,13 @@ input[type='range']::-moz-range-track {
 
   .aurora-blob,
   .word-swap,
+  .hero-showcase-caption,
   .float-slow,
   .float-slower {
     animation: none;
+  }
+
+  .hero-showcase-slide {
+    transition: none;
   }
 }

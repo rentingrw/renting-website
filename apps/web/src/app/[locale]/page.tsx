@@ -41,7 +41,9 @@ type HomePageProps = {
 
 const POPULAR_PLACES = ['Kigali', 'Musanze', 'Rubavu', 'Huye', 'Karongi'] as const;
 const HOME_SECTION_LIMIT = 8;
+const HERO_SHOWCASE_CAR_LIMIT = 12;
 const WORD_ROTATE_MS = 2400;
+const HERO_SHOWCASE_CAR_MS = 5000;
 
 type PopularListingKind = 'all' | 'cars' | 'drivers' | 'taxi';
 type QuickRange = 'today' | 'weekend' | 'week';
@@ -101,6 +103,8 @@ export default function HomePage({ params }: HomePageProps) {
   const [intent, setIntent] = useState<PopularListingKind>('all');
   const [activeRange, setActiveRange] = useState<QuickRange | null>(null);
   const [wordIndex, setWordIndex] = useState(0);
+  const [showcaseCarIndex, setShowcaseCarIndex] = useState(0);
+  const [showcaseCarPaused, setShowcaseCarPaused] = useState(false);
   const [featuredCars, setFeaturedCars] = useState<SearchCar[]>([]);
   const [featuredDrivers, setFeaturedDrivers] = useState<SearchDriver[]>([]);
   const [featuredTaxis, setFeaturedTaxis] = useState<SearchTaxi[]>([]);
@@ -134,9 +138,16 @@ export default function HomePage({ params }: HomePageProps) {
 
     async function loadFeatured() {
       try {
-        const data = await searchMarketplace({ type: 'all', limit: HOME_SECTION_LIMIT });
+        const [carSpotlight, data] = await Promise.all([
+          searchMarketplace({ type: 'cars', limit: HERO_SHOWCASE_CAR_LIMIT }),
+          searchMarketplace({ type: 'all', limit: HOME_SECTION_LIMIT }),
+        ]);
         if (!cancelled) {
-          setFeaturedCars(data.cars.slice(0, HOME_SECTION_LIMIT));
+          setFeaturedCars(
+            carSpotlight.cars.length > 0
+              ? carSpotlight.cars.slice(0, HERO_SHOWCASE_CAR_LIMIT)
+              : data.cars.slice(0, HOME_SECTION_LIMIT),
+          );
           setFeaturedDrivers(data.drivers.slice(0, HOME_SECTION_LIMIT));
           setFeaturedTaxis((data.taxis ?? []).slice(0, HOME_SECTION_LIMIT));
         }
@@ -215,15 +226,43 @@ export default function HomePage({ params }: HomePageProps) {
     { id: 'taxi', label: t('tabs.taxi') },
   ];
 
-  const showcaseCar = featuredCars[0];
-  const showcaseCarPhoto =
-    showcaseCar?.photos?.[0] ??
-    (showcaseCar
-      ? stockImages.cars[showcaseCar.vehicleType as keyof typeof stockImages.cars]
-      : undefined) ??
-    stockImages.heroCar;
+  const showcaseCars = useMemo(() => featuredCars.slice(0, HOME_SECTION_LIMIT), [featuredCars]);
+
+  const showcaseCar = showcaseCars[showcaseCarIndex] ?? showcaseCars[0] ?? null;
+
+  const showcaseCarPhoto = useMemo(() => {
+    if (!showcaseCar) return stockImages.heroCar;
+    return (
+      showcaseCar.photos?.[0] ??
+      stockImages.cars[showcaseCar.vehicleType as keyof typeof stockImages.cars] ??
+      stockImages.carPlaceholder
+    );
+  }, [showcaseCar]);
+
   const showcaseCarPrice = showcaseCar ? formatSearchCarDailyPrice(showcaseCar) : null;
   const showcaseDrivers = featuredDrivers.slice(0, 4);
+
+  const showcaseCarIds = useMemo(() => showcaseCars.map((c) => c.id).join('|'), [showcaseCars]);
+
+  useEffect(() => {
+    setShowcaseCarIndex(0);
+  }, [showcaseCarIds]);
+
+  useEffect(() => {
+    if (showcaseCars.length <= 1 || showcaseCarPaused) return undefined;
+    const timer = window.setInterval(() => {
+      setShowcaseCarIndex((i) => (i + 1) % showcaseCars.length);
+    }, HERO_SHOWCASE_CAR_MS);
+    return () => window.clearInterval(timer);
+  }, [showcaseCars.length, showcaseCarPaused]);
+
+  function carPhotoForListing(car: SearchCar) {
+    return (
+      car.photos?.[0] ??
+      stockImages.cars[car.vehicleType as keyof typeof stockImages.cars] ??
+      stockImages.carPlaceholder
+    );
+  }
 
   function applyQuickRange(range: QuickRange) {
     const next = quickRange(range);
@@ -349,30 +388,37 @@ export default function HomePage({ params }: HomePageProps) {
           </div>
 
           {/* Live showcase: real listings floating over the hero */}
-          <div className="relative mx-auto hidden h-[26rem] w-full max-w-md lg:block" aria-hidden>
+          <div className="relative mx-auto hidden h-[26rem] w-full max-w-md lg:block">
             <div className="float-slow absolute right-0 top-0 w-[85%]">
               <div className="rotate-[3deg] overflow-hidden rounded-[2rem] border border-white/15 bg-white/10 p-2 shadow-[0_40px_90px_-30px_rgba(0,0,0,0.8)] backdrop-blur-xl">
-                <div className="relative aspect-[4/3] overflow-hidden rounded-[1.5rem] bg-white/5">
-                  <MediaImage src={showcaseCarPhoto} alt="" fill sizes="380px" className="object-cover" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/0 to-transparent" />
-                  <div className="absolute inset-x-4 bottom-4 flex items-end justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-lg font-extrabold text-white">
-                        {showcaseCar ? `${showcaseCar.brand} ${showcaseCar.model}` : t('nav.cars')}
-                      </p>
-                      <p className="flex items-center gap-1 truncate text-xs font-medium text-white/75">
-                        <MapPin className="h-3 w-3" />
-                        {showcaseCar?.locationText ?? 'Kigali'}
-                      </p>
+                {showcaseCar ? (
+                  <Link
+                    href={`/${locale}/cars/${showcaseCar.id}`}
+                    className="block rounded-[1.5rem] outline-none ring-white/30 transition hover:ring-2 focus-visible:ring-2"
+                    onMouseEnter={() => setShowcaseCarPaused(true)}
+                    onMouseLeave={() => setShowcaseCarPaused(false)}
+                    onFocus={() => setShowcaseCarPaused(true)}
+                    onBlur={() => setShowcaseCarPaused(false)}
+                  >
+                    <HeroShowcaseCarCard
+                      cars={showcaseCars}
+                      activeIndex={showcaseCarIndex}
+                      activeCar={showcaseCar}
+                      activePrice={showcaseCarPrice}
+                      carPhotoForListing={carPhotoForListing}
+                      perDayLabel={t('listing.perDay')}
+                      onSelectIndex={setShowcaseCarIndex}
+                    />
+                  </Link>
+                ) : (
+                  <div className="relative aspect-[4/3] overflow-hidden rounded-[1.5rem] bg-white/5">
+                    <MediaImage src={showcaseCarPhoto} alt="" fill sizes="380px" className="object-cover" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/0 to-transparent" />
+                    <div className="absolute inset-x-4 bottom-4">
+                      <p className="truncate text-lg font-extrabold text-white">{t('nav.cars')}</p>
                     </div>
-                    {showcaseCarPrice ? (
-                      <span className="shrink-0 rounded-full bg-white px-3 py-1 text-xs font-extrabold text-ink">
-                        {showcaseCarPrice}
-                        <span className="font-semibold text-muted-foreground"> {t('listing.perDay')}</span>
-                      </span>
-                    ) : null}
                   </div>
-                </div>
+                )}
               </div>
             </div>
 
@@ -708,6 +754,90 @@ function Eyebrow({ children, tone = 'light' }: { children: ReactNode; tone?: 'li
       <span className={`h-1.5 w-1.5 rounded-full ${tone === 'sun' ? 'bg-ink' : 'bg-sun'}`} />
       {children}
     </span>
+  );
+}
+
+type HeroShowcaseCarCardProps = {
+  cars: SearchCar[];
+  activeIndex: number;
+  activeCar: SearchCar;
+  activePrice: string | null;
+  carPhotoForListing: (car: SearchCar) => string;
+  perDayLabel: string;
+  onSelectIndex: (index: number) => void;
+};
+
+function HeroShowcaseCarCard({
+  cars,
+  activeIndex,
+  activeCar,
+  activePrice,
+  carPhotoForListing,
+  perDayLabel,
+  onSelectIndex,
+}: HeroShowcaseCarCardProps) {
+  return (
+    <div className="relative aspect-[4/3] overflow-hidden rounded-[1.5rem] bg-white/5">
+      {cars.map((car, index) => {
+        const visible = index === activeIndex;
+        return (
+          <div
+            key={car.id}
+            className={`hero-showcase-slide absolute inset-0 transition-opacity duration-700 ease-in-out ${
+              visible ? 'z-[1] opacity-100' : 'z-0 opacity-0'
+            }`}
+            aria-hidden={!visible}
+          >
+            <MediaImage
+              src={carPhotoForListing(car)}
+              alt=""
+              fill
+              sizes="380px"
+              className="object-cover"
+              priority={index === 0}
+            />
+          </div>
+        );
+      })}
+      <div className="absolute inset-0 z-[2] bg-gradient-to-t from-black/70 via-black/0 to-transparent" />
+      {cars.length > 1 ? (
+        <div className="absolute right-3 top-3 z-[3] flex gap-1.5 rounded-full bg-black/35 px-2 py-1.5 backdrop-blur">
+          {cars.map((car, index) => (
+            <button
+              key={car.id}
+              type="button"
+              aria-label={`${car.brand} ${car.model}`}
+              aria-current={index === activeIndex ? 'true' : undefined}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onSelectIndex(index);
+              }}
+              className={`h-2 w-2 rounded-full transition ${
+                index === activeIndex ? 'scale-110 bg-white' : 'bg-white/40 hover:bg-white/70'
+              }`}
+            />
+          ))}
+        </div>
+      ) : null}
+      <div className="absolute inset-x-4 bottom-4 z-[3] flex items-end justify-between gap-3">
+        <div className="min-w-0">
+          <p key={activeCar.id} className="hero-showcase-caption truncate text-lg font-extrabold text-white">
+            {`${activeCar.brand} ${activeCar.model}`}
+          </p>
+          <p className="flex items-center gap-1 truncate text-xs font-medium text-white/75">
+            <MapPin className="h-3 w-3" />
+            {activeCar.locationText ?? 'Kigali'}
+          </p>
+        </div>
+        {activePrice ? (
+          <span className="shrink-0 rounded-full bg-white px-3 py-1 text-xs font-extrabold text-ink">
+            {activePrice}
+            <span className="font-semibold text-muted-foreground"> {perDayLabel}</span>
+          </span>
+        ) : null}
+      </div>
+    </div>
   );
 }
 

@@ -3,6 +3,7 @@
 import { useAuth } from '@clerk/nextjs';
 import {
   BriefcaseBusiness,
+  CalendarDays,
   Car,
   ChevronRight,
   CreditCard,
@@ -24,7 +25,15 @@ import { BookingRequestDialog } from '@/components/web/booking-request-dialog';
 import { FavoriteButton } from '@/components/web/favorite-button';
 import { ShareMenu } from '@/components/web/share-menu';
 import { isSupportedLocale, routing, type SupportedLocale } from '@/i18n/routing';
-import { getDriverById, getReviewsForUser, getDriverFavorites, searchMarketplace, type DriverDetail, type SearchDriver } from '@/lib/api';
+import {
+  getDriverAvailability,
+  getDriverById,
+  getReviewsForUser,
+  getDriverFavorites,
+  searchMarketplace,
+  type DriverDetail,
+  type SearchDriver,
+} from '@/lib/api';
 import { formatCurrencyRwf, formatRange } from '@/lib/format';
 import { ProfileHeader } from '@/components/web/profile-header';
 import { DriverListingCard } from '@/components/web/driver-listing-card';
@@ -72,6 +81,7 @@ export default function DriverDetailPage({ params }: DriverPageProps) {
   const [bookingOpen, setBookingOpen] = useState(false);
   const [isFavorited, setIsFavorited] = useState(false);
   const [similar, setSimilar] = useState<SearchDriver[]>([]);
+  const [bookedRanges, setBookedRanges] = useState<Array<{ startDate: string; endDate: string }>>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -95,12 +105,19 @@ export default function DriverDetailPage({ params }: DriverPageProps) {
       try {
         const token = isSignedIn ? await getToken() : null;
         const data = await getDriverById(driverId, token ?? undefined);
-        const [reviewsData, similarData] = await Promise.all([
+        const [reviewsData, similarData, availability] = await Promise.all([
           getReviewsForUser(data.userId).catch(() => null),
           searchMarketplace({ type: 'drivers', location: data.primaryCity, limit: 6 }).catch(() => null),
+          getDriverAvailability(driverId, new Date().toISOString().slice(0, 7)).catch(() => null),
         ]);
         if (!cancelled) {
           setDetail(data);
+          setBookedRanges(
+            (availability?.bookedRanges ?? []).map((item) => ({
+              startDate: item.startDate,
+              endDate: item.endDate,
+            })),
+          );
           if (reviewsData) setReviews(reviewsData);
           setSimilar((similarData?.drivers ?? []).filter((item) => item.id !== data.id).slice(0, 6));
           if (token) {
@@ -261,6 +278,25 @@ export default function DriverDetailPage({ params }: DriverPageProps) {
               </div>
             )}
 
+            <div>
+              <h2 className="mb-2 text-lg font-black text-foreground">{t('detail.availability')}</h2>
+              {bookedRanges.length ? (
+                <div className="space-y-2">
+                  {bookedRanges.map((range) => (
+                    <div
+                      key={`${range.startDate}-${range.endDate}`}
+                      className="flex items-center gap-2 rounded border-2 border-border bg-card px-3 py-2.5 text-sm font-medium text-muted-foreground"
+                    >
+                      <CalendarDays className="h-4 w-4 shrink-0 text-brand" />
+                      {new Date(range.startDate).toLocaleDateString()} to {new Date(range.endDate).toLocaleDateString()}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm font-medium text-muted-foreground">{t('detail.noBlockedDates')}</p>
+              )}
+            </div>
+
             {/* Reviews */}
             <div>
               <h2 className="mb-3 text-lg font-black text-foreground">{t('detail.reviews')}</h2>
@@ -322,10 +358,12 @@ export default function DriverDetailPage({ params }: DriverPageProps) {
                   </div>
                 )}
 
-                <div className="rounded border-2 border-border bg-neutral-50 p-3">
+                <div className="rounded-xl border border-border bg-muted/60 p-3">
                   <h3 className="mb-1 text-xs font-black uppercase tracking-widest text-muted-foreground">{t('detail.yourTrip')}</h3>
-                  <p className="text-sm font-medium text-muted-foreground">{t('detail.tripStart')} / {t('detail.tripEnd')}</p>
-                  <p className="mt-1 text-xs font-medium text-muted-foreground">Set dates and pickup when you request a booking.</p>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    {t('detail.tripStart')} / {t('detail.tripEnd')}
+                  </p>
+                  <p className="mt-1 text-xs font-medium text-muted-foreground">{t('listing.setDatesHint')}</p>
                 </div>
 
                 <div>
@@ -342,7 +380,7 @@ export default function DriverDetailPage({ params }: DriverPageProps) {
                   type="button"
                   onClick={() => setBookingOpen(true)}
                   disabled={bookedNow}
-                  className="w-full rounded-full bg-brand py-3 text-sm font-semibold text-white transition hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
+                  className="w-full rounded-full bg-gradient-to-br from-[#1f4a3f] via-brand to-brand-strong py-3 text-sm font-bold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {bookLabel}
                 </button>
@@ -428,10 +466,12 @@ export default function DriverDetailPage({ params }: DriverPageProps) {
         target={{
           mode: 'driver',
           id: detail.userId,
+          calendarProfileId: detail.id,
           title: detail.fullName,
           ownerLabel: `${t('driver.primaryCity')}: ${detail.primaryCity}`,
           defaultCategory: detail.driverCategory,
           exactDailyRate: detail.dailyRateRwf,
+          bookedRanges,
         }}
       />
     </main>

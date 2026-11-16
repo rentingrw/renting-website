@@ -4,7 +4,8 @@ import { useAuth, useUser } from '@clerk/nextjs';
 import { Camera } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, usePathname } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { isSupportedLocale, type SupportedLocale } from '@/i18n/routing';
 import {
@@ -17,8 +18,26 @@ import { DashboardHeader } from '@/components/web/dashboard-header';
 import { DashboardNav, resolveDashboardNavKey } from '@/components/web/dashboard-nav';
 import { ImageCropDialog } from '@/components/web/image-crop-dialog';
 import { InitialsAvatar } from '@/components/web/initials-avatar';
+import { buildProviderJoinItems } from '@/lib/provider-join-links';
+
+const JOIN_LABEL: Record<string, string> = {
+  car: 'joinCar',
+  driver: 'joinDriver',
+  taxi: 'joinTaxi',
+  driverManage: 'joinDriverManage',
+  taxiManage: 'joinTaxiManage',
+};
+
+const JOIN_DESC: Record<string, string> = {
+  car: 'joinCarDesc',
+  driver: 'joinDriverDesc',
+  taxi: 'joinTaxiDesc',
+  driverManage: 'joinDriverManageDesc',
+  taxiManage: 'joinTaxiManageDesc',
+};
 
 export default function SettingsPage() {
+  const tSettings = useTranslations('web.app.settings');
   const { getToken } = useAuth();
   const { user: clerkUser } = useUser();
   const params = useParams();
@@ -80,6 +99,11 @@ export default function SettingsPage() {
     }
   }
 
+  const joinLinks = useMemo(
+    () => (profile ? buildProviderJoinItems(locale, profile) : []),
+    [locale, profile],
+  );
+
   if (loading) {
     return (
       <main className="min-h-screen bg-background">
@@ -93,11 +117,6 @@ export default function SettingsPage() {
 
   const inputClass = 'h-10 w-full rounded-xl border border-border bg-white px-3 text-sm font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-brand/20 disabled:bg-muted disabled:text-muted-foreground';
   const labelClass = 'mb-1.5 block text-xs font-black uppercase tracking-wide text-muted-foreground';
-  const joinLinks = [
-    { href: `/${locale}/onboard/car`, label: 'List a car', desc: 'Add a car listing and earn from rentals.' },
-    { href: `/${locale}/onboard/driver`, label: 'Become a Driver', desc: 'Offer professional driving services.' },
-    { href: `/${locale}/onboard/taxi`, label: 'Become a Taxi Driver', desc: 'Get discovered for instant taxi calls.' },
-  ];
 
   return (
     <main className="min-h-screen bg-background">
@@ -209,23 +228,39 @@ export default function SettingsPage() {
 
         <div className="border border-border bg-card shadow-card">
           <div className="border-b-2 border-border px-6 py-4">
-            <h2 className="text-sm font-black uppercase tracking-wide text-foreground">Join as</h2>
+            <h2 className="text-sm font-black uppercase tracking-wide text-foreground">{tSettings('joinAsTitle')}</h2>
           </div>
           <div className="space-y-3 p-6">
-            <p className="text-sm font-medium text-muted-foreground">
-              Hosting, driving, and taxi work use their own onboarding — not a role switch in Settings.
-            </p>
+            <div className="rounded-xl border border-border bg-muted/30 px-4 py-3">
+              <p className="text-xs font-bold uppercase tracking-wide text-foreground">{tSettings('providerLimitsTitle')}</p>
+              <p className="mt-1 text-sm font-medium text-muted-foreground">{tSettings('providerLimitsBody')}</p>
+            </div>
             {joinLinks.map((item) => (
               <Link
-                key={item.href}
+                key={item.href + item.labelKey}
                 href={item.href}
-                className="flex items-center justify-between rounded-2xl border border-border bg-card p-4 shadow-soft-sm transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none"
+                className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-card p-4 shadow-soft-sm transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none"
               >
-                <div>
-                  <p className="font-black text-foreground">{item.label}</p>
-                  <p className="mt-0.5 text-xs font-medium text-muted-foreground">{item.desc}</p>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-black text-foreground">{tSettings(JOIN_LABEL[item.labelKey])}</p>
+                    <span
+                      className={`rounded border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                        item.limitKey === 'multiple'
+                          ? 'border-brand/40 bg-brand-soft text-brand'
+                          : 'border-border bg-muted text-muted-foreground'
+                      }`}
+                    >
+                      {item.limitKey === 'multiple'
+                        ? tSettings('providerLimitMultiple')
+                        : tSettings('providerLimitSingle')}
+                    </span>
+                  </div>
+                  <p className="mt-0.5 text-xs font-medium text-muted-foreground">
+                    {tSettings(JOIN_DESC[item.descKey])}
+                  </p>
                 </div>
-                <span className="text-sm font-black text-brand">→</span>
+                <span className="shrink-0 text-sm font-black text-brand">→</span>
               </Link>
             ))}
           </div>
