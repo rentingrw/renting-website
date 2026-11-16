@@ -51,7 +51,7 @@
       "cancel": "Cancel",
       "title": "Book",
       "titleInstant": "Book",
-      "subtitle": "We confirm, then share the contact.",
+      "subtitle": "Our team confirms with the owner or driver, then contacts you by phone or SMS.",
       "subtitleInstant": "Books now. Contact is shown right away.",
       "validation": "Dates, pickup, and phone are required.",
       "signInRequired": "Sign in to continue.",
@@ -60,11 +60,14 @@
       "end": "End",
       "pickup": "Pickup",
       "dropoff": "Dropoff (optional)",
-      "phone": "Phone",
+      "phone": "Phone for callback",
       "phoneHint": "So we can confirm",
       "phoneRequired": "Enter a valid phone number.",
-      "specialRequest": "Note (optional)",
-      "specialRequestPlaceholder": "Anything we should know?",
+      "contactSection": "Your contact details",
+      "contactSectionHint": "We use these to confirm your trip and call you back if needed.",
+      "emailOnAccount": "Email on your account",
+      "specialRequest": "Additional notes (optional)",
+      "specialRequestPlaceholder": "Passengers, luggage, preferred call time, or other details for our team.",
       "messageOptional": "Note (optional)",
       "estimated": "Estimate",
       "countdownNote": "We're confirming. Contact comes by SMS and email.",
@@ -190,9 +193,31 @@
       "discoveryBulletDrivers": "Professional drivers",
       "featuredCars": "Cars",
       "viewAll": "More",
+      "careersOpenRoles": "Open roles",
+      "viewCareers": "All careers",
       "listWithUs": "List with us",
       "priceUnavailable": "On request",
-      "trustTier": "Trust"
+      "trustTier": "Trust",
+      "complaint": {
+        "title": "Have a complaint?",
+        "subtitle": "Tell us what went wrong. Our team reviews every message and may call you for more details.",
+        "callYou": "Include a phone number we can reach you on.",
+        "name": "Your name",
+        "namePlaceholder": "Full name",
+        "phone": "Phone number",
+        "emailOptional": "Email (optional)",
+        "message": "Your complaint",
+        "messagePlaceholder": "What happened, when, and what you need from us…",
+        "submit": "Submit complaint",
+        "validation": "Enter your name, a valid phone number, and at least 10 characters about the issue.",
+        "submitFailed": "Could not send. Please try again.",
+        "success": "Thank you. We received your complaint and will contact you if we need more information."
+      }
+    },
+    "careers": {
+      "posted": "Posted {when}",
+      "applyBy": "Apply by {when}",
+      "openUntilFilled": "Open until filled"
     },
     "tabs": {
       "all": "All",
@@ -386,6 +411,14 @@
         "leaveReview": "Leave review",
         "openChat": "Open chat",
         "send": "Send"
+      },
+      "marketplaceVisibility": {
+        "ariaLabel": "Marketplace visibility",
+        "active": "Available",
+        "booked": "Booked",
+        "inactive": "Hidden",
+        "hint": "Booked or hidden listings are removed from public search until you mark them available again.",
+        "sectionTitle": "Availability on site"
       },
       "cars": {
         "newListing": "New listing",

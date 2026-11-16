@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { CarsModule } from '../cars/cars.module';
+import { ComplaintsModule } from '../complaints/complaints.module';
 import { DisputesModule } from '../disputes/disputes.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { TrustScoreModule } from '../trust-score/trust-score.module';
@@ -13,7 +14,16 @@ import { BannersPublicController } from './banners-public.controller';
 import { JobsPublicController } from './jobs-public.controller';
 
 @Module({
-  imports: [CarsModule, TrustScoreModule, DisputesModule, NotificationsModule, UsersModule, BookingsModule, DriverBookingsModule],
+  imports: [
+    CarsModule,
+    TrustScoreModule,
+    ComplaintsModule,
+    DisputesModule,
+    NotificationsModule,
+    UsersModule,
+    BookingsModule,
+    DriverBookingsModule,
+  ],
   controllers: [AdminController, BannersPublicController, JobsPublicController],
   providers: [AdminService],
   exports: [AdminService],

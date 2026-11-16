@@ -16,6 +16,9 @@ import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nes
 import { memoryStorage } from 'multer';
 
 import { AdminJwtGuard } from '../auth/guards/admin-jwt.guard';
+import { ComplaintsService } from '../complaints/complaints.service';
+import { ListSiteComplaintsQueryDto } from '../complaints/dto/list-site-complaints.query.dto';
+import { UpdateSiteComplaintNotesDto } from '../complaints/dto/update-site-complaint.dto';
 import { DismissDisputeDto } from '../disputes/dto/dismiss-dispute.dto';
 import { ResolveDisputeDto } from '../disputes/dto/resolve-dispute.dto';
 import { CarsService } from '../cars/cars.service';
@@ -38,6 +41,7 @@ import { AdminCreateCarDto } from './dto/admin-create-car.dto';
 import { AdminCreateDriverDto } from './dto/admin-create-driver.dto';
 import { AdminSetTaxiStatusDto } from './dto/admin-set-taxi-status.dto';
 import { CreatePromoCodeDto, UpdatePromoCodeDto } from './dto/promo-code.dto';
+import { ListJobApplicationsQueryDto } from './dto/list-job-applications.query.dto';
 import { CreateJobOpeningDto, UpdateJobOpeningDto } from './dto/job-opening.dto';
 
 @ApiTags('Admin')
@@ -47,6 +51,7 @@ import { CreateJobOpeningDto, UpdateJobOpeningDto } from './dto/job-opening.dto'
 export class AdminController {
   constructor(
     private readonly adminService: AdminService,
+    private readonly complaintsService: ComplaintsService,
     private readonly usersService: UsersService,
     private readonly carsService: CarsService,
     private readonly imageUploadService: ImageUploadService,
@@ -213,6 +218,15 @@ export class AdminController {
     return this.adminService.approveDriver(driverProfileId);
   }
 
+  @Patch('drivers/:id/marketplace-status')
+  @ApiOperation({ summary: 'Set driver visibility in search: active, inactive, or booked' })
+  setDriverMarketplaceStatus(
+    @Param('id') driverProfileId: string,
+    @Body() payload: AdminSetListingStatusDto,
+  ) {
+    return this.adminService.setDriverMarketplaceVisibility(driverProfileId, payload.status);
+  }
+
   @Post('drivers/:id/reject')
   @ApiOperation({ summary: 'Reject a pending driver application' })
   rejectDriver(@Param('id') driverProfileId: string, @Body() payload: RejectListingDto) {
@@ -302,8 +316,26 @@ export class AdminController {
     return this.adminService.deletePromoCode(id);
   }
 
+  @Get('complaints/site')
+  @ApiOperation({ summary: 'List public website complaints' })
+  listSiteComplaints(@Query() query: ListSiteComplaintsQueryDto) {
+    return this.complaintsService.listForAdmin(query);
+  }
+
+  @Post('complaints/site/:id/resolve')
+  @ApiOperation({ summary: 'Mark a site complaint as resolved' })
+  resolveSiteComplaint(@Param('id') id: string, @Body() body: UpdateSiteComplaintNotesDto) {
+    return this.complaintsService.resolve(id, body.adminNotes);
+  }
+
+  @Post('complaints/site/:id/dismiss')
+  @ApiOperation({ summary: 'Dismiss a site complaint' })
+  dismissSiteComplaint(@Param('id') id: string, @Body() body: UpdateSiteComplaintNotesDto) {
+    return this.complaintsService.dismiss(id, body.adminNotes);
+  }
+
   @Get('disputes')
-  @ApiOperation({ summary: 'List all disputes with optional filters and pagination' })
+  @ApiOperation({ summary: 'List all booking disputes with optional filters and pagination' })
   listDisputes(@Query() query: ListDisputesQueryDto) {
     return this.adminService.listDisputes(query);
   }
@@ -415,6 +447,12 @@ export class AdminController {
   @ApiOperation({ summary: 'List job openings' })
   listJobOpenings() {
     return this.adminService.listJobOpenings();
+  }
+
+  @Get('job-applications')
+  @ApiOperation({ summary: 'List careers applications submitted from the website' })
+  listJobApplications(@Query() query: ListJobApplicationsQueryDto) {
+    return this.adminService.listJobApplications(query);
   }
 
   @Post('jobs')

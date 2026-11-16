@@ -29,7 +29,10 @@ import {
   markBookingComplete,
   patchLanguagePreference,
   setCarListingStatus,
+  setDriverMarketplaceStatus,
+  setTaxiDriverStatus,
   type CarMarketplaceVisibility,
+  type MarketplaceVisibility,
   publishCar,
   syncUser,
   updateCarListing,
@@ -557,6 +560,28 @@ export default function AppPage({ params }: AppPageProps) {
     });
   }
 
+  async function changeDriverMarketplaceStatus(status: MarketplaceVisibility) {
+    await withToken(async (token) => {
+      try {
+        const updated = await setDriverMarketplaceStatus(token, status);
+        setDriverProfileFull(updated);
+      } catch (toggleError) {
+        setError(toggleError instanceof Error ? toggleError.message : 'Unable to update driver visibility.');
+      }
+    });
+  }
+
+  async function changeTaxiMarketplaceStatus(status: MarketplaceVisibility) {
+    await withToken(async (token) => {
+      try {
+        const updated = await setTaxiDriverStatus(token, status);
+        setTaxiProfile(updated);
+      } catch (toggleError) {
+        setError(toggleError instanceof Error ? toggleError.message : 'Unable to update taxi visibility.');
+      }
+    });
+  }
+
   async function changeCarMarketplaceStatus(car: OwnerCar, status: CarMarketplaceVisibility) {
     await withToken(async (token) => {
       try {
@@ -723,6 +748,10 @@ export default function AppPage({ params }: AppPageProps) {
                 }
               : undefined
           }
+          canSetCarVisibility={canPickMarketplaceStatus}
+          onCarVisibilityChange={(car, next) => void changeCarMarketplaceStatus(car, next)}
+          onDriverVisibilityChange={(next) => void changeDriverMarketplaceStatus(next)}
+          onTaxiVisibilityChange={(next) => void changeTaxiMarketplaceStatus(next)}
         />
       ) : null}
 

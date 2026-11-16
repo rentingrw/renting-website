@@ -10,7 +10,7 @@ import { InitialsAvatar } from '@/components/web/initials-avatar';
 import { ShareMenu } from '@/components/web/share-menu';
 import { listingActionChrome } from '@/components/web/listing-action-chrome';
 import type { SearchDriver } from '@/lib/api';
-import { formatCurrencyRwf, formatRange } from '@/lib/format';
+import { formatPublicDailyRateRwf } from '@/lib/format';
 import type { SupportedLocale } from '@/i18n/routing';
 import type { ListingCardSize } from '@/components/web/car-listing-card';
 
@@ -33,11 +33,10 @@ export function DriverListingCard({
 }: DriverListingCardProps) {
   const t = useTranslations('web.listing');
   const href = `/${locale}/drivers/${driver.id}`;
-  const price = driver.dailyRateRwf
-    ? formatCurrencyRwf(driver.dailyRateRwf)
-    : driver.approximateRateRangeRwf
-      ? formatRange(driver.approximateRateRangeRwf.daily.min, driver.approximateRateRangeRwf.daily.max)
-      : null;
+  const price = formatPublicDailyRateRwf(
+    driver.dailyRateRwf,
+    driver.approximateRateRangeRwf?.daily.min,
+  );
   const booked = Boolean(driver.isBookedNow);
   const categoryLine =
     (driver.categories?.length || driver.driverCategory)
@@ -106,9 +105,15 @@ export function DriverListingCard({
 
         <div className={`mt-auto flex items-end justify-between gap-3 ${medium ? 'px-3 py-2.5' : 'px-4 py-3'}`}>
           <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">{t('perDay')}</p>
-            <p className={`font-black text-ink ${medium ? 'text-base' : 'text-lg'}`}>
-              {price ?? t('priceOnRequest')}
+            <p className={`font-black tabular-nums text-ink ${medium ? 'text-base' : 'text-lg'}`}>
+              {price ? (
+                <>
+                  {price}
+                  <span className="ml-1 text-sm font-semibold text-muted-foreground">/ {t('perDay')}</span>
+                </>
+              ) : (
+                t('priceOnRequest')
+              )}
             </p>
           </div>
         </div>

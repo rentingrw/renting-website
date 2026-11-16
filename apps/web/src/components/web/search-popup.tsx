@@ -14,7 +14,7 @@ import {
   type SearchType,
 } from '@/lib/api';
 import { formatSearchCarDailyPrice } from '@/lib/car-listing-price';
-import { formatCurrencyRwf, formatRange } from '@/lib/format';
+import { formatPublicDailyRateRwf } from '@/lib/format';
 import { stockImages } from '@/lib/stock-images';
 import type { SupportedLocale } from '@/i18n/routing';
 import { InitialsAvatar } from '@/components/web/initials-avatar';
@@ -243,15 +243,12 @@ export function SearchPopup({ open, onOpenChange, locale }: SearchPopupProps) {
                             {driver.primaryCity} • {driver.categories.slice(0, 2).join(' • ')}
                           </p>
                           <span className="mt-1 text-sm font-medium text-brand">
-                              {driver.dailyRateRwf
-                                ? formatCurrencyRwf(driver.dailyRateRwf)
-                                : driver.approximateRateRangeRwf
-                                  ? formatRange(
-                                      driver.approximateRateRangeRwf.daily.min,
-                                      driver.approximateRateRangeRwf.daily.max,
-                                    )
-                                  : t('home.priceUnavailable')}
-                            </span>
+                            {formatPublicDailyRateRwf(
+                              driver.dailyRateRwf,
+                              driver.approximateRateRangeRwf?.daily.min,
+                            ) ?? t('home.priceUnavailable')}
+                            <span className="font-normal text-muted-foreground"> /day</span>
+                          </span>
                         </div>
                       </CardContent>
                     </Card>

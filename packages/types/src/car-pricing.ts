@@ -34,7 +34,7 @@ export function formatCarDailyPriceLabel(input: {
     return formatRwf(input.dailyRateInCityRwf);
   }
   const inCity = pickInCityDailyApproxRange(input.approximateDailyRateRangeRwf);
-  if (inCity) return formatRwfRange(inCity.min, inCity.max);
+  if (inCity) return formatRwf(inCity.min);
   return null;
 }
 

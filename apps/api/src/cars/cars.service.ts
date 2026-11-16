@@ -484,8 +484,6 @@ export class CarsService {
     includeExactRates: boolean,
     extras?: { showContact?: boolean; verified?: boolean; instantBooking?: boolean; isBookedNow?: boolean },
   ) {
-    const inCityDailyApproximation = this.getApproximatePriceRange(listing.dailyRateInCityRwf);
-    const outsideCityDailyApproximation = this.getApproximatePriceRange(listing.dailyRateOutsideCityRwf);
     const showContact = extras?.showContact ?? includeExactRates;
     return {
       id: listing.id,
@@ -517,28 +515,13 @@ export class CarsService {
       priceNegotiable: listing.priceNegotiable,
       createdAt: listing.createdAt,
       updatedAt: listing.updatedAt,
-      ...(includeExactRates
-        ? {
-            dailyRateInCityRwf: listing.dailyRateInCityRwf,
-            dailyRateOutsideCityRwf: listing.dailyRateOutsideCityRwf,
-            weeklyRateInCityRwf: listing.weeklyRateInCityRwf,
-            weeklyRateOutsideCityRwf: listing.weeklyRateOutsideCityRwf,
-            monthlyRateInCityRwf: listing.monthlyRateInCityRwf,
-            monthlyRateOutsideCityRwf: listing.monthlyRateOutsideCityRwf,
-          }
-        : {
-            approximateDailyRateRangeRwf: {
-              inCity: inCityDailyApproximation,
-              outsideCity: outsideCityDailyApproximation,
-            },
-          }),
+      dailyRateInCityRwf: listing.dailyRateInCityRwf,
+      dailyRateOutsideCityRwf: listing.dailyRateOutsideCityRwf,
+      weeklyRateInCityRwf: listing.weeklyRateInCityRwf,
+      weeklyRateOutsideCityRwf: listing.weeklyRateOutsideCityRwf,
+      monthlyRateInCityRwf: listing.monthlyRateInCityRwf,
+      monthlyRateOutsideCityRwf: listing.monthlyRateOutsideCityRwf,
     };
-  }
-
-  private getApproximatePriceRange(rate: number) {
-    const min = Math.max(1000, Math.floor(rate * 0.9));
-    const max = Math.max(min, Math.ceil(rate * 1.1));
-    return { min, max };
   }
 
   private async requireCarOwner(clerkUserId: string): Promise<User> {

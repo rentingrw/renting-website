@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useParams, usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
+  BarChart3,
   BookOpen,
   Briefcase,
   Car,
@@ -26,9 +27,10 @@ const ITEMS = [
   { href: '/drivers', label: 'Drivers', icon: UserCheck },
   { href: '/taxis', label: 'Taxi', icon: Truck },
   { href: '/users', label: 'Users', icon: Users },
-  { href: '/disputes', label: 'Disputes', icon: MessageSquareWarning },
+  { href: '/complaints', label: 'Complaints', icon: MessageSquareWarning },
   { href: '/bookings', label: 'Booking desk', icon: BookOpen },
   { href: '/jobs', label: 'Careers', icon: Briefcase },
+  { href: '/analytics', label: 'Analytics', icon: BarChart3 },
 ];
 
 export function AdminNav() {

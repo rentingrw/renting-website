@@ -44,12 +44,23 @@ export class NotificationsService {
     });
   }
 
-  async sendCareersApplication(subject: string, text: string) {
+  async sendCareersApplication(subject: string, text: string, html?: string) {
     if (!process.env.RESEND_API_KEY?.trim()) {
       throw new Error('Email is not configured.');
     }
     const adminEmail = process.env.ADMIN_ALERT_EMAIL?.trim() || 'renting.rw@gmail.com';
-    await this.sendEmailToAddresses([adminEmail], subject, text);
+    await this.sendEmailToAddresses([adminEmail], subject, text, html);
+  }
+
+  /** Queues admin alert for a new careers application (non-blocking). Returns false if email is not configured. */
+  queueCareersApplicationAlert(subject: string, text: string, html: string): boolean {
+    if (!process.env.RESEND_API_KEY?.trim()) {
+      this.logger.warn('Resend API key missing; careers application saved but admin email was not sent.');
+      return false;
+    }
+    const adminEmail = process.env.ADMIN_ALERT_EMAIL?.trim() || 'renting.rw@gmail.com';
+    this.queueEmailToAddresses([adminEmail], subject, text, html);
+    return true;
   }
 
   queueSmsToPhones(phones: string[], message: string) {

@@ -1,3 +1,5 @@
+import type { BookingDeskRequestEmailInput } from './booking-desk-alert.util';
+
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://renting.rw';
 
 const TEAL = '#0d9488';
@@ -249,31 +251,31 @@ export function bookingConfirmedEmailHtml(
   return layout('Booking Confirmed — renting.rw', body);
 }
 
-export function bookingDeskRequestEmailHtml(
-  title: string,
-  renterName: string,
-  renterPhone: string,
-  startDate: Date,
-  endDate: Date,
-  pickup: string,
-  notes?: string | null,
-): string {
+export function bookingDeskRequestEmailHtml(input: BookingDeskRequestEmailInput): string {
   const fmt = (d: Date) => d.toLocaleString('en-RW', { dateStyle: 'medium', timeStyle: 'short' });
+  const kindLabel = input.kind === 'car' ? 'car' : 'driver';
   const body = `
-    ${heading('New booking desk request')}
-    ${paragraph('A Standard booking is waiting. Call the provider, then confirm, reject, or try the next listing.')}
+    ${heading(`New ${kindLabel} booking desk request`)}
+    ${paragraph('Call the client if needed, then call the provider (owner or driver). Mark confirmed in admin when both sides agree.')}
     <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:20px;">
       <tbody>
-        ${infoBox('Service', title)}
-        ${infoBox('Client', renterName)}
-        ${infoBox('Client phone', renterPhone)}
-        ${infoBox('From', fmt(startDate))}
-        ${infoBox('To', fmt(endDate))}
-        ${infoBox('Pickup', pickup)}
-        ${notes ? infoBox('Special request', notes) : ''}
+        ${infoBox('Service', input.title)}
+        ${input.assetDetail ? infoBox(input.kind === 'car' ? 'Vehicle' : 'Driver', input.assetDetail) : ''}
+        ${infoBox('Client', input.renterName)}
+        ${infoBox('Client phone', input.renterPhone)}
+        ${input.renterEmail ? infoBox('Client email', input.renterEmail) : ''}
+        ${infoBox('Provider', input.providerName)}
+        ${input.providerPhone ? infoBox('Provider phone', input.providerPhone) : ''}
+        ${input.providerWhatsapp ? infoBox('Provider WhatsApp', input.providerWhatsapp) : ''}
+        ${infoBox('From', fmt(input.startDate))}
+        ${infoBox('To', fmt(input.endDate))}
+        ${infoBox('Pickup', input.pickup)}
+        ${input.dropoff ? infoBox('Drop-off', input.dropoff) : ''}
+        ${typeof input.amountRwf === 'number' ? infoBox('Estimate (RWF)', input.amountRwf.toLocaleString('en-RW')) : ''}
+        ${input.notes ? infoBox('Client notes', input.notes) : ''}
       </tbody>
     </table>
-    ${button('Open booking desk', `${process.env.NEXT_PUBLIC_ADMIN_URL ?? 'http://localhost:3002'}/en/bookings`)}
+    ${button('Open booking desk', `${process.env.NEXT_PUBLIC_ADMIN_URL ?? 'http://localhost:3002'}/en/bookings?status=pending`)}
   `;
   return layout('Booking desk request — renting.rw', body);
 }

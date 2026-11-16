@@ -6,6 +6,7 @@ import {
   DriverProfileStatus,
   Language,
   ListingStatus,
+  MarketplaceVisibility,
   PaymentMethod,
   Prisma,
   RoleType,
@@ -18,6 +19,7 @@ import { createClerkClient } from '@clerk/backend';
 import { randomUUID } from 'node:crypto';
 
 import { prisma } from '../database/prisma';
+import type { MarketplaceVisibilityStatus } from '../common/dto/marketplace-visibility.dto';
 import { resolveListingCity } from '../common/listing-city.util';
 import { BookingsService } from '../bookings/bookings.service';
 import { DriverBookingsService } from '../driver-bookings/driver-bookings.service';
@@ -42,6 +44,19 @@ import {
 } from '../notifications/email-templates';
 import { normalizePromoCode } from '../subscriptions/promo-code.util';
 import type { CreatePromoCodeDto, UpdatePromoCodeDto } from './dto/promo-code.dto';
+import {
+  assertJobAcceptingApplications,
+  parseJobApplicationDeadline,
+  publicJobOpeningWhere,
+  serializePublicJobOpening,
+} from './job-opening.util';
+import {
+  adminCareersApplicationsUrl,
+  formatCarListingDeskDetail,
+  formatDriverDeskDetail,
+} from '../notifications/booking-desk-alert.util';
+import { careersApplicationEmailHtml } from '../notifications/careers-application-email';
+import type { ListJobApplicationsQueryDto } from './dto/list-job-applications.query.dto';
 import type { ApplyJobDto, CreateJobOpeningDto, UpdateJobOpeningDto } from './dto/job-opening.dto';
 import type { ListDriversQueryDto } from './dto/list-drivers.query.dto';
 import type { AdminCreateCarDto } from './dto/admin-create-car.dto';
@@ -86,6 +101,7 @@ export class AdminService {
       totalUsers,
       usersByRole,
       openDisputesCount,
+      openSiteComplaintsCount,
       openDisputes,
       carActiveToday,
       driverActiveToday,
@@ -101,6 +117,9 @@ export class AdminService {
       }),
       prisma.dispute.count({
         where: { status: { in: OPEN_DISPUTE_STATUSES } },
+      }),
+      prisma.siteComplaint.count({
+        where: { status: 'open' },
       }),
       prisma.dispute.findMany({
         where: { status: { in: OPEN_DISPUTE_STATUSES } },
@@ -160,6 +179,8 @@ export class AdminService {
         })),
         activeBookingsToday: carActiveToday + driverActiveToday,
         openDisputes: openDisputesCount,
+        openSiteComplaints: openSiteComplaintsCount,
+        openComplaints: openDisputesCount + openSiteComplaintsCount,
         monthlySubscriptionRevenueRwf: subscriptionRevenueAggregate._sum.amountRwf ?? 0,
         pendingDeskCarBookings: pendingCarDesk,
         pendingDeskDriverBookings: pendingDriverDesk,
@@ -233,15 +254,13 @@ export class AdminService {
       }),
     ]);
 
-    const platformAdminFlags = await Promise.all(
-      users.map((user) => (user.clerkId ? this.userHasClerkAdminRole(user.clerkId) : Promise.resolve(false))),
-    );
+    const adminClerkIds = await this.clerkAdminClerkIds();
 
     return {
       page,
       pageSize,
       total,
-      items: users.map((user, index) => ({
+      items: users.map((user) => ({
         id: user.id,
         email: user.email,
         phone: user.phone,
@@ -254,7 +273,7 @@ export class AdminService {
         trustTier: this.deriveTrustTier(Number(user.trustScore)),
         createdAt: user.createdAt,
         hasClerkAccount: Boolean(user.clerkId),
-        isPlatformAdmin: platformAdminFlags[index] ?? false,
+        isPlatformAdmin: Boolean(user.clerkId && adminClerkIds.has(user.clerkId)),
         bookingCount:
           user._count.carBookingsAsOwner +
           user._count.carBookingsAsRenter +
@@ -751,9 +770,21 @@ export class AdminService {
         : prisma.carBooking.findMany({
             where: carWhere,
             include: {
-              listing: { select: { id: true, title: true } },
+              listing: {
+                select: {
+                  id: true,
+                  title: true,
+                  brand: true,
+                  model: true,
+                  year: true,
+                  plateNumber: true,
+                  listingCity: true,
+                  vehicleType: true,
+                  locationText: true,
+                },
+              },
               owner: { select: { id: true, fullName: true, phone: true, whatsapp: true } },
-              renter: { select: { id: true, fullName: true, phone: true } },
+              renter: { select: { id: true, fullName: true, phone: true, email: true } },
             },
             orderBy: { createdAt: 'desc' },
             take: 500,
@@ -763,8 +794,16 @@ export class AdminService {
         : prisma.driverBooking.findMany({
             where: driverWhere,
             include: {
-              driver: { select: { id: true, fullName: true, phone: true, whatsapp: true } },
-              renter: { select: { id: true, fullName: true, phone: true } },
+              driver: {
+                select: {
+                  id: true,
+                  fullName: true,
+                  phone: true,
+                  whatsapp: true,
+                  driverProfile: { select: { id: true, primaryCity: true, driverCategory: true } },
+                },
+              },
+              renter: { select: { id: true, fullName: true, phone: true, email: true } },
             },
             orderBy: { createdAt: 'desc' },
             take: 500,
@@ -781,12 +820,17 @@ export class AdminService {
         endsAt: booking.endDate,
         createdAt: booking.createdAt,
         pickupAddress: booking.pickupAddress,
+        dropoffAddress: null,
         notes: booking.notes,
         renterPhone: booking.renterPhone || booking.renter.phone,
+        renterEmail: booking.renter.email,
         isInstant: booking.isInstant,
         fulfillment: booking.isInstant ? 'instant' : 'standard',
         ownerOrDriver: booking.owner,
         renter: booking.renter,
+        listingId: booking.listing.id,
+        assetId: booking.listing.id,
+        assetDetail: formatCarListingDeskDetail(booking.listing),
         summary: booking.listing.title,
         service: booking.listing.title,
       })),
@@ -799,12 +843,17 @@ export class AdminService {
         endsAt: booking.endAt,
         createdAt: booking.createdAt,
         pickupAddress: booking.pickupAddress,
+        dropoffAddress: booking.dropoffAddress,
         notes: booking.notes,
         renterPhone: booking.renterPhone || booking.renter.phone,
+        renterEmail: booking.renter.email,
         isInstant: booking.isInstant,
         fulfillment: booking.isInstant ? 'instant' : 'standard',
         ownerOrDriver: booking.driver,
         renter: booking.renter,
+        listingId: null,
+        assetId: booking.driver.driverProfile?.id ?? null,
+        assetDetail: formatDriverDeskDetail(booking.driver.fullName, booking.driver.driverProfile),
         summary: booking.serviceType,
         service: booking.serviceType,
       })),
@@ -1637,15 +1686,43 @@ export class AdminService {
     return { expired: stale.length };
   }
 
-  private async userHasClerkAdminRole(clerkId: string): Promise<boolean> {
+  private normalizeExternalApplyUrl(value?: string | null): string | null {
+    if (value == null) return null;
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    try {
+      const parsed = new URL(trimmed);
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        throw new Error('invalid protocol');
+      }
+      return parsed.toString();
+    } catch {
+      throw new BadRequestException('External apply link must be a valid http or https URL.');
+    }
+  }
+
+  /** One paginated Clerk scan per request instead of one API call per user row. */
+  private async clerkAdminClerkIds(): Promise<Set<string>> {
     const secretKey = process.env.CLERK_SECRET_KEY;
-    if (!secretKey) return false;
+    if (!secretKey) return new Set();
     try {
       const clerk = createClerkClient({ secretKey });
-      const clerkUser = await clerk.users.getUser(clerkId);
-      return clerkUser.publicMetadata?.role === 'admin';
+      const adminIds = new Set<string>();
+      const limit = 100;
+      let offset = 0;
+      for (let page = 0; page < 10; page += 1) {
+        const batch = await clerk.users.getUserList({ limit, offset });
+        for (const clerkUser of batch.data) {
+          if (clerkUser.publicMetadata?.role === 'admin') {
+            adminIds.add(clerkUser.id);
+          }
+        }
+        if (batch.data.length < limit) break;
+        offset += limit;
+      }
+      return adminIds;
     } catch {
-      return false;
+      return new Set();
     }
   }
 
@@ -1823,11 +1900,21 @@ export class AdminService {
   }
 
   async listActiveJobOpenings() {
-    return prisma.jobOpening.findMany({
-      where: { isActive: true },
+    const rows = await prisma.jobOpening.findMany({
+      where: publicJobOpeningWhere(),
       orderBy: { createdAt: 'desc' },
-      select: { id: true, title: true, employmentType: true, location: true, description: true },
+      select: {
+        id: true,
+        title: true,
+        employmentType: true,
+        location: true,
+        description: true,
+        externalApplyUrl: true,
+        applicationDeadline: true,
+        createdAt: true,
+      },
     });
+    return rows.map(serializePublicJobOpening);
   }
 
   async createJobOpening(data: CreateJobOpeningDto) {
@@ -1837,6 +1924,8 @@ export class AdminService {
         employmentType: data.employmentType.trim(),
         location: data.location.trim(),
         description: data.description.trim(),
+        externalApplyUrl: this.normalizeExternalApplyUrl(data.externalApplyUrl),
+        applicationDeadline: parseJobApplicationDeadline(data.applicationDeadline),
         isActive: data.isActive ?? true,
       },
     });
@@ -1853,6 +1942,12 @@ export class AdminService {
         ...(data.location !== undefined ? { location: data.location.trim() } : {}),
         ...(data.description !== undefined ? { description: data.description.trim() } : {}),
         ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),
+        ...(data.externalApplyUrl !== undefined
+          ? { externalApplyUrl: this.normalizeExternalApplyUrl(data.externalApplyUrl) }
+          : {}),
+        ...(data.applicationDeadline !== undefined
+          ? { applicationDeadline: parseJobApplicationDeadline(data.applicationDeadline) }
+          : {}),
       },
     });
   }
@@ -1864,36 +1959,124 @@ export class AdminService {
     return { success: true };
   }
 
+  async listJobApplications(query: ListJobApplicationsQueryDto) {
+    const page = query.page ?? 1;
+    const pageSize = query.pageSize ?? 20;
+    const where: Prisma.JobApplicationWhereInput = query.jobOpeningId
+      ? { jobOpeningId: query.jobOpeningId }
+      : {};
+
+    const [total, rows] = await Promise.all([
+      prisma.jobApplication.count({ where }),
+      prisma.jobApplication.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: {
+          jobOpening: { select: { id: true, title: true } },
+        },
+      }),
+    ]);
+
+    return {
+      page,
+      pageSize,
+      total,
+      items: rows.map((row) => ({
+        id: row.id,
+        roleTitle: row.roleTitle,
+        jobOpeningId: row.jobOpeningId,
+        jobTitle: row.jobOpening?.title ?? null,
+        fullName: row.fullName,
+        email: row.email,
+        phone: row.phone,
+        message: row.message,
+        createdAt: row.createdAt,
+      })),
+    };
+  }
+
   async applyToJob(jobId: string | null, payload: ApplyJobDto) {
     let role = 'Open application';
     if (jobId) {
-      const job = await prisma.jobOpening.findFirst({ where: { id: jobId, isActive: true } });
+      const job = await prisma.jobOpening.findFirst({
+        where: { AND: [{ id: jobId }, publicJobOpeningWhere()] },
+      });
       if (!job) throw new NotFoundException('This job is no longer open.');
+      if (job.externalApplyUrl) {
+        throw new BadRequestException('This role uses an external application link. Apply on the careers page.');
+      }
+      assertJobAcceptingApplications(job.applicationDeadline);
       role = job.title;
     }
 
-    const subject = (jobId ? `Application: ${role}` : 'Open application').replace(/[\r\n]+/g, ' ');
+    const fullName = payload.fullName.trim();
+    const email = payload.email.trim();
+    const phone = payload.phone.trim();
+    const message = payload.message.trim();
+
+    const application = await prisma.jobApplication.create({
+      data: {
+        jobOpeningId: jobId,
+        roleTitle: role,
+        fullName,
+        email,
+        phone,
+        message,
+      },
+    });
+
+    const subject = (jobId ? `Application: ${role}` : 'Open application — Renting.rw').replace(/[\r\n]+/g, ' ');
     const text = [
+      `New careers application on renting.rw`,
+      ``,
       `Role: ${role}`,
-      `Name: ${payload.fullName.trim()}`,
-      `Email: ${payload.email.trim()}`,
-      `Phone: ${payload.phone.trim()}`,
-      '',
-      payload.message.trim(),
+      `Name: ${fullName}`,
+      `Email: ${email}`,
+      `Phone: ${phone}`,
+      ``,
+      message,
+      ``,
+      `Application ID: ${application.id}`,
     ].join('\n');
 
-    try {
-      await this.notificationsService.sendCareersApplication(subject, text);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Could not send the application.';
-      throw new ServiceUnavailableException(
-        message === 'Email is not configured.'
-          ? 'Applications by email are temporarily unavailable.'
-          : 'Could not send the application email. Try again in a moment.',
-      );
-    }
+    const adminApplicationsUrl = adminCareersApplicationsUrl();
+    const html = careersApplicationEmailHtml({
+      roleTitle: role,
+      fullName,
+      email,
+      phone,
+      message,
+      applicationId: application.id,
+      adminApplicationsUrl,
+    });
 
-    return { sent: true };
+    const whatsappText = [
+      'New careers application',
+      '',
+      role,
+      `Name: ${fullName}`,
+      `Phone: ${phone}`,
+      `Email: ${email}`,
+      '',
+      `Applications: ${adminApplicationsUrl}`,
+    ].join('\n');
+    const smsText = `Careers application: ${fullName} — ${role}. ${phone}. Admin: ${adminApplicationsUrl}`;
+
+    this.notificationsService.queueAdminDeskAlert(subject, text, html, { whatsappText, smsText });
+    this.notificationsService.emitInAppToAdmin(realtimeEvents.careersNewApplication, {
+      applicationId: application.id,
+      jobOpeningId: jobId,
+      roleTitle: role,
+      fullName,
+      email,
+      phone,
+    });
+
+    const emailQueued = Boolean(process.env.RESEND_API_KEY?.trim());
+
+    return { sent: true, applicationId: application.id, emailQueued };
   }
 
   private disputePriority(status: DisputeStatus, createdAt: Date): 'low' | 'medium' | 'high' {
@@ -1947,6 +2130,18 @@ export class AdminService {
       }),
     ]);
     return { page, pageSize, total, items };
+  }
+
+  async setDriverMarketplaceVisibility(driverProfileId: string, target: MarketplaceVisibilityStatus) {
+    const profile = await prisma.driverProfile.findUnique({ where: { id: driverProfileId } });
+    if (!profile) throw new NotFoundException('Driver profile not found.');
+    if (profile.status !== DriverProfileStatus.approved) {
+      throw new BadRequestException('Driver must be approved before changing marketplace visibility.');
+    }
+    return prisma.driverProfile.update({
+      where: { id: driverProfileId },
+      data: { marketplaceVisibility: target as MarketplaceVisibility },
+    });
   }
 
   async setTaxiMarketplaceStatus(taxiId: string, status: TaxiDriverStatus) {

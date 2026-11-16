@@ -60,7 +60,7 @@ export default function AdminDisputeDetailPage() {
     <main className="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
       <header className="flex items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Dispute detail</h1>
+          <h1 className="text-2xl font-bold">Booking complaint detail</h1>
           <p className="text-sm text-muted-foreground">Review booking context, parties, and chat evidence.</p>
         </div>
         <div className="flex gap-2">
@@ -79,8 +79,8 @@ export default function AdminDisputeDetailPage() {
               ⚠ Escalated
             </span>
           )}
-          <Link href={`/${locale}/disputes`} className="rounded-md border px-3 py-2 text-sm hover:bg-muted">
-            Back to disputes
+          <Link href={`/${locale}/complaints`} className="rounded-md border px-3 py-2 text-sm hover:bg-muted">
+            Back to complaints
           </Link>
         </div>
       </header>

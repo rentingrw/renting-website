@@ -60,10 +60,13 @@
       "end": "Rangiza",
       "pickup": "Aho",
       "dropoff": "Aho ugeze (si ngombwa)",
-      "phone": "Telefoni",
+      "phone": "Telefoni yo guhamagara",
       "phoneHint": "Kugira twemeze",
       "phoneRequired": "Andika numero ya telefoni nyayo.",
-      "specialRequest": "Icyitonderwa",
+      "contactSection": "Amakuru yawe yo kutumenyesha",
+      "contactSectionHint": "Tuyakoresha mu kwemeza no kuguhamagara.",
+      "emailOnAccount": "Imeli y' konti yawe",
+      "specialRequest": "Ibindi by' ushaka gutumenyesha",
       "specialRequestPlaceholder": "Ibindi ushaka kuvuga...",
       "messageOptional": "Icyitonderwa",
       "estimated": "Igiciro",
@@ -190,9 +193,31 @@
       "discoveryBulletDrivers": "Abashoferi b'umwuga bafite ibyiciro by'akazi",
       "featuredCars": "Imodoka zatoranyijwe",
       "viewAll": "Byinshi",
+      "careersOpenRoles": "Akazi gahari",
+      "viewCareers": "Akazi byose",
       "listWithUs": "Tanga",
       "priceUnavailable": "Kubaza",
-      "trustTier": "Urwego rw'icyizere"
+      "trustTier": "Urwego rw'icyizere",
+      "complaint": {
+        "title": "Ufite ikibazo?",
+        "subtitle": " Tubwire ikibazo. Dushobora kuguhamagara kugira ngo tumenye byinshi.",
+        "callYou": "Shyiramo numero twakuvugana.",
+        "name": "Amazina",
+        "namePlaceholder": "Amazina yose",
+        "phone": "Telefoni",
+        "emailOptional": "Imeli (ntabwo ari ngombwa)",
+        "message": "Ikibazo cyawe",
+        "messagePlaceholder": "Icyabaye, igihe, n'ibyo ukeneye…",
+        "submit": "Ohereza",
+        "validation": "Andika amazina, telefoni yemewe, n'ibisobanuro byibuze 10.",
+        "submitFailed": "Ntibyashoboye kohereza.",
+        "success": "Murakoze. Twakiriye ubutumwa bwawe."
+      }
+    },
+    "careers": {
+      "posted": "Byashyizweho {when}",
+      "applyBy": "Gusaba mbere ya {when}",
+      "openUntilFilled": "Bifungura kugeza umwanya wuzuye"
     },
     "tabs": {
       "all": "Byose",
@@ -386,6 +411,14 @@
         "leaveReview": "Siga isuzuma",
         "openChat": "Fungura chat",
         "send": "Ohereza"
+      },
+      "marketplaceVisibility": {
+        "ariaLabel": "Kugaragara kuri site",
+        "active": "Birahari",
+        "booked": "Byafashwe",
+        "inactive": "Bihishe",
+        "hint": "Ibyafashwe cyangwa bihishe ntibigaragara mu ishakisha kugeza ubyemeza ukongera kubihari.",
+        "sectionTitle": "Kugaragara kuri site"
       },
       "cars": {
         "newListing": "Listing nshya",

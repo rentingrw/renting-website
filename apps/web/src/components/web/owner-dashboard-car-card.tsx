@@ -6,6 +6,7 @@ import { Button } from '@rentingi/ui';
 
 import { MediaImage } from '@/components/web/media-image';
 import type { CarMarketplaceVisibility, OwnerCar } from '@/lib/api';
+import { MarketplaceVisibilityControl } from '@/components/web/marketplace-visibility-control';
 import { formatCurrencyRwf } from '@/lib/format';
 import { inCityRateLabel } from '@/lib/listing-city';
 import type { SupportedLocale } from '@/i18n/routing';
@@ -109,17 +110,12 @@ export function OwnerDashboardCarRow({
               </Button>
             </>
           ) : null}
-          {canPickMarketplaceStatus ? (
-            <select
-              className="h-8 max-w-[9rem] rounded-md border border-border bg-background px-2 text-xs"
+          {canPickMarketplaceStatus && marketplaceValue ? (
+            <MarketplaceVisibilityControl
+              size="sm"
               value={marketplaceValue}
-              onChange={(e) => onStatusChange(e.target.value as CarMarketplaceVisibility)}
-              aria-label="Listing visibility"
-            >
-              <option value="active">{labels.statusActive}</option>
-              <option value="inactive">{labels.statusInactive}</option>
-              <option value="booked">{labels.statusBooked}</option>
-            </select>
+              onChange={onStatusChange}
+            />
           ) : car.status === 'pending_approval' ? (
             <span className="text-[11px] font-medium text-amber-700">{labels.pendingApproval}</span>
           ) : !statusOnly && (car.status === 'draft' || car.status === 'rejected') ? (

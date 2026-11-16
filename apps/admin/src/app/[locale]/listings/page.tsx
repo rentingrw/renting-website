@@ -278,7 +278,10 @@ export default function AdminListingsPage() {
   const [reviewToken, setReviewToken] = useState<string | null>(null);
 
   const loadListings = useCallback(async () => {
-    if (!isLoaded || !isSignedIn) return;
+    if (!isLoaded || !isSignedIn) {
+      if (isLoaded) setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {

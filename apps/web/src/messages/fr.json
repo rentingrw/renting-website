@@ -60,10 +60,13 @@
       "end": "Fin",
       "pickup": "Lieu",
       "dropoff": "Arrivee (optionnel)",
-      "phone": "Telephone",
+      "phone": "Telephone (rappel)",
       "phoneHint": "Pour confirmer",
       "phoneRequired": "Entrez un numero de telephone valide.",
-      "specialRequest": "Note (optionnel)",
+      "contactSection": "Vos coordonnees",
+      "contactSectionHint": "Nous les utilisons pour confirmer et vous rappeler si besoin.",
+      "emailOnAccount": "E-mail du compte",
+      "specialRequest": "Notes (optionnel)",
       "specialRequestPlaceholder": "Demandes ou instructions particulieres...",
       "messageOptional": "Note (optionnel)",
       "estimated": "Estimation",
@@ -190,9 +193,31 @@
       "discoveryBulletDrivers": "Chauffeurs professionnels avec categories de service",
       "featuredCars": "Voitures en vedette",
       "viewAll": "Plus",
+      "careersOpenRoles": "Postes ouverts",
+      "viewCareers": "Toutes les offres",
       "listWithUs": "Publier",
       "priceUnavailable": "Sur demande",
-      "trustTier": "Niveau de confiance"
+      "trustTier": "Niveau de confiance",
+      "complaint": {
+        "title": "Une plainte ?",
+        "subtitle": "Dites-nous ce qui s'est passe. Notre equipe peut vous rappeler pour en savoir plus.",
+        "callYou": "Indiquez un numero ou nous pouvons vous joindre.",
+        "name": "Votre nom",
+        "namePlaceholder": "Nom complet",
+        "phone": "Telephone",
+        "emailOptional": "E-mail (optionnel)",
+        "message": "Votre plainte",
+        "messagePlaceholder": "Ce qui s'est passe, quand, et ce que vous attendez…",
+        "submit": "Envoyer",
+        "validation": "Nom, telephone valide et au moins 10 caracteres requis.",
+        "submitFailed": "Envoi impossible. Reessayez.",
+        "success": "Merci. Nous avons bien recu votre message."
+      }
+    },
+    "careers": {
+      "posted": "Publie le {when}",
+      "applyBy": "Candidatures avant le {when}",
+      "openUntilFilled": "Ouvert jusqu'a pourvu"
     },
     "tabs": {
       "all": "Tout",
@@ -386,6 +411,14 @@
         "leaveReview": "Laisser un avis",
         "openChat": "Ouvrir le chat",
         "send": "Envoyer"
+      },
+      "marketplaceVisibility": {
+        "ariaLabel": "Visibilité sur le site",
+        "active": "Disponible",
+        "booked": "Réservé",
+        "inactive": "Masqué",
+        "hint": "Réservé ou masqué : l'annonce n'apparaît plus dans la recherche jusqu'à ce que vous la rendiez disponible.",
+        "sectionTitle": "Disponibilité sur le site"
       },
       "cars": {
         "newListing": "Nouvelle annonce",

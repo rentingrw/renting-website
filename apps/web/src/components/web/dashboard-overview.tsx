@@ -7,6 +7,7 @@ import { useTranslations } from 'next-intl';
 import { Button } from '@rentingi/ui';
 
 import { MediaImage } from '@/components/web/media-image';
+import { MarketplaceVisibilityControl, marketplaceVisibilityFromCarStatus, marketplaceVisibilityFromTaxiStatus, type MarketplaceVisibility } from '@/components/web/marketplace-visibility-control';
 import type { DriverProfileFull, MeResponse, OwnerCar, TaxiDriverMe } from '@/lib/api';
 import { formatCurrencyRwf } from '@/lib/format';
 import type { SupportedLocale } from '@/i18n/routing';
@@ -30,6 +31,10 @@ type DashboardOverviewProps = {
   onOpenBookings: () => void;
   onOpenCars: () => void;
   onNewListing?: () => void;
+  onCarVisibilityChange?: (car: OwnerCar, status: MarketplaceVisibility) => void;
+  onDriverVisibilityChange?: (status: MarketplaceVisibility) => void;
+  onTaxiVisibilityChange?: (status: MarketplaceVisibility) => void;
+  canSetCarVisibility?: (car: OwnerCar) => boolean;
 };
 
 function countCarsByBucket(cars: OwnerCar[]) {
@@ -62,6 +67,10 @@ export function DashboardOverview({
   onOpenBookings,
   onOpenCars,
   onNewListing,
+  onCarVisibilityChange,
+  onDriverVisibilityChange,
+  onTaxiVisibilityChange,
+  canSetCarVisibility,
 }: DashboardOverviewProps) {
   const t = useTranslations('web.app.overview');
   const isCarOwner = profile.roles.includes('car_owner');
@@ -223,25 +232,43 @@ export function DashboardOverview({
                     car.photos?.[0] ??
                     stockImages.cars[car.vehicleType as keyof typeof stockImages.cars] ??
                     stockImages.carPlaceholder;
+                  const vis = marketplaceVisibilityFromCarStatus(car.status);
+                  const showVis =
+                    Boolean(vis && onCarVisibilityChange && canSetCarVisibility?.(car));
                   return (
-                    <Link
+                    <div
                       key={car.id}
-                      href={`/${locale}/cars/${car.id}`}
-                      className="flex items-center gap-3 px-4 py-3 hover:bg-muted/40"
+                      className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
                     >
-                      <div className="relative h-12 w-16 shrink-0 overflow-hidden rounded-md bg-muted">
-                        <MediaImage src={photo} alt="" fill className="object-cover" sizes="64px" />
+                      <Link
+                        href={`/${locale}/cars/${car.id}`}
+                        className="flex min-w-0 flex-1 items-center gap-3 rounded-md transition hover:bg-muted/40"
+                      >
+                        <div className="relative h-12 w-16 shrink-0 overflow-hidden rounded-md bg-muted">
+                          <MediaImage src={photo} alt="" fill className="object-cover" sizes="64px" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold text-foreground">{car.title}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {formatCurrencyRwf(car.dailyRateInCityRwf)} / day
+                          </p>
+                        </div>
+                      </Link>
+                      <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
+                        <span
+                          className={`rounded border px-2 py-0.5 text-[10px] font-bold capitalize ${statusBadgeClass(car.status)}`}
+                        >
+                          {formatStatusLabel(car.status)}
+                        </span>
+                        {showVis && vis ? (
+                          <MarketplaceVisibilityControl
+                            size="sm"
+                            value={vis}
+                            onChange={(next) => onCarVisibilityChange!(car, next)}
+                          />
+                        ) : null}
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-foreground">{car.title}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {formatCurrencyRwf(car.dailyRateInCityRwf)} / day
-                        </p>
-                      </div>
-                      <span className={`shrink-0 rounded border px-2 py-0.5 text-[10px] font-bold capitalize ${statusBadgeClass(car.status)}`}>
-                        {formatStatusLabel(car.status)}
-                      </span>
-                    </Link>
+                    </div>
                   );
                 })}
               </div>
@@ -282,6 +309,14 @@ export function DashboardOverview({
                   {formatStatusLabel(driverProfile.status ?? 'draft')}
                 </span>
               </div>
+              {driverProfile.status === 'approved' && onDriverVisibilityChange ? (
+                <div className="mt-4">
+                  <MarketplaceVisibilityControl
+                    value={(driverProfile.marketplaceVisibility as MarketplaceVisibility) ?? 'active'}
+                    onChange={onDriverVisibilityChange}
+                  />
+                </div>
+              ) : null}
               <div className="mt-4 flex flex-wrap gap-2 text-xs text-muted-foreground">
                 <span>{t('driverPending', { count: driverProfile.bookingStats.pending })}</span>
                 <span>·</span>
@@ -330,6 +365,14 @@ export function DashboardOverview({
                 </span>
                 <span className="text-muted-foreground">{taxiProfile.seats} seats</span>
               </p>
+              {onTaxiVisibilityChange && marketplaceVisibilityFromTaxiStatus(taxiProfile.status) ? (
+                <div className="mt-4">
+                  <MarketplaceVisibilityControl
+                    value={marketplaceVisibilityFromTaxiStatus(taxiProfile.status)!}
+                    onChange={onTaxiVisibilityChange}
+                  />
+                </div>
+              ) : null}
             </div>
           ) : (
             <div className="rounded-xl border border-dashed border-border p-6 text-center">

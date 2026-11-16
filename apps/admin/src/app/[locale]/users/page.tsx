@@ -99,7 +99,10 @@ export default function AdminUsersPage() {
   const [actingId, setActingId] = useState<string | null>(null);
 
   const loadUsers = useCallback(async () => {
-    if (!isLoaded || !isSignedIn) return;
+    if (!isLoaded || !isSignedIn) {
+      if (isLoaded) setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {

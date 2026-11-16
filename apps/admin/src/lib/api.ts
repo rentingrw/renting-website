@@ -1,6 +1,7 @@
 'use client';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+const API_TIMEOUT_MS = 20_000;
 
 export type AdminOverview = {
   metrics: {
@@ -8,6 +9,8 @@ export type AdminOverview = {
     usersByRole: Array<{ role: string; count: number }>;
     activeBookingsToday: number;
     openDisputes: number;
+    openSiteComplaints?: number;
+    openComplaints?: number;
     monthlySubscriptionRevenueRwf: number;
     pendingDeskCarBookings: number;
     pendingDeskDriverBookings: number;
@@ -89,12 +92,17 @@ export type AdminBookingItem = {
   endsAt: string;
   createdAt: string;
   pickupAddress?: string | null;
+  dropoffAddress?: string | null;
   notes?: string | null;
   renterPhone?: string | null;
+  renterEmail?: string | null;
   isInstant?: boolean;
   fulfillment?: 'instant' | 'standard';
   ownerOrDriver: { id: string; fullName: string; phone?: string | null; whatsapp?: string | null };
-  renter: { id: string; fullName: string; phone?: string | null };
+  renter: { id: string; fullName: string; phone?: string | null; email?: string | null };
+  listingId?: string | null;
+  assetId?: string | null;
+  assetDetail?: string | null;
   summary: string;
   service?: string;
 };
@@ -194,24 +202,42 @@ async function readError(response: Response, fallbackMessage: string): Promise<n
 }
 
 async function authRequest<T>(token: string, path: string, init?: RequestInit, fallbackMessage?: string): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...init,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      ...(init?.headers ?? {}),
-    },
-    cache: 'no-store',
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
 
-  if (!response.ok) {
-    await readError(response, fallbackMessage ?? 'Request failed.');
-  }
+  try {
+    const response = await fetch(`${API_BASE_URL}${path}`, {
+      ...init,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        ...(init?.headers ?? {}),
+      },
+      cache: 'no-store',
+      signal: controller.signal,
+    });
 
-  const text = await response.text();
-  if (!text) {
-    return undefined as T;
+    if (!response.ok) {
+      await readError(response, fallbackMessage ?? 'Request failed.');
+    }
+
+    const text = await response.text();
+    if (!text) {
+      return undefined as T;
+    }
+    return JSON.parse(text) as T;
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error(
+        `Request timed out after ${API_TIMEOUT_MS / 1000}s. Is the API running at ${API_BASE_URL}?`,
+      );
+    }
+    if (error instanceof TypeError) {
+      throw new Error(`Cannot reach the API at ${API_BASE_URL}. Start it with pnpm dev (port 3001).`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
   }
-  return JSON.parse(text) as T;
 }
 
 export async function getAdminOverview(token: string): Promise<AdminOverview> {
@@ -421,6 +447,66 @@ export async function listAdminBookings(token: string, filters: ListBookingsFilt
   if (filters.pageSize != null) params.set('pageSize', String(filters.pageSize));
   const suffix = params.toString() ? `?${params.toString()}` : '';
   return authRequest<Paginated<AdminBookingItem>>(token, `/admin/bookings${suffix}`, undefined, 'Failed to load bookings.');
+}
+
+export type SiteComplaintItem = {
+  id: string;
+  fullName: string;
+  phone: string;
+  email: string | null;
+  message: string;
+  status: 'open' | 'resolved' | 'dismissed';
+  adminNotes: string | null;
+  resolvedAt: string | null;
+  createdAt: string;
+};
+
+export type ListSiteComplaintsFilters = {
+  openOnly?: boolean;
+  status?: string;
+  page?: number;
+  pageSize?: number;
+};
+
+export async function listAdminSiteComplaints(token: string, filters: ListSiteComplaintsFilters = {}) {
+  const params = new URLSearchParams();
+  if (filters.openOnly != null) params.set('openOnly', String(filters.openOnly));
+  if (filters.status) params.set('status', filters.status);
+  if (filters.page != null) params.set('page', String(filters.page));
+  if (filters.pageSize != null) params.set('pageSize', String(filters.pageSize));
+  const suffix = params.toString() ? `?${params.toString()}` : '';
+  return authRequest<Paginated<SiteComplaintItem>>(
+    token,
+    `/admin/complaints/site${suffix}`,
+    undefined,
+    'Failed to load complaints.',
+  );
+}
+
+export async function resolveSiteComplaint(token: string, id: string, adminNotes?: string) {
+  await authRequest<void>(
+    token,
+    `/admin/complaints/site/${id}/resolve`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ adminNotes }),
+    },
+    'Failed to resolve complaint.',
+  );
+}
+
+export async function dismissSiteComplaint(token: string, id: string, adminNotes?: string) {
+  await authRequest<void>(
+    token,
+    `/admin/complaints/site/${id}/dismiss`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ adminNotes }),
+    },
+    'Failed to dismiss complaint.',
+  );
 }
 
 export type ListDisputesFilters = {
@@ -757,6 +843,7 @@ export type AdminDriverItem = {
   primaryCity: string;
   createdAt: string;
   status?: string;
+  marketplaceVisibility?: string;
   rejectionReason?: string | null;
   submittedAt?: string | null;
   licenseCategories?: string[];
@@ -850,6 +937,23 @@ export async function setAdminTaxiStatus(token: string, taxiId: string, status: 
       body: JSON.stringify({ status }),
     },
     'Failed to update taxi status.',
+  );
+}
+
+export async function setAdminDriverMarketplaceStatus(
+  token: string,
+  driverProfileId: string,
+  status: AdminListingMarketplaceStatus,
+) {
+  return authRequest<{ id: string; marketplaceVisibility: string }>(
+    token,
+    `/admin/drivers/${driverProfileId}/marketplace-status`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    },
+    'Failed to update driver visibility.',
   );
 }
 
@@ -1022,6 +1126,8 @@ export type JobOpeningItem = {
   employmentType: string;
   location: string;
   description: string;
+  externalApplyUrl: string | null;
+  applicationDeadline: string | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -1032,6 +1138,8 @@ export type JobOpeningPayload = {
   employmentType: string;
   location: string;
   description: string;
+  externalApplyUrl?: string | null;
+  applicationDeadline?: string | null;
   isActive?: boolean;
 };
 
@@ -1063,4 +1171,36 @@ export async function updateAdminJob(
 
 export async function deleteAdminJob(token: string, id: string): Promise<void> {
   await authRequest<void>(token, `/admin/jobs/${id}`, { method: 'DELETE' }, 'Failed to delete job.');
+}
+
+export type JobApplicationItem = {
+  id: string;
+  roleTitle: string;
+  jobOpeningId: string | null;
+  jobTitle: string | null;
+  fullName: string;
+  email: string;
+  phone: string;
+  message: string;
+  createdAt: string;
+};
+
+export type ListJobApplicationsFilters = {
+  page?: number;
+  pageSize?: number;
+  jobOpeningId?: string;
+};
+
+export async function listAdminJobApplications(token: string, filters: ListJobApplicationsFilters = {}) {
+  const params = new URLSearchParams();
+  if (filters.page != null) params.set('page', String(filters.page));
+  if (filters.pageSize != null) params.set('pageSize', String(filters.pageSize));
+  if (filters.jobOpeningId) params.set('jobOpeningId', filters.jobOpeningId);
+  const suffix = params.toString() ? `?${params.toString()}` : '';
+  return authRequest<Paginated<JobApplicationItem>>(
+    token,
+    `/admin/job-applications${suffix}`,
+    undefined,
+    'Failed to load applications.',
+  );
 }

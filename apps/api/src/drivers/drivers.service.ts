@@ -5,13 +5,20 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { BookingStatus, DriverProfileStatus, Prisma, type User } from '@prisma/client';
+import {
+  BookingStatus,
+  DriverProfileStatus,
+  MarketplaceVisibility,
+  Prisma,
+  type User,
+} from '@prisma/client';
 
 import type { AuthenticatedUser } from '../auth/types/authenticated-request.interface';
 import type { ProviderAgreementDto } from '../common/dto/provider-agreement.dto';
 import { assertAndRecordProviderAgreement } from '../common/provider-agreement.util';
 import { prisma } from '../database/prisma';
 import { driverIsBookedNow } from '../bookings/booking-desk.util';
+import type { MarketplaceVisibilityStatus } from '../common/dto/marketplace-visibility.dto';
 import { CreateDriverProfileDto, UpdateDriverProfileDto } from './dto/upsert-driver-profile.dto';
 
 type DriverProfileWithUser = Prisma.DriverProfileGetPayload<{
@@ -343,6 +350,33 @@ export class DriversService {
     };
   }
 
+  async setMarketplaceVisibility(authUser: AuthenticatedUser, target: MarketplaceVisibilityStatus) {
+    const user = await this.requireDriver(authUser.clerkUserId);
+    const profile = await prisma.driverProfile.findUnique({ where: { userId: user.id } });
+    if (!profile) {
+      throw new NotFoundException('Driver profile not found.');
+    }
+    if (profile.status !== DriverProfileStatus.approved) {
+      throw new BadRequestException('Your driver profile must be approved before changing visibility.');
+    }
+    const updated = await prisma.driverProfile.update({
+      where: { id: profile.id },
+      data: { marketplaceVisibility: target as MarketplaceVisibility },
+      include: {
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            avatarUrl: true,
+            trustScore: true,
+            phone: true,
+          },
+        },
+      },
+    });
+    return this.mapProfile(updated, true);
+  }
+
   async getById(profileId: string, authUser?: AuthenticatedUser) {
     const profile = await prisma.driverProfile.findUnique({
       where: { id: profileId },
@@ -447,6 +481,7 @@ export class DriversService {
       idDocumentUrl: includeExactRates || extras?.showContact ? profile.idDocumentUrl : null,
       licenseDocumentUrl: includeExactRates || extras?.showContact ? profile.licenseDocumentUrl : null,
       status: profile.status,
+      marketplaceVisibility: profile.marketplaceVisibility,
       rejectionReason: includeExactRates ? profile.rejectionReason : null,
       submittedAt: includeExactRates ? profile.submittedAt : null,
       reviewedAt: includeExactRates ? profile.reviewedAt : null,
@@ -455,27 +490,15 @@ export class DriversService {
       completedTrips: profile.completedTrips,
       createdAt: profile.createdAt,
       updatedAt: profile.updatedAt,
+      dailyRateRwf: dailyRate,
       ...(includeExactRates
         ? {
-            dailyRateRwf: dailyRate,
             hourlyRateRwf: hourlyRate,
             weeklyRateRwf: weeklyRate,
             monthlyRateRwf: monthlyRate,
           }
-        : {
-            approximateRateRangeRwf: {
-              daily: this.getApproximatePriceRange(dailyRate),
-              ...(hourlyRate ? { hourly: this.getApproximatePriceRange(hourlyRate) } : {}),
-              ...(weeklyRate ? { weekly: this.getApproximatePriceRange(weeklyRate) } : {}),
-            },
-          }),
+        : {}),
     };
-  }
-
-  private getApproximatePriceRange(rate: number) {
-    const min = Math.max(1000, Math.floor(rate * 0.9));
-    const max = Math.max(min, Math.ceil(rate * 1.1));
-    return { min, max };
   }
 
   private validateAvailabilityCalendar(value: unknown) {

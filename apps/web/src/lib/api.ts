@@ -974,6 +974,7 @@ export async function getCarsMine(token: string): Promise<OwnerCar[]> {
 }
 
 export type CarMarketplaceVisibility = 'active' | 'inactive' | 'booked';
+export type MarketplaceVisibility = CarMarketplaceVisibility;
 
 export async function setCarListingStatus(
   token: string,
@@ -1342,6 +1343,7 @@ export type DriverProfileFull = {
   profilePhotoUrl?: string | null;
   availabilityCalendar: Array<{ from: string; to: string }>;
   status?: 'draft' | 'pending_approval' | 'approved' | 'rejected';
+  marketplaceVisibility?: MarketplaceVisibility;
   rejectionReason?: string | null;
   submittedAt?: string | null;
   reviewedAt?: string | null;
@@ -1359,6 +1361,22 @@ export async function getDriverProfileFull(token: string): Promise<DriverProfile
     return null;
   }
   await ensureOk(response, 'Failed to load driver profile.');
+  return (await response.json()) as DriverProfileFull;
+}
+
+export async function setDriverMarketplaceStatus(
+  token: string,
+  status: MarketplaceVisibility,
+): Promise<DriverProfileFull> {
+  const response = await fetch(`${API_BASE_URL}/drivers/profile/marketplace-status`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ status }),
+  });
+  await ensureOk(response, 'Failed to update driver visibility.');
   return (await response.json()) as DriverProfileFull;
 }
 
@@ -1565,12 +1583,44 @@ export type PublicJobOpening = {
   employmentType: string;
   location: string;
   description: string;
+  externalApplyUrl: string | null;
+  createdAt: string;
+  applicationDeadline: string | null;
 };
+
+function normalizePublicJobOpening(raw: Record<string, unknown>): PublicJobOpening {
+  const createdAt = raw.createdAt ?? raw.created_at;
+  const applicationDeadline = raw.applicationDeadline ?? raw.application_deadline;
+  return {
+    id: String(raw.id),
+    title: String(raw.title ?? ''),
+    employmentType: String(raw.employmentType ?? raw.employment_type ?? ''),
+    location: String(raw.location ?? ''),
+    description: String(raw.description ?? ''),
+    externalApplyUrl:
+      raw.externalApplyUrl === null || raw.externalApplyUrl === undefined
+        ? raw.external_apply_url === null || raw.external_apply_url === undefined
+          ? null
+          : String(raw.external_apply_url)
+        : String(raw.externalApplyUrl),
+    createdAt: typeof createdAt === 'string' ? createdAt : createdAt instanceof Date ? createdAt.toISOString() : '',
+    applicationDeadline:
+      applicationDeadline == null
+        ? null
+        : typeof applicationDeadline === 'string'
+          ? applicationDeadline
+          : applicationDeadline instanceof Date
+            ? applicationDeadline.toISOString()
+            : null,
+  };
+}
 
 export async function listPublicJobs(): Promise<PublicJobOpening[]> {
   const response = await fetch(`${API_BASE_URL}/jobs`, { cache: 'no-store' });
   await ensureOk(response, 'Failed to load jobs.');
-  return (await response.json()) as PublicJobOpening[];
+  const data = (await response.json()) as unknown;
+  if (!Array.isArray(data)) return [];
+  return data.map((row) => normalizePublicJobOpening(row as Record<string, unknown>));
 }
 
 export async function applyForJob(payload: {
@@ -1592,4 +1642,18 @@ export async function applyForJob(payload: {
     }),
   });
   await ensureOk(response, 'Could not send your application.');
+}
+
+export async function submitSiteComplaint(payload: {
+  fullName: string;
+  phone: string;
+  email?: string;
+  message: string;
+}): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/complaints`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  await ensureOk(response, 'Could not send your complaint. Please try again.');
 }

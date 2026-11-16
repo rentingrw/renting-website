@@ -77,6 +77,18 @@ function formatWhen(value: string) {
   });
 }
 
+const PUBLIC_APP_URL = (process.env.NEXT_PUBLIC_APP_URL ?? 'https://renting.rw').replace(/\/$/, '');
+
+function publicAssetHref(booking: AdminBookingItem): string | null {
+  if (booking.bookingType === 'car' && booking.listingId) {
+    return `${PUBLIC_APP_URL}/en/cars/${booking.listingId}`;
+  }
+  if (booking.bookingType === 'driver') {
+    return `${PUBLIC_APP_URL}/en/drivers/${booking.ownerOrDriver.id}`;
+  }
+  return null;
+}
+
 export default function AdminBookingsPage() {
   const searchParams = useSearchParams();
   const { fetchToken, isLoaded, isSignedIn } = useAuthToken();
@@ -99,7 +111,7 @@ export default function AdminBookingsPage() {
       };
     }
     return {
-      type: 'car',
+      type: 'all',
       status: 'pending',
       userId: undefined,
       dateFrom: undefined,
@@ -116,7 +128,10 @@ export default function AdminBookingsPage() {
   const [loadingAlts, setLoadingAlts] = useState(false);
 
   const loadBookings = useCallback(async () => {
-    if (!isLoaded || !isSignedIn) return;
+    if (!isLoaded || !isSignedIn) {
+      if (isLoaded) setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -353,19 +368,51 @@ export default function AdminBookingsPage() {
                         ) : (
                           <div className="text-xs font-medium text-muted-foreground">No phone</div>
                         )}
+                        {booking.renterEmail || booking.renter.email ? (
+                          <a
+                            className="mt-0.5 block text-xs font-medium text-muted-foreground hover:text-brand"
+                            href={`mailto:${booking.renterEmail ?? booking.renter.email}`}
+                          >
+                            {booking.renterEmail ?? booking.renter.email}
+                          </a>
+                        ) : null}
                       </td>
                       <td className="px-4 py-3">
                         <span className="rounded border border-border px-2 py-0.5 text-[10px] font-black uppercase">
                           {booking.bookingType}
                         </span>
                         <div className="mt-1 font-semibold text-ink">{booking.summary}</div>
-                        <div className="text-xs font-medium text-muted-foreground">{booking.ownerOrDriver.fullName}</div>
+                        {booking.assetDetail ? (
+                          <div className="mt-1 text-xs font-semibold text-ink/90">{booking.assetDetail}</div>
+                        ) : null}
+                        <div className="mt-1 text-xs font-medium text-muted-foreground">
+                          Provider: {booking.ownerOrDriver.fullName}
+                          {booking.ownerOrDriver.phone ? ` · ${booking.ownerOrDriver.phone}` : ''}
+                        </div>
+                        {publicAssetHref(booking) ? (
+                          <a
+                            href={publicAssetHref(booking) ?? undefined}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="mt-1 inline-block text-xs font-bold text-brand hover:underline"
+                          >
+                            View on site
+                          </a>
+                        ) : null}
                         {booking.pickupAddress ? (
                           <div className="mt-1 text-xs text-muted-foreground">Pickup: {booking.pickupAddress}</div>
                         ) : null}
-                        {booking.notes ? (
-                          <div className="mt-1 text-xs text-muted-foreground">Note: {booking.notes}</div>
+                        {booking.dropoffAddress ? (
+                          <div className="mt-1 text-xs text-muted-foreground">Drop-off: {booking.dropoffAddress}</div>
                         ) : null}
+                        {booking.notes ? (
+                          <div className="mt-1 rounded-lg bg-muted/60 px-2 py-1 text-xs text-ink/80">
+                            <span className="font-bold">Client notes:</span> {booking.notes}
+                          </div>
+                        ) : null}
+                        <div className="mt-1 text-xs font-semibold text-muted-foreground">
+                          Est. RF {booking.amountRwf.toLocaleString('en-RW')}
+                        </div>
                       </td>
                       <td className="px-4 py-3">
                         <div className="font-semibold">{formatWhen(booking.startsAt)}</div>

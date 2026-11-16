@@ -45,7 +45,10 @@ export default function AdminAnalyticsPage() {
 
   useEffect(() => {
     async function load() {
-      if (!isLoaded || !isSignedIn) return;
+      if (!isLoaded || !isSignedIn) {
+        if (isLoaded) setLoading(false);
+        return;
+      }
       setLoading(true);
       setError(null);
       try {
@@ -88,7 +91,19 @@ export default function AdminAnalyticsPage() {
     );
   }
 
-  if (!analytics) return null;
+  if (!analytics) {
+    return (
+      <main className={adminPage}>
+        <AdminPageHeader title="Analytics" />
+        <div className={`${adminPanel} ${adminPanelBody} text-center text-muted-foreground`}>
+          No analytics data available.{' '}
+          <button type="button" onClick={() => window.location.reload()} className="font-black underline text-ink">
+            Retry
+          </button>
+        </div>
+      </main>
+    );
+  }
 
   const bookingVolumeData = analytics.bookingVolume.map((entry) => ({
     month: entry.month,

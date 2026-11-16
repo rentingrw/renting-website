@@ -53,6 +53,7 @@ import {
   adminError,
   adminMetricCard,
   adminPage,
+  adminPanel,
   adminPanelHeader,
   adminTabActive,
   adminTabIdle,
@@ -86,7 +87,9 @@ export default function AdminHomePage() {
   const [overview, setOverview] = useState<AdminOverview | null>(null);
   const [analytics, setAnalytics] = useState<AdminAnalytics | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [analyticsError, setAnalyticsError] = useState<string | null>(null);
+  const [isLoadingOverview, setIsLoadingOverview] = useState(true);
+  const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(true);
   const [actingId, setActingId] = useState<string | null>(null);
 
   // Banner state
@@ -102,27 +105,54 @@ export default function AdminHomePage() {
   const [driversLoading, setDriversLoading] = useState(false);
   const [driversError, setDriversError] = useState<string | null>(null);
   const [driversSearch, setDriversSearch] = useState('');
-  const loadData = useCallback(async () => {
-    if (!isLoaded || !isSignedIn) return;
-    setIsLoading(true);
+  const loadOverview = useCallback(async () => {
+    if (!isLoaded || !isSignedIn) {
+      if (isLoaded) setIsLoadingOverview(false);
+      return;
+    }
+    setIsLoadingOverview(true);
     setError(null);
     try {
       const token = await fetchToken();
       if (!token) throw new Error(AUTH_ERROR_MSG);
-      const [ov, an] = await Promise.all([getAdminOverview(token), getAdminAnalytics(token)]);
-      setOverview(ov);
-      setAnalytics(an);
+      setOverview(await getAdminOverview(token));
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'Failed to load dashboard data.');
+      setError(loadError instanceof Error ? loadError.message : 'Failed to load dashboard overview.');
     } finally {
-      setIsLoading(false);
+      setIsLoadingOverview(false);
     }
   }, [fetchToken, isLoaded, isSignedIn]);
+
+  const loadAnalytics = useCallback(async () => {
+    if (!isLoaded || !isSignedIn) {
+      if (isLoaded) setIsLoadingAnalytics(false);
+      return;
+    }
+    setIsLoadingAnalytics(true);
+    setAnalyticsError(null);
+    try {
+      const token = await fetchToken();
+      if (!token) throw new Error(AUTH_ERROR_MSG);
+      setAnalytics(await getAdminAnalytics(token));
+    } catch (loadError) {
+      setAnalyticsError(loadError instanceof Error ? loadError.message : 'Failed to load analytics.');
+      setAnalytics(null);
+    } finally {
+      setIsLoadingAnalytics(false);
+    }
+  }, [fetchToken, isLoaded, isSignedIn]);
+
+  const loadData = useCallback(async () => {
+    await Promise.all([loadOverview(), loadAnalytics()]);
+  }, [loadOverview, loadAnalytics]);
 
   useEffect(() => { void loadData(); }, [loadData]);
 
   const loadBanners = useCallback(async () => {
-    if (!isLoaded || !isSignedIn) return;
+    if (!isLoaded || !isSignedIn) {
+      if (isLoaded) setBannerLoading(false);
+      return;
+    }
     setBannerLoading(true);
     setBannerError(null);
     try {
@@ -140,7 +170,10 @@ export default function AdminHomePage() {
   useEffect(() => { if (tab === 'banners') void loadBanners(); }, [tab, loadBanners]);
 
   const loadDrivers = useCallback(async (search?: string) => {
-    if (!isLoaded || !isSignedIn) return;
+    if (!isLoaded || !isSignedIn) {
+      if (isLoaded) setDriversLoading(false);
+      return;
+    }
     setDriversLoading(true);
     setDriversError(null);
     try {
@@ -259,10 +292,10 @@ export default function AdminHomePage() {
           <button
             type="button"
             onClick={() => void loadData()}
-            disabled={isLoading}
+            disabled={isLoadingOverview || isLoadingAnalytics}
             className={`${adminBtnGhost} !px-4 !py-2`}
           >
-            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`h-4 w-4 ${isLoadingOverview || isLoadingAnalytics ? 'animate-spin' : ''}`} />
             Refresh
           </button>
         }
@@ -324,36 +357,36 @@ export default function AdminHomePage() {
             <MetricCard
               title="Total users"
               value={overview?.metrics.totalUsers ?? 0}
-              loading={isLoading}
+              loading={isLoadingOverview}
               sub={overview?.metrics.usersByRole.map((r) => `${r.role}: ${r.count}`).join(' · ')}
             />
-            <MetricCard title="Active bookings today" value={overview?.metrics.activeBookingsToday ?? 0} loading={isLoading} />
+            <MetricCard title="Active bookings today" value={overview?.metrics.activeBookingsToday ?? 0} loading={isLoadingOverview} />
             <MetricCard
               title="Pending desk requests"
               value={overview?.metrics.pendingDeskBookings ?? 0}
-              loading={isLoading}
+              loading={isLoadingOverview}
               sub={`Cars: ${overview?.metrics.pendingDeskCarBookings ?? 0} · Drivers: ${overview?.metrics.pendingDeskDriverBookings ?? 0}`}
               highlight={(overview?.metrics.pendingDeskBookings ?? 0) > 0 ? 'warn' : undefined}
             />
             <MetricCard
-              title="Open disputes"
-              value={overview?.metrics.openDisputes ?? 0}
-              loading={isLoading}
-              highlight={overview?.metrics.openDisputes ? 'warn' : undefined}
+              title="Open complaints"
+              value={overview?.metrics.openComplaints ?? overview?.metrics.openDisputes ?? 0}
+              loading={isLoadingOverview}
+              highlight={(overview?.metrics.openComplaints ?? overview?.metrics.openDisputes) ? 'warn' : undefined}
             />
             <MetricCard
               title="Suspended users"
               value={overview?.trustScoreDistribution.suspended ?? 0}
-              loading={isLoading}
+              loading={isLoadingOverview}
               highlight={overview?.trustScoreDistribution.suspended ? 'danger' : undefined}
             />
           </div>
 
-          {/* Open disputes table */}
+          {/* Open booking complaints table */}
           <div className="admin-panel">
             <div className={`flex items-center justify-between ${adminPanelHeader}`}>
               <div>
-                <h2 className="font-black text-ink">Open Disputes</h2>
+                <h2 className="font-black text-ink">Open booking complaints</h2>
                 <p className="text-xs text-muted-foreground font-medium mt-0.5">Requiring moderation action</p>
               </div>
               {(overview?.openDisputes.length ?? 0) > 0 && (
@@ -375,13 +408,13 @@ export default function AdminHomePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {isLoading ? (
+                  {isLoadingOverview ? (
                     Array.from({ length: 3 }).map((_, i) => <TableRowSkeleton key={i} cols={6} />)
                   ) : (overview?.openDisputes.length ?? 0) === 0 ? (
                     <tr>
                       <td colSpan={6} className="px-5 py-10 text-center">
                         <CheckCircle2 className="mx-auto mb-2 h-8 w-8 text-green-500" />
-                        <p className="text-sm font-semibold text-muted-foreground">No open disputes — all clear!</p>
+                        <p className="text-sm font-semibold text-muted-foreground">No open booking complaints — all clear!</p>
                       </td>
                     </tr>
                   ) : (
@@ -433,7 +466,12 @@ export default function AdminHomePage() {
       )}
 
       {tab === 'analytics' && (
-        <AnalyticsTab analytics={analytics} loading={isLoading} />
+        <AnalyticsTab
+          analytics={analytics}
+          loading={isLoadingAnalytics}
+          error={analyticsError}
+          onRetry={() => void loadAnalytics()}
+        />
       )}
 
       {tab === 'banners' && (
@@ -727,7 +765,17 @@ function MetricCard({
   );
 }
 
-function AnalyticsTab({ analytics, loading }: { analytics: AdminAnalytics | null; loading: boolean }) {
+function AnalyticsTab({
+  analytics,
+  loading,
+  error,
+  onRetry,
+}: {
+  analytics: AdminAnalytics | null;
+  loading: boolean;
+  error: string | null;
+  onRetry: () => void;
+}) {
   if (loading) {
     return (
       <div className="space-y-4">
@@ -750,7 +798,29 @@ function AnalyticsTab({ analytics, loading }: { analytics: AdminAnalytics | null
       </div>
     );
   }
-  if (!analytics) return null;
+
+  if (error) {
+    return (
+      <div className={adminError}>
+        <AlertCircle className="h-4 w-4 shrink-0" />
+        <span className="flex-1">{error}</span>
+        <button type="button" onClick={onRetry} className="font-black underline">
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  if (!analytics) {
+    return (
+      <div className={`${adminPanel} p-6 text-center`}>
+        <p className="text-sm font-semibold text-muted-foreground">Analytics did not load.</p>
+        <button type="button" onClick={onRetry} className={`${adminBtnGhost} mt-4 !px-4 !py-2`}>
+          Load analytics
+        </button>
+      </div>
+    );
+  }
 
   const bookingVolumeData = analytics.bookingVolume.map((entry) => ({
     month: entry.month,

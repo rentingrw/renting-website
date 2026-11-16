@@ -43,6 +43,12 @@ enum DriverProfileStatus {
   rejected
 }
 
+enum MarketplaceVisibility {
+  active
+  inactive
+  booked
+}
+
 enum BookingStatus {
   pending
   confirmed
@@ -110,6 +116,12 @@ enum DisputeStatus {
   resolved
   rejected
   escalated
+}
+
+enum SiteComplaintStatus {
+  open
+  resolved
+  dismissed
 }
 
 enum DriverCategory {
@@ -244,6 +256,7 @@ model DriverProfile {
   idDocumentUrl        String?          @map("id_document_url")
   licenseDocumentUrl   String?          @map("license_document_url")
   status               DriverProfileStatus @default(draft)
+  marketplaceVisibility MarketplaceVisibility @default(active) @map("marketplace_visibility")
   rejectionReason      String?          @map("rejection_reason")
   submittedAt          DateTime?        @map("submitted_at")
   reviewedAt           DateTime?        @map("reviewed_at")
@@ -256,6 +269,7 @@ model DriverProfile {
   driverFavorites      DriverFavorite[]
 
   @@index([status])
+  @@index([marketplaceVisibility])
   @@map("driver_profiles")
 }
 
@@ -484,6 +498,22 @@ model Dispute {
   @@map("disputes")
 }
 
+model SiteComplaint {
+  id          String              @id @default(uuid()) @db.Uuid
+  fullName    String              @map("full_name")
+  phone       String
+  email       String?
+  message     String
+  status      SiteComplaintStatus @default(open)
+  adminNotes  String?             @map("admin_notes")
+  resolvedAt  DateTime?           @map("resolved_at")
+  createdAt   DateTime            @default(now()) @map("created_at")
+  updatedAt   DateTime            @updatedAt @map("updated_at")
+
+  @@index([status, createdAt(sort: Desc)])
+  @@map("site_complaints")
+}
+
 model Favorite {
   id           String     @id @default(uuid()) @db.Uuid
   userId       String     @map("user_id") @db.Uuid
@@ -559,15 +589,35 @@ model SiteBanner {
 }
 
 model JobOpening {
-  id             String   @id @default(uuid()) @db.Uuid
+  id             String            @id @default(uuid()) @db.Uuid
   title          String
-  employmentType String   @map("employment_type")
+  employmentType String            @map("employment_type")
   location       String
   description    String
-  isActive       Boolean  @default(true) @map("is_active")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  externalApplyUrl String?         @map("external_apply_url")
+  applicationDeadline DateTime?    @map("application_deadline")
+  isActive       Boolean           @default(true) @map("is_active")
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+  applications   JobApplication[]
 
   @@index([isActive])
+  @@index([applicationDeadline])
   @@map("job_openings")
+}
+
+model JobApplication {
+  id           String      @id @default(uuid()) @db.Uuid
+  jobOpeningId String?     @map("job_opening_id") @db.Uuid
+  roleTitle    String      @map("role_title")
+  fullName     String      @map("full_name")
+  email        String
+  phone        String
+  message      String
+  createdAt    DateTime    @default(now()) @map("created_at")
+  jobOpening   JobOpening? @relation(fields: [jobOpeningId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt(sort: Desc)])
+  @@index([jobOpeningId])
+  @@map("job_applications")
 }

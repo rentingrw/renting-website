@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import { DashboardHeader } from '@/components/web/dashboard-header';
 import { DashboardNav, resolveDashboardNavKey } from '@/components/web/dashboard-nav';
 import { isSupportedLocale, type SupportedLocale } from '@/i18n/routing';
+import { MarketplaceVisibilityControl, marketplaceVisibilityFromTaxiStatus } from '@/components/web/marketplace-visibility-control';
 import {
   getMe,
   getTaxiDriverMe,
@@ -16,14 +17,10 @@ import {
   type TaxiDriverMe,
   type TaxiMarketplaceStatus,
 } from '@/lib/api';
-
-const STATUS_OPTIONS: { value: TaxiMarketplaceStatus; label: string }[] = [
-  { value: 'active', label: 'Active (visible in search)' },
-  { value: 'inactive', label: 'Inactive (hidden)' },
-  { value: 'booked', label: 'Booked (hidden)' },
-];
+import { useTranslations } from 'next-intl';
 
 export default function TaxiDashboardPage() {
+  const tVis = useTranslations('web.app.marketplaceVisibility');
   const { getToken } = useAuth();
   const params = useParams();
   const pathname = usePathname();
@@ -66,10 +63,7 @@ export default function TaxiDashboardPage() {
     }
   }
 
-  const marketplaceStatus: TaxiMarketplaceStatus =
-    taxi?.status === 'active' || taxi?.status === 'inactive' || taxi?.status === 'booked'
-      ? taxi.status
-      : 'inactive';
+  const marketplaceStatus = taxi ? marketplaceVisibilityFromTaxiStatus(taxi.status) : null;
 
   return (
     <div className="min-h-screen bg-background">
@@ -110,22 +104,22 @@ export default function TaxiDashboardPage() {
               <p className="mt-2 text-xs text-muted-foreground capitalize">Current: {taxi.status.replace(/_/g, ' ')}</p>
             </div>
 
-            <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Visibility</label>
-              <select
-                className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm"
-                value={marketplaceStatus}
-                disabled={busy}
-                onChange={(e) => void changeStatus(e.target.value as TaxiMarketplaceStatus)}
-              >
-                {STATUS_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-              {msg ? <p className="text-sm text-muted-foreground">{msg}</p> : null}
-            </div>
+            {marketplaceStatus ? (
+              <div className="space-y-2">
+                <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{tVis('sectionTitle')}</p>
+                <p className="text-xs text-muted-foreground">{tVis('hint')}</p>
+                <MarketplaceVisibilityControl
+                  value={marketplaceStatus}
+                  disabled={busy}
+                  onChange={(next) => void changeStatus(next as TaxiMarketplaceStatus)}
+                />
+                {msg ? <p className="text-sm text-muted-foreground">{msg}</p> : null}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Visibility controls appear once your taxi profile is active in search.
+              </p>
+            )}
 
             <div className="flex flex-wrap gap-2">
               <Link

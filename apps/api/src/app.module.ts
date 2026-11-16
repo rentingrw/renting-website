@@ -22,6 +22,7 @@ import { AuthModule } from './auth/auth.module';
 import { CronModule } from './cron/cron.module';
 import { BookingsModule } from './bookings/bookings.module';
 import { CarsModule } from './cars/cars.module';
+import { ComplaintsModule } from './complaints/complaints.module';
 import { DisputesModule } from './disputes/disputes.module';
 import { DriverBookingsModule } from './driver-bookings/driver-bookings.module';
 import { DriversModule } from './drivers/drivers.module';
@@ -115,6 +116,7 @@ function validateEnv(config: Record<string, unknown>) {
     NotificationsModule,
     MessagesModule,
     ReviewsModule,
+    ComplaintsModule,
     DisputesModule,
     GeocodingModule,
     SearchModule,

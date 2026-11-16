@@ -8,14 +8,17 @@ import { InitialsAvatar } from '@/components/web/initials-avatar';
 import { MediaImage } from '@/components/web/media-image';
 import { TaxiListingCard } from '@/components/web/taxi-listing-card';
 import { MarketplaceSearchBar } from '@/components/web/marketplace-search-bar';
+import { HomeComplaintSection } from '@/components/web/home-complaint-section';
 import { SiteFooter } from '@/components/web/site-footer';
 import { isSupportedLocale, routing, type SupportedLocale } from '@/i18n/routing';
-import { searchMarketplace, type SearchCar, type SearchDriver, type SearchTaxi, type SearchType } from '@/lib/api';
+import { JobOpeningMeta } from '@/components/web/job-opening-meta';
+import { listPublicJobs, searchMarketplace, type PublicJobOpening, type SearchCar, type SearchDriver, type SearchTaxi, type SearchType } from '@/lib/api';
 import { formatSearchCarDailyPrice } from '@/lib/car-listing-price';
 import { stockImages } from '@/lib/stock-images';
 import {
   ArrowRight,
   ArrowUpRight,
+  Briefcase,
   CalendarCheck,
   Car,
   Home,
@@ -102,6 +105,7 @@ export default function HomePage({ params }: HomePageProps) {
   const [featuredDrivers, setFeaturedDrivers] = useState<SearchDriver[]>([]);
   const [featuredTaxis, setFeaturedTaxis] = useState<SearchTaxi[]>([]);
   const [featuredLoading, setFeaturedLoading] = useState(true);
+  const [careerJobs, setCareerJobs] = useState<PublicJobOpening[]>([]);
   const [popularListing, setPopularListing] = useState<PopularListingKind>('all');
   const carFavorites = useFavoriteIds('car');
   const driverFavorites = useFavoriteIds('driver');
@@ -147,6 +151,22 @@ export default function HomePage({ params }: HomePageProps) {
       }
     }
     loadFeatured();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadCareers() {
+      try {
+        const jobs = await listPublicJobs();
+        if (!cancelled) setCareerJobs(jobs.slice(0, 4));
+      } catch {
+        if (!cancelled) setCareerJobs([]);
+      }
+    }
+    void loadCareers();
     return () => {
       cancelled = true;
     };
@@ -595,6 +615,42 @@ export default function HomePage({ params }: HomePageProps) {
         </section>
       )}
 
+      {careerJobs.length > 0 ? (
+        <section className="mx-auto w-full max-w-7xl px-4 pt-16 sm:px-6 sm:pt-20">
+          <HomeSectionHeading
+            index="04"
+            title={t('home.careersOpenRoles')}
+            href={`/${locale}/careers`}
+            actionLabel={t('home.viewCareers')}
+          />
+          <div className="mt-5 divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
+            {careerJobs.map((job) => (
+              <Link
+                key={job.id}
+                href={`/${locale}/careers`}
+                className="flex flex-col gap-2 px-4 py-4 transition hover:bg-muted/40 sm:flex-row sm:items-center sm:justify-between sm:px-5"
+              >
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <Briefcase className="h-4 w-4 shrink-0 text-brand" aria-hidden />
+                    <p className="truncate font-extrabold text-foreground">{job.title}</p>
+                  </div>
+                  <p className="mt-1 text-xs font-semibold text-muted-foreground">
+                    {job.employmentType} · {job.location}
+                  </p>
+                  <JobOpeningMeta
+                    postedAt={job.createdAt}
+                    applicationDeadline={job.applicationDeadline}
+                    className="mt-1.5"
+                  />
+                </div>
+                <span className="shrink-0 text-xs font-bold text-brand">{t('home.viewCareers')} →</span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
       {/* ───────── Earn with us ───────── */}
       <section className="mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 sm:py-20">
         <div className="relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-sun via-[#e7b93a] to-[#f2d27a] p-6 text-ink sm:p-10">
@@ -630,6 +686,8 @@ export default function HomePage({ params }: HomePageProps) {
           </div>
         </div>
       </section>
+
+      <HomeComplaintSection />
 
       <SiteFooter locale={locale} />
     </main>

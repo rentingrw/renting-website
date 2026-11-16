@@ -14,6 +14,8 @@ export const realtimeEvents = {
   disputeResolved: 'dispute:resolved',
   listingApproved: 'listing:approved',
   listingRejected: 'listing:rejected',
+  careersNewApplication: 'careers:new_application',
+  siteComplaintNew: 'complaints:new_site',
 } as const;
 
 export type RealtimeEventName = (typeof realtimeEvents)[keyof typeof realtimeEvents];

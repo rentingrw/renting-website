@@ -520,27 +520,33 @@ export default function CarDetailPage({ params }: CarPageProps) {
                   <p className="text-sm font-medium text-muted-foreground">/ {t('home.day')} · {inCityRateLabel(listingCity)} · {t('detail.beforeTaxes')}</p>
                   {detail.dailyRateInCityRwf != null ? (
                     <div className="mt-3 space-y-3 text-sm">
-                      <div>
-                        <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">{inCityRateLabel(listingCity)}</p>
-                        <div className="mt-1 space-y-1">
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">{t('home.day')}</span>
-                            <span className="font-black text-brand">{formatCurrencyRwf(detail.dailyRateInCityRwf)}</span>
+                      {detail.weeklyRateInCityRwf != null || detail.monthlyRateInCityRwf != null ? (
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">
+                            {inCityRateLabel(listingCity)}
+                          </p>
+                          <div className="mt-1 space-y-1">
+                            {detail.weeklyRateInCityRwf != null ? (
+                              <div className="flex justify-between gap-3">
+                                <span className="text-muted-foreground">{t('listing.weeklyRate')}</span>
+                                <span className="font-black text-brand">
+                                  {formatCurrencyRwf(detail.weeklyRateInCityRwf)}
+                                  {t('listing.perWeek')}
+                                </span>
+                              </div>
+                            ) : null}
+                            {detail.monthlyRateInCityRwf != null ? (
+                              <div className="flex justify-between gap-3">
+                                <span className="text-muted-foreground">{t('listing.monthlyRate')}</span>
+                                <span className="font-black text-brand">
+                                  {formatCurrencyRwf(detail.monthlyRateInCityRwf)}
+                                  {t('listing.perMonth')}
+                                </span>
+                              </div>
+                            ) : null}
                           </div>
-                          {detail.weeklyRateInCityRwf != null ? (
-                            <div className="flex justify-between">
-                              <span className="text-muted-foreground">{t('listing.weeklyRate')}</span>
-                              <span className="font-black text-brand">{formatCurrencyRwf(detail.weeklyRateInCityRwf)}{t('listing.perWeek')}</span>
-                            </div>
-                          ) : null}
-                          {detail.monthlyRateInCityRwf != null ? (
-                            <div className="flex justify-between">
-                              <span className="text-muted-foreground">{t('listing.monthlyRate')}</span>
-                              <span className="font-black text-brand">{formatCurrencyRwf(detail.monthlyRateInCityRwf)}{t('listing.perMonth')}</span>
-                            </div>
-                          ) : null}
                         </div>
-                      </div>
+                      ) : null}
                       {detail.dailyRateOutsideCityRwf != null ? (
                         <div>
                           <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">{outsideCityRateLabel(listingCity)}</p>

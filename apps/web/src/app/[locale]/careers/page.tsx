@@ -3,9 +3,9 @@
 import { AppHeader } from '@/components/web/app-header';
 import { SiteFooter } from '@/components/web/site-footer';
 import { isSupportedLocale, routing, type SupportedLocale } from '@/i18n/routing';
+import { JobOpeningMeta } from '@/components/web/job-opening-meta';
 import { applyForJob, listPublicJobs, type PublicJobOpening } from '@/lib/api';
-import { SITE_EMAIL } from '@/lib/site-contact';
-import { Briefcase, Mail } from 'lucide-react';
+import { Briefcase, ExternalLink, Mail } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 type ApplyTarget = { id: string | null; title: string };
@@ -97,7 +97,7 @@ export default function CareersPage({ params }: { params: Promise<{ locale: stri
           </div>
           <h1 className="text-3xl font-black text-foreground md:text-4xl">Careers at Renting.rw</h1>
           <p className="mt-4 text-base font-medium text-muted-foreground">
-            Join the team building car, driver, and airport rental across Rwanda. Applications are sent to {SITE_EMAIL}.
+            Join the team building car, driver, and airport rental across Rwanda. We notify our team by email and keep your application in the admin desk.
           </p>
         </div>
       </section>
@@ -110,7 +110,7 @@ export default function CareersPage({ params }: { params: Promise<{ locale: stri
         {loadError ? <p className="mt-3 text-sm font-medium text-red-700">{loadError}</p> : null}
         {sentTitle ? (
           <p className="mt-4 rounded-xl border border-border bg-brand-soft px-4 py-3 text-sm font-medium text-foreground">
-            Your application for {sentTitle} was sent to {SITE_EMAIL}.
+            Your application for {sentTitle} was received. Our team will review it and contact you at the email you provided.
           </p>
         ) : null}
 
@@ -129,17 +129,34 @@ export default function CareersPage({ params }: { params: Promise<{ locale: stri
                     <span className="rounded-full bg-brand-soft px-2 py-0.5 font-bold text-brand">{job.employmentType}</span>
                     <span className="rounded-full bg-muted px-2 py-0.5 font-bold text-muted-foreground">{job.location}</span>
                   </div>
+                  <JobOpeningMeta
+                    className="mt-2"
+                    postedAt={job.createdAt}
+                    applicationDeadline={job.applicationDeadline}
+                  />
                   <p className="mt-3 whitespace-pre-wrap text-sm font-medium text-muted-foreground">{job.description}</p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => openApplication({ id: job.id, title: job.title })}
-                  className="shrink-0 rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-hover"
-                >
-                  Apply
-                </button>
+                {job.externalApplyUrl ? (
+                  <a
+                    href={job.externalApplyUrl}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="inline-flex shrink-0 items-center gap-2 rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-hover"
+                  >
+                    Apply
+                    <ExternalLink className="h-4 w-4" aria-hidden />
+                  </a>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => openApplication({ id: job.id, title: job.title })}
+                    className="shrink-0 rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-hover"
+                  >
+                    Apply
+                  </button>
+                )}
               </div>
-              {target?.id === job.id ? (
+              {!job.externalApplyUrl && target?.id === job.id ? (
                 <ApplicationForm
                   form={form}
                   sending={sending}
@@ -156,7 +173,7 @@ export default function CareersPage({ params }: { params: Promise<{ locale: stri
         <div className="mt-12 rounded-2xl border border-border bg-card p-6 shadow-card">
           <h2 className="font-black text-foreground">Don&apos;t see your role?</h2>
           <p className="mt-2 text-sm font-medium text-muted-foreground">
-            Send your name, phone, and a short note. We read every application at {SITE_EMAIL}.
+            Send your name, phone, and a short note. We read every application.
           </p>
           <button
             type="button"
@@ -247,7 +264,7 @@ function ApplicationForm({
           disabled={sending}
           className="rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-hover disabled:opacity-50"
         >
-          {sending ? 'Sending…' : 'Send to our email'}
+          {sending ? 'Sending…' : 'Submit application'}
         </button>
         <button type="button" onClick={onCancel} className="rounded-full px-4 py-2 text-sm font-semibold text-muted-foreground">
           Cancel

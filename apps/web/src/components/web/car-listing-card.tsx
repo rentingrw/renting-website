@@ -127,9 +127,15 @@ export function CarListingCard({
 
         <div className={`flex items-end justify-between gap-3 border-t border-border/60 ${medium ? 'px-3 py-2.5' : 'px-4 py-3'}`}>
           <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">{t('perDay')}</p>
-            <p className={`font-black text-ink ${medium ? 'text-base' : 'text-lg'}`}>
-              {price ?? t('priceOnRequest')}
+            <p className={`font-black tabular-nums text-ink ${medium ? 'text-base' : 'text-lg'}`}>
+              {price ? (
+                <>
+                  {price}
+                  <span className="ml-1 text-sm font-semibold text-muted-foreground">/ {t('perDay')}</span>
+                </>
+              ) : (
+                t('priceOnRequest')
+              )}
             </p>
           </div>
           {available ? (

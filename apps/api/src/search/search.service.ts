@@ -324,17 +324,10 @@ export class SearchService {
       ownerTrustScore: row.ownerTrustScore,
       isBookedNow: Boolean(row.isBookedNow),
       verified: Boolean(row.verified),
+      dailyRateInCityRwf: row.dailyRateInCityRwf,
       ...(includeExactRates
-        ? {
-            dailyRateInCityRwf: row.dailyRateInCityRwf,
-            dailyRateOutsideCityRwf: row.dailyRateOutsideCityRwf,
-          }
-        : {
-            approximateDailyRateRangeRwf: {
-              inCity: this.getApproximatePriceRange(row.dailyRateInCityRwf),
-              outsideCity: this.getApproximatePriceRange(row.dailyRateOutsideCityRwf),
-            },
-          }),
+        ? { dailyRateOutsideCityRwf: row.dailyRateOutsideCityRwf }
+        : {}),
       listingCity: row.listingCity,
     }));
   }
@@ -408,6 +401,7 @@ export class SearchService {
     }
 
     conditions.push(Prisma.sql`dp.status = 'approved'::"DriverProfileStatus"`);
+    conditions.push(Prisma.sql`dp.marketplace_visibility = 'active'::"MarketplaceVisibility"`);
 
     if (query.availableNow) {
       conditions.push(Prisma.sql`
@@ -513,19 +507,13 @@ export class SearchService {
       primaryCityLatitude: row.primaryCityLatitude,
       primaryCityLongitude: row.primaryCityLongitude,
       isBookedNow: Boolean(row.isBookedNow),
+      dailyRateRwf: row.dailyRateRwf,
       ...(includeExactRates
         ? {
-            dailyRateRwf: row.dailyRateRwf,
             hourlyRateRwf: row.hourlyRateRwf,
             weeklyRateRwf: row.weeklyRateRwf,
           }
-        : {
-            approximateRateRangeRwf: {
-              daily: this.getApproximatePriceRange(row.dailyRateRwf),
-              ...(row.hourlyRateRwf ? { hourly: this.getApproximatePriceRange(row.hourlyRateRwf) } : {}),
-              ...(row.weeklyRateRwf ? { weekly: this.getApproximatePriceRange(row.weeklyRateRwf) } : {}),
-            },
-          }),
+        : {}),
     }));
   }
 
@@ -608,12 +596,6 @@ export class SearchService {
       });
 
     return mapped.slice(offset, offset + limit);
-  }
-
-  private getApproximatePriceRange(rate: number) {
-    const min = Math.max(1000, Math.floor(rate * 0.9));
-    const max = Math.max(min, Math.ceil(rate * 1.1));
-    return { min, max };
   }
 
   private validateCoordinates(latitude?: number, longitude?: number) {

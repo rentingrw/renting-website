@@ -2,7 +2,7 @@
 
 import { SignInButton, useAuth, useUser } from '@clerk/nextjs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@rentingi/ui';
-import { CalendarDays, Car, CheckCircle2, ChevronRight, Clock, MapPin, Phone, ShipWheel, User } from 'lucide-react';
+import { CalendarDays, Car, CheckCircle2, ChevronRight, Clock, Mail, MapPin, Phone, ShipWheel, User } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useEffect, useMemo, useState } from 'react';
 
@@ -163,6 +163,19 @@ export function BookingRequestDialog({ open, onOpenChange, target }: BookingRequ
     }
   }
 
+  const renterEmail =
+    user?.primaryEmailAddress?.emailAddress ?? user?.emailAddresses?.[0]?.emailAddress ?? '';
+
+  function buildBookingNotes(): string | undefined {
+    const parts: string[] = [];
+    if (target.mode === 'car') {
+      parts.push(serviceType === 'self_drive' ? 'Requested: Self-drive' : 'Requested: With driver');
+    }
+    const trimmed = notes.trim();
+    if (trimmed) parts.push(trimmed);
+    return parts.length > 0 ? parts.join('\n') : undefined;
+  }
+
   async function handleSubmit() {
     setError(null);
     if (useCalendar && (!calStart || !calEnd)) {
@@ -177,6 +190,7 @@ export function BookingRequestDialog({ open, onOpenChange, target }: BookingRequ
       setError(t('booking.phoneRequired'));
       return;
     }
+    const bookingNotes = buildBookingNotes();
     try {
       setBusy(true);
       const token = await getToken();
@@ -190,7 +204,7 @@ export function BookingRequestDialog({ open, onOpenChange, target }: BookingRequ
             endDate: new Date(endDate).toISOString(),
             pickupAddress: pickupAddress.trim(),
             totalAmountRwf: target.exactDailyRate ?? 0,
-            notes: notes.trim() || undefined,
+            notes: bookingNotes,
             renterPhone: renterPhone.trim(),
           });
         }
@@ -202,7 +216,7 @@ export function BookingRequestDialog({ open, onOpenChange, target }: BookingRequ
           pickupAddress: pickupAddress.trim(),
           dropoffAddress: dropoffAddress.trim() || undefined,
           totalAmountRwf: target.exactDailyRate ?? 0,
-          notes: notes.trim() || undefined,
+          notes: bookingNotes,
           renterPhone: renterPhone.trim(),
         });
       };
@@ -513,24 +527,35 @@ export function BookingRequestDialog({ open, onOpenChange, target }: BookingRequ
               </div>
             )}
 
-            {/* Phone */}
             <div>
               <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                {t('booking.phone')}
+                {t('booking.contactSection')}
               </label>
-              <div className="border-2 border-border bg-card">
-                <div className="flex items-center gap-2 border-b border-border px-3 py-1.5">
-                  <Phone className="h-3.5 w-3.5 text-brand" />
-                  <span className="text-xs font-bold text-muted-foreground">{t('booking.phoneHint')}</span>
+              <p className="mb-2 text-xs font-medium text-muted-foreground">{t('booking.contactSectionHint')}</p>
+              <div className="space-y-2">
+                <div className="border-2 border-border bg-card">
+                  <div className="flex items-center gap-2 border-b border-border px-3 py-1.5">
+                    <Phone className="h-3.5 w-3.5 text-brand" />
+                    <span className="text-xs font-bold text-muted-foreground">{t('booking.phone')}</span>
+                  </div>
+                  <input
+                    type="tel"
+                    value={renterPhone}
+                    onChange={(e) => setRenterPhone(e.target.value)}
+                    placeholder="078 000 0000"
+                    required
+                    className="w-full bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-muted-foreground"
+                  />
                 </div>
-                <input
-                  type="tel"
-                  value={renterPhone}
-                  onChange={(e) => setRenterPhone(e.target.value)}
-                  placeholder="078 000 0000"
-                  required
-                  className="w-full bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-muted-foreground"
-                />
+                {renterEmail ? (
+                  <div className="border-2 border-border bg-muted/40">
+                    <div className="flex items-center gap-2 border-b border-border px-3 py-1.5">
+                      <Mail className="h-3.5 w-3.5 text-brand" />
+                      <span className="text-xs font-bold text-muted-foreground">{t('booking.emailOnAccount')}</span>
+                    </div>
+                    <p className="px-3 py-2.5 text-sm font-medium text-foreground">{renterEmail}</p>
+                  </div>
+                ) : null}
               </div>
             </div>
 

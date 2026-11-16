@@ -3,17 +3,20 @@
 import { useAuth } from '@clerk/nextjs';
 import { DashboardHeader } from '@/components/web/dashboard-header';
 import { isSupportedLocale, routing, type SupportedLocale } from '@/i18n/routing';
+import { MarketplaceVisibilityControl, type MarketplaceVisibility } from '@/components/web/marketplace-visibility-control';
 import {
   addRole,
   createDriverProfile,
   getDriverProfileFull,
   getMe,
+  setDriverMarketplaceStatus,
   updateDriverProfile,
   type DriverCategory,
   type DriverProfileFull,
   type MeResponse,
   type VehicleType,
 } from '@/lib/api';
+import { useTranslations } from 'next-intl';
 import { CheckCircle2, Plus, X } from 'lucide-react';
 import { DashboardNav, resolveDashboardNavKey } from '@/components/web/dashboard-nav';
 import { usePathname, useRouter } from 'next/navigation';
@@ -40,6 +43,7 @@ function labelFor(value: string) {
 }
 
 export default function DriverProfilePage({ params }: DriverProfilePageProps) {
+  const tVis = useTranslations('web.app.marketplaceVisibility');
   const [locale, setLocale] = useState<SupportedLocale>(routing.defaultLocale);
   const { getToken } = useAuth();
   const router = useRouter();
@@ -123,6 +127,18 @@ export default function DriverProfilePage({ params }: DriverProfilePageProps) {
     }
   }
 
+  async function changeVisibility(next: MarketplaceVisibility) {
+    const token = await getToken();
+    if (!token) return;
+    setError('');
+    try {
+      const updated = await setDriverMarketplaceStatus(token, next);
+      setExisting((prev) => (prev ? { ...prev, marketplaceVisibility: updated.marketplaceVisibility } : prev));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update visibility.');
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
@@ -199,6 +215,19 @@ export default function DriverProfilePage({ params }: DriverProfilePageProps) {
               : 'Set up your profile so customers can find and book you.'}
           </p>
         </div>
+
+        {existing?.status === 'approved' ? (
+          <div className="mb-6 rounded-xl border border-border bg-card p-4">
+            <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{tVis('sectionTitle')}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{tVis('hint')}</p>
+            <div className="mt-3">
+              <MarketplaceVisibilityControl
+                value={(existing.marketplaceVisibility as MarketplaceVisibility) ?? 'active'}
+                onChange={(next) => void changeVisibility(next)}
+              />
+            </div>
+          </div>
+        ) : null}
 
         {loading ? (
           <div className="space-y-4">

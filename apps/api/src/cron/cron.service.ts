@@ -154,6 +154,29 @@ export class CronService {
     return;
   }
 
+  /** Hide job openings after the application deadline passes. */
+  @Cron(`*/${CRON_INTERVAL_MINUTES} * * * *`)
+  async runJobOpeningExpiry() {
+    try {
+      const result = await prisma.jobOpening.updateMany({
+        where: {
+          isActive: true,
+          applicationDeadline: { lte: new Date() },
+        },
+        data: { isActive: false },
+      });
+      if (result.count > 0) {
+        this.logger.log(`Set ${result.count} expired job opening(s) to hidden.`);
+      }
+    } catch (error) {
+      if (error instanceof PrismaClientKnownRequestError && error.code === 'P2021') {
+        this.logger.warn('Job expiry cron skipped: database not migrated.');
+      } else {
+        throw error;
+      }
+    }
+  }
+
   private async autoCancelCarBooking(booking: {
     id: string;
     ownerId: string;

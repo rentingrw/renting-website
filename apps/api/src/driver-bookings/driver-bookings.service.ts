@@ -19,7 +19,12 @@ import {
   bookingCompletedEmailHtml,
   bookingDeskRequestEmailHtml,
 } from '../notifications/email-templates';
-import { adminBookingsDeskUrl, formatAdminDeskWhatsAppMessage } from '../notifications/booking-desk-alert.util';
+import {
+  adminBookingsDeskUrl,
+  formatAdminDeskWhatsAppMessage,
+  formatDriverDeskDetail,
+  type BookingDeskRequestEmailInput,
+} from '../notifications/booking-desk-alert.util';
 import { realtimeEvents } from '../realtime/realtime.events';
 import { TrustScoreService } from '../trust-score/trust-score.service';
 import type { CreateDriverBookingDto } from './dto/create-driver-booking.dto';
@@ -128,15 +133,7 @@ export class DriverBookingsService {
     this.notificationsService.queueAdminDeskAlert(
       `Booking desk: ${title}`,
       `${booking.renter.fullName} (${renterPhone}) requested ${title}. Pickup ${booking.pickupAddress}.`,
-      bookingDeskRequestEmailHtml(
-        title,
-        booking.renter.fullName,
-        renterPhone,
-        booking.startAt,
-        booking.endAt,
-        booking.pickupAddress,
-        booking.notes,
-      ),
+      bookingDeskRequestEmailHtml(this.driverDeskEmailInput(booking, title, renterPhone)),
       { whatsappText, smsText },
     );
     this.notificationsService.emitInAppToAdmin(realtimeEvents.bookingNewRequest, {
@@ -293,15 +290,7 @@ export class DriverBookingsService {
     this.notificationsService.queueAdminDeskAlert(
       `Try next: ${title}`,
       `Moved ${booking.renter.fullName} (${booking.renterPhone}) to ${created.driver.fullName}.`,
-      bookingDeskRequestEmailHtml(
-        title,
-        created.renter.fullName,
-        created.renterPhone,
-        created.startAt,
-        created.endAt,
-        created.pickupAddress,
-        created.notes,
-      ),
+      bookingDeskRequestEmailHtml(this.driverDeskEmailInput(created, title, created.renterPhone)),
     );
 
     return created;
@@ -670,6 +659,44 @@ export class DriverBookingsService {
     }
   }
 
+  private driverDeskEmailInput(
+    booking: {
+      driver: {
+        fullName: string;
+        phone: string | null;
+        whatsapp: string | null;
+        driverProfile: { primaryCity: string; driverCategory: string } | null;
+      };
+      renter: { fullName: string; email: string };
+      startAt: Date;
+      endAt: Date;
+      pickupAddress: string;
+      dropoffAddress: string | null;
+      notes: string | null;
+      totalAmountRwf: number;
+    },
+    title: string,
+    renterPhone: string,
+  ): BookingDeskRequestEmailInput {
+    return {
+      title,
+      kind: 'driver',
+      renterName: booking.renter.fullName,
+      renterPhone,
+      renterEmail: booking.renter.email,
+      startDate: booking.startAt,
+      endDate: booking.endAt,
+      pickup: booking.pickupAddress,
+      dropoff: booking.dropoffAddress,
+      notes: booking.notes,
+      providerName: booking.driver.fullName,
+      providerPhone: booking.driver.phone,
+      providerWhatsapp: booking.driver.whatsapp,
+      assetDetail: formatDriverDeskDetail(booking.driver.fullName, booking.driver.driverProfile),
+      amountRwf: booking.totalAmountRwf,
+    };
+  }
+
   private bookingInclude() {
     return {
       driver: {
@@ -679,6 +706,12 @@ export class DriverBookingsService {
           avatarUrl: true,
           phone: true,
           whatsapp: true,
+          driverProfile: {
+            select: {
+              primaryCity: true,
+              driverCategory: true,
+            },
+          },
         },
       },
       renter: {
@@ -687,6 +720,7 @@ export class DriverBookingsService {
           fullName: true,
           avatarUrl: true,
           phone: true,
+          email: true,
         },
       },
       disputes: {

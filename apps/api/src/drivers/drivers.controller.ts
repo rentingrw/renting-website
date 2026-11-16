@@ -7,6 +7,7 @@ import { ClerkAuthGuard } from '../auth/guards/clerk-auth.guard';
 import { OptionalClerkAuthGuard } from '../auth/guards/optional-clerk-auth.guard';
 import type { AuthenticatedUser } from '../auth/types/authenticated-request.interface';
 import { ProviderAgreementDto } from '../common/dto/provider-agreement.dto';
+import { SetMarketplaceVisibilityDto } from '../common/dto/marketplace-visibility.dto';
 import { DriversService } from './drivers.service';
 import { CreateDriverProfileDto, UpdateDriverProfileDto } from './dto/upsert-driver-profile.dto';
 
@@ -45,6 +46,14 @@ export class DriversController {
   @ApiOperation({ summary: 'Get the authenticated user\'s own driver profile' })
   getMyProfile(@CurrentUser() user: AuthenticatedUser) {
     return this.driversService.getMyProfile(user);
+  }
+
+  @Patch('profile/marketplace-status')
+  @UseGuards(ClerkAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Set driver visibility in search: active, inactive, or booked' })
+  setMarketplaceVisibility(@CurrentUser() user: AuthenticatedUser, @Body() body: SetMarketplaceVisibilityDto) {
+    return this.driversService.setMarketplaceVisibility(user, body.status);
   }
 
   @Get(':id')

@@ -33,7 +33,59 @@ export function formatAdminDeskWhatsAppMessage(params: {
   return lines.join('\n');
 }
 
+export function adminCareersApplicationsUrl(): string {
+  const base = process.env.NEXT_PUBLIC_ADMIN_URL ?? 'http://localhost:3002';
+  return `${base.replace(/\/$/, '')}/en/jobs`;
+}
+
 export function adminBookingsDeskUrl(): string {
   const base = process.env.NEXT_PUBLIC_ADMIN_URL ?? 'http://localhost:3002';
   return `${base.replace(/\/$/, '')}/en/bookings?status=pending`;
+}
+
+export type BookingDeskRequestEmailInput = {
+  title: string;
+  kind: 'car' | 'driver';
+  renterName: string;
+  renterPhone: string;
+  renterEmail?: string | null;
+  startDate: Date;
+  endDate: Date;
+  pickup: string;
+  dropoff?: string | null;
+  notes?: string | null;
+  providerName: string;
+  providerPhone?: string | null;
+  providerWhatsapp?: string | null;
+  assetDetail?: string | null;
+  amountRwf?: number;
+};
+
+export function formatCarListingDeskDetail(listing: {
+  title: string;
+  brand: string;
+  model: string;
+  year: number;
+  plateNumber?: string | null;
+  listingCity: string;
+  vehicleType: string;
+  locationText?: string;
+}): string {
+  return [
+    listing.title,
+    `${listing.brand} ${listing.model} (${listing.year})`,
+    listing.vehicleType.replace(/_/g, ' '),
+    listing.locationText || listing.listingCity,
+    listing.plateNumber ? `Plate ${listing.plateNumber}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
+
+export function formatDriverDeskDetail(
+  driverName: string,
+  profile: { primaryCity: string; driverCategory: string } | null | undefined,
+): string {
+  if (!profile) return driverName;
+  return `${driverName} · ${profile.driverCategory.replace(/_/g, ' ')} · ${profile.primaryCity}`;
 }

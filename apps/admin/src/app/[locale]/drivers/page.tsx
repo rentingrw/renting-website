@@ -11,6 +11,8 @@ import {
   getAdminDriverDetail,
   listAdminDrivers,
   rejectDriverApplication,
+  setAdminDriverMarketplaceStatus,
+  type AdminListingMarketplaceStatus,
   type AdminCreateDriverPayload,
   type AdminDriverDetail,
   type AdminDriverItem,
@@ -25,6 +27,7 @@ const DRIVER_CATEGORIES = ['city', 'outstation', 'airport', 'chauffeur', 'tour_g
 const VEHICLE_TYPES = ['sedan', 'suv', 'hatchback', 'pickup', 'van', 'truck'] as const;
 const LANGUAGES = ['en', 'fr', 'rw', 'sw'] as const;
 const APPROVAL_STATUSES = ['pending_approval', 'approved', 'rejected', 'draft'] as const;
+const VISIBILITY_OPTIONS: AdminListingMarketplaceStatus[] = ['active', 'inactive', 'booked'];
 const STATUS_BADGE: Record<string, string> = {
   pending_approval: 'bg-sun text-ink border-amber-600',
   approved: 'bg-emerald-400 text-ink border-emerald-700',
@@ -450,7 +453,10 @@ export default function AdminDriversPage() {
   const [reviewId, setReviewId] = useState<string | null>(null);
 
   const loadDrivers = useCallback(async () => {
-    if (!isLoaded || !isSignedIn) return;
+    if (!isLoaded || !isSignedIn) {
+      if (isLoaded) setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -471,6 +477,20 @@ export default function AdminDriversPage() {
   }, [fetchToken, isLoaded, isSignedIn, filters.search, filters.status, filters.page]);
 
   useEffect(() => { void loadDrivers(); }, [loadDrivers]);
+
+  const onDriverVisibility = async (driverProfileId: string, status: AdminListingMarketplaceStatus) => {
+    setActingId(driverProfileId);
+    try {
+      const token = await fetchToken();
+      if (!token) throw new Error('Session not ready.');
+      await setAdminDriverMarketplaceStatus(token, driverProfileId, status);
+      await loadDrivers();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update driver visibility.');
+    } finally {
+      setActingId(null);
+    }
+  };
 
   const onDelete = async (driverProfileId: string) => {
     if (!window.confirm('Remove this driver profile? This cannot be undone.')) return;
@@ -553,6 +573,7 @@ export default function AdminDriversPage() {
                 <th className="px-5 py-3 text-xs font-black uppercase tracking-wider">Experience</th>
                 <th className="px-5 py-3 text-xs font-black uppercase tracking-wider">Daily Rate</th>
                 <th className="px-5 py-3 text-xs font-black uppercase tracking-wider">Status</th>
+                <th className="px-5 py-3 text-xs font-black uppercase tracking-wider">Visibility</th>
                 <th className="px-5 py-3 text-xs font-black uppercase tracking-wider">City</th>
                 <th className="px-5 py-3 text-xs font-black uppercase tracking-wider">Joined</th>
                 <th className="px-5 py-3 text-xs font-black uppercase tracking-wider text-right">Actions</th>
@@ -560,10 +581,10 @@ export default function AdminDriversPage() {
             </thead>
             <tbody>
               {loading ? (
-                Array.from({ length: 5 }).map((_, i) => <TableRowSkeleton key={i} cols={8} />)
+                Array.from({ length: 5 }).map((_, i) => <TableRowSkeleton key={i} cols={9} />)
               ) : data.items.length === 0 ? (
                 <tr>
-                  <td className="px-5 py-10 text-center font-semibold text-muted-foreground" colSpan={8}>
+                  <td className="px-5 py-10 text-center font-semibold text-muted-foreground" colSpan={9}>
                     {filters.status === 'pending_approval' ? 'No pending driver applications.' : 'No driver profiles found.'}
                   </td>
                 </tr>
@@ -592,6 +613,27 @@ export default function AdminDriversPage() {
                       >
                         {(driver.status ?? 'draft').replace('_', ' ')}
                       </span>
+                    </td>
+                    <td className="px-5 py-3">
+                      {driver.status === 'approved' ? (
+                        <select
+                          className="h-8 max-w-[6.5rem] rounded-xl border border-border bg-card px-1 text-[10px] font-black uppercase"
+                          value={(driver.marketplaceVisibility as AdminListingMarketplaceStatus) ?? 'active'}
+                          disabled={actingId === driver.id}
+                          onChange={(e) =>
+                            void onDriverVisibility(driver.id, e.target.value as AdminListingMarketplaceStatus)
+                          }
+                          title="Visibility in driver search"
+                        >
+                          {VISIBILITY_OPTIONS.map((s) => (
+                            <option key={s} value={s}>
+                              {s}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
                     </td>
                     <td className="px-5 py-3 text-sm font-semibold text-ink/80">{driver.primaryCity}</td>
                     <td className="px-5 py-3 text-xs font-medium text-muted-foreground">{new Date(driver.createdAt).toLocaleDateString()}</td>

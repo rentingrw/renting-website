@@ -28,7 +28,12 @@ import {
   bookingCompletedEmailHtml,
   bookingDeskRequestEmailHtml,
 } from '../notifications/email-templates';
-import { adminBookingsDeskUrl, formatAdminDeskWhatsAppMessage } from '../notifications/booking-desk-alert.util';
+import {
+  adminBookingsDeskUrl,
+  formatAdminDeskWhatsAppMessage,
+  formatCarListingDeskDetail,
+  type BookingDeskRequestEmailInput,
+} from '../notifications/booking-desk-alert.util';
 
 const BLOCKING_BOOKING_STATUSES = new Set<BookingStatus>([
   BookingStatus.confirmed,
@@ -158,15 +163,7 @@ export class BookingsService {
     this.notificationsService.queueAdminDeskAlert(
       `Booking desk: ${booking.listing.title}`,
       `${booking.renter.fullName} (${renterPhone}) requested ${booking.listing.title}. Pickup ${booking.pickupAddress}.`,
-      bookingDeskRequestEmailHtml(
-        booking.listing.title,
-        booking.renter.fullName,
-        renterPhone,
-        booking.startDate,
-        booking.endDate,
-        booking.pickupAddress,
-        booking.notes,
-      ),
+      bookingDeskRequestEmailHtml(this.carDeskEmailInput(booking, renterPhone)),
       { whatsappText, smsText },
     );
     this.notificationsService.emitInAppToAdmin(realtimeEvents.bookingNewRequest, {
@@ -329,15 +326,7 @@ export class BookingsService {
     this.notificationsService.queueAdminDeskAlert(
       `Try next: ${created.listing.title}`,
       `Moved ${booking.renter.fullName} (${booking.renterPhone}) from ${booking.listing.title} to ${created.listing.title}.`,
-      bookingDeskRequestEmailHtml(
-        created.listing.title,
-        created.renter.fullName,
-        created.renterPhone,
-        created.startDate,
-        created.endDate,
-        created.pickupAddress,
-        created.notes,
-      ),
+      bookingDeskRequestEmailHtml(this.carDeskEmailInput(created, created.renterPhone)),
     );
 
     return created;
@@ -726,6 +715,37 @@ export class BookingsService {
     }
   }
 
+  private carDeskEmailInput(
+    booking: {
+      listing: Parameters<typeof formatCarListingDeskDetail>[0];
+      renter: { fullName: string; email: string };
+      owner: { fullName: string; phone: string | null; whatsapp: string | null };
+      startDate: Date;
+      endDate: Date;
+      pickupAddress: string;
+      notes: string | null;
+      totalAmountRwf: number;
+    },
+    renterPhone: string,
+  ): BookingDeskRequestEmailInput {
+    return {
+      title: booking.listing.title,
+      kind: 'car',
+      renterName: booking.renter.fullName,
+      renterPhone,
+      renterEmail: booking.renter.email,
+      startDate: booking.startDate,
+      endDate: booking.endDate,
+      pickup: booking.pickupAddress,
+      notes: booking.notes,
+      providerName: booking.owner.fullName,
+      providerPhone: booking.owner.phone,
+      providerWhatsapp: booking.owner.whatsapp,
+      assetDetail: formatCarListingDeskDetail(booking.listing),
+      amountRwf: booking.totalAmountRwf,
+    };
+  }
+
   private bookingInclude() {
     return {
       listing: {
@@ -733,6 +753,13 @@ export class BookingsService {
           id: true,
           title: true,
           photos: true,
+          brand: true,
+          model: true,
+          year: true,
+          plateNumber: true,
+          listingCity: true,
+          vehicleType: true,
+          locationText: true,
         },
       },
       owner: {
@@ -750,6 +777,7 @@ export class BookingsService {
           fullName: true,
           avatarUrl: true,
           phone: true,
+          email: true,
         },
       },
       disputes: {
