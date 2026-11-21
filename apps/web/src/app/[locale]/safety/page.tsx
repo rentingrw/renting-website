@@ -6,7 +6,7 @@ import { MarketingPageHero } from '@/components/web/marketing-page-hero';
 import { SiteFooter } from '@/components/web/site-footer';
 import { IllustrationSafety } from '@/components/web/illustrations';
 import { isSupportedLocale, routing, type SupportedLocale } from '@/i18n/routing';
-import { AlertCircle, BadgeCheck, Lock, Phone, Shield, ShieldCheck } from 'lucide-react';
+import { AlertCircle, BadgeCheck, Lock, Phone, Shield } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 
@@ -22,7 +22,6 @@ export default function SafetyPage({ params }: { params: Promise<{ locale: strin
 
   const pillars = [
     { icon: <BadgeCheck className="h-8 w-8 text-brand" />, title: t('planTitle'), desc: t('planDesc') },
-    { icon: <ShieldCheck className="h-8 w-8 text-brand" />, title: t('trustTitle'), desc: t('trustDesc') },
     { icon: <Lock className="h-8 w-8 text-brand" />, title: t('payTitle'), desc: t('payDesc') },
     { icon: <Phone className="h-8 w-8 text-brand" />, title: t('contactTitle'), desc: t('contactDesc') },
     { icon: <AlertCircle className="h-8 w-8 text-brand" />, title: t('disputeTitle'), desc: t('disputeDesc') },

@@ -43,6 +43,36 @@ export type MeResponse = {
     workAddress: string | null;
     contactPhone: string | null;
   } | null;
+  companyPartnerApplication?: CompanyPartnerApplicationSummary | null;
+};
+
+export type CompanyPartnerApplicationStatus = 'pending_approval' | 'approved' | 'rejected';
+
+export type CompanyPartnerApplicationSummary = {
+  id: string;
+  companyName: string;
+  status: CompanyPartnerApplicationStatus;
+  rejectionReason: string | null;
+  submittedAt: string;
+  reviewedAt: string | null;
+};
+
+export type CompanyPartnerApplication = CompanyPartnerApplicationSummary & {
+  contactPhone: string | null;
+  workAddress: string | null;
+  tinNumber: string | null;
+  message: string | null;
+};
+
+export type SubmitCompanyPartnerPayload = {
+  companyName: string;
+  contactPhone?: string;
+  workAddress?: string;
+  tinNumber?: string;
+  message?: string;
+  acceptedTerms: boolean;
+  acceptedPlatformFee: boolean;
+  understoodBookingFlow: boolean;
 };
 
 type SyncPayload = {
@@ -80,6 +110,9 @@ export type SearchCar = {
   isBookedNow?: boolean;
   verified?: boolean;
   listingCity?: string;
+  hostDisplayName?: string;
+  isCompanyHost?: boolean;
+  companyName?: string | null;
   dailyRateInCityRwf?: number;
   dailyRateOutsideCityRwf?: number;
   approximateDailyRateRangeRwf?: CarDailyRateApproxRanges;
@@ -93,6 +126,8 @@ export type SearchDriver = {
   fullName: string;
   profilePhotoUrl: string | null;
   trustScore: number;
+  status?: 'draft' | 'pending_approval' | 'approved' | 'rejected';
+  verified?: boolean;
   driverCategory: DriverCategory;
   yearsExperience: number;
   biography: string | null;
@@ -159,6 +194,10 @@ export type CarDetail = {
   id: string;
   ownerId: string;
   ownerName: string;
+  hostDisplayName?: string;
+  isCompanyHost?: boolean;
+  companyName?: string | null;
+  hostContactName?: string | null;
   ownerPhone?: string | null;
   ownerDriverProfileId?: string | null;
   ownerTrustScore?: number;
@@ -193,6 +232,7 @@ export type DriverDetail = {
   isBookedNow?: boolean;
   profilePhotoUrl: string | null;
   trustScore: number;
+  status?: 'draft' | 'pending_approval' | 'approved' | 'rejected';
   driverCategory: DriverCategory;
   yearsExperience: number;
   biography: string | null;
@@ -202,11 +242,15 @@ export type DriverDetail = {
   vehicleTypes: string[];
   certifications: string[];
   serviceAreas: string[];
+  licenseCategories?: string[];
+  transmission?: string | null;
+  addressText?: string | null;
   rating: number | null;
   completedTrips: number;
   dailyRateRwf?: number;
   hourlyRateRwf?: number | null;
   weeklyRateRwf?: number | null;
+  monthlyRateRwf?: number | null;
   approximateRateRangeRwf?: {
     daily: PriceRange;
     hourly?: PriceRange;
@@ -257,6 +301,8 @@ type SearchQuery = {
   priceMax?: number;
   yearMin?: number;
   experienceMin?: number;
+  brand?: string;
+  model?: string;
   limit?: number;
   sort?: 'relevance' | 'score' | 'rating' | 'price_asc' | 'price_desc';
   availableNow?: boolean;
@@ -1256,6 +1302,31 @@ export async function getKycStatus(token: string): Promise<KycStatus> {
   return (await response.json()) as KycStatus;
 }
 
+export async function getCompanyPartnerApplication(token: string): Promise<CompanyPartnerApplication | null> {
+  const response = await fetch(`${API_BASE_URL}/company-partners/me`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  if (response.status === 404) return null;
+  await ensureOk(response, 'Failed to load partner application.');
+  const data = await response.json();
+  if (data === null) return null;
+  return data as CompanyPartnerApplication;
+}
+
+export async function submitCompanyPartnerApplication(
+  token: string,
+  payload: SubmitCompanyPartnerPayload,
+): Promise<CompanyPartnerApplication> {
+  const response = await fetch(`${API_BASE_URL}/company-partners/apply`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  await ensureOk(response, 'Failed to submit partner request.');
+  return (await response.json()) as CompanyPartnerApplication;
+}
+
 export async function submitKyc(
   token: string,
   payload: { nationalIdNumber?: string; tinNumber?: string; companyName?: string },
@@ -1313,13 +1384,61 @@ export async function createDriverProfile(token: string, payload: DriverProfileP
   await ensureOk(response, 'Failed to create driver profile.');
 }
 
-export async function updateDriverProfile(token: string, payload: Partial<DriverProfilePayload>): Promise<void> {
+export async function updateDriverProfile(
+  token: string,
+  payload: Partial<DriverProfilePayload>,
+): Promise<DriverProfileFull> {
   const response = await fetch(`${API_BASE_URL}/drivers/profile`, {
     method: 'PATCH',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
   await ensureOk(response, 'Failed to update driver profile.');
+  return (await response.json()) as DriverProfileFull;
+}
+
+/** Ensures driver role, then creates or updates the profile (never fails on “already exists”). */
+export async function saveDriverProfile(token: string, payload: DriverProfilePayload): Promise<DriverProfileFull> {
+  await addRole(token, 'driver');
+  const found = await getDriverProfileFull(token);
+  if (found) {
+    return updateDriverProfile(token, payload);
+  }
+
+  const response = await fetch(`${API_BASE_URL}/drivers/profile`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (response.ok) {
+    return (await response.json()) as DriverProfileFull;
+  }
+
+  const body = await parseJson(response);
+  const raw =
+    typeof body === 'object' && body !== null && 'message' in body ? (body as { message?: unknown }).message : undefined;
+  const detail =
+    typeof raw === 'string'
+      ? raw
+      : Array.isArray(raw) && raw.length > 0
+        ? raw.join('. ')
+        : 'Failed to create driver profile.';
+
+  if (response.status === 400 && detail.includes('already exists')) {
+    return updateDriverProfile(token, payload);
+  }
+
+  throw new Error(detail);
+}
+
+export async function loadDriverProfileForOwner(token: string): Promise<DriverProfileFull | null> {
+  let profile = await getDriverProfileFull(token);
+  if (profile) {
+    return profile;
+  }
+  await addRole(token, 'driver');
+  return getDriverProfileFull(token);
 }
 
 export async function submitDriverProfileForReview(

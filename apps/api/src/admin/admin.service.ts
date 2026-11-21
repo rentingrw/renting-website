@@ -1,4 +1,10 @@
-import { BadRequestException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import {
+  BadGatewayException,
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import {
   BookingStatus,
   DisputeStatus,
@@ -1147,6 +1153,95 @@ export class AdminService {
     return this.mapAdminListing(listing);
   }
 
+  async downloadListingPhoto(listingId: string, photoIndex: number): Promise<{
+    buffer: Buffer;
+    contentType: string;
+    filename: string;
+  }> {
+    if (!Number.isInteger(photoIndex) || photoIndex < 0) {
+      throw new BadRequestException('Invalid photo index.');
+    }
+
+    const listing = await prisma.carListing.findUnique({
+      where: { id: listingId },
+      select: {
+        id: true,
+        photos: true,
+        brand: true,
+        model: true,
+        plateNumber: true,
+        status: true,
+      },
+    });
+    if (!listing || listing.status === ListingStatus.deleted) {
+      throw new NotFoundException('Listing not found.');
+    }
+
+    const photoUrl = listing.photos[photoIndex];
+    if (!photoUrl) {
+      throw new NotFoundException('Photo not found.');
+    }
+
+    const resolvedUrl = photoUrl.startsWith('/')
+      ? `${process.env.API_PUBLIC_URL ?? `http://localhost:${process.env.PORT ?? 3001}`}${photoUrl}`
+      : photoUrl;
+
+    let response: Response;
+    try {
+      response = await fetch(resolvedUrl);
+    } catch {
+      throw new BadGatewayException('Could not reach the image host.');
+    }
+    if (!response.ok) {
+      throw new BadGatewayException('Could not fetch listing photo.');
+    }
+
+    const buffer = Buffer.from(await response.arrayBuffer());
+    const contentType = response.headers.get('content-type')?.split(';')[0]?.trim() || 'image/jpeg';
+    const ext = this.extensionForImage(contentType, resolvedUrl);
+    const slug = this.listingPhotoSlug(listing);
+    const filename = `${slug}_${photoIndex + 1}.${ext}`;
+
+    return { buffer, contentType, filename };
+  }
+
+  private listingPhotoSlug(listing: {
+    id: string;
+    brand: string;
+    model: string;
+    plateNumber: string | null;
+  }): string {
+    const parts = [listing.plateNumber, listing.brand, listing.model, listing.id.slice(0, 8)].filter(Boolean);
+    return parts
+      .join('-')
+      .toLowerCase()
+      .replace(/[^a-z0-9-]+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 80);
+  }
+
+  private extensionForImage(contentType: string, url: string): string {
+    const byType: Record<string, string> = {
+      'image/jpeg': 'jpg',
+      'image/jpg': 'jpg',
+      'image/png': 'png',
+      'image/webp': 'webp',
+      'image/gif': 'gif',
+      'image/avif': 'avif',
+    };
+    if (byType[contentType]) return byType[contentType];
+    try {
+      const ext = new URL(url).pathname.split('.').pop()?.toLowerCase();
+      if (ext && ['jpg', 'jpeg', 'png', 'webp', 'gif', 'avif'].includes(ext)) {
+        return ext === 'jpeg' ? 'jpg' : ext;
+      }
+    } catch {
+      // ignore
+    }
+    return 'jpg';
+  }
+
   private adminListingInclude() {
     return {
       owner: {
@@ -1468,8 +1563,8 @@ export class AdminService {
     this.notificationsService.queueEmailToUsers(
       [profile.userId],
       'Your driver profile is approved — renting.rw',
-      `Hi ${profile.user.fullName}, your driver application has been approved. Customers can now find you in search.`,
-      `<p>Hi ${profile.user.fullName},</p><p>Your driver application has been approved. You are now visible to customers on renting.rw.</p>`,
+      `Hi ${profile.user.fullName}, your driver application has been approved. Your verified badge is now on your profile.`,
+      `<p>Hi ${profile.user.fullName},</p><p>Your driver application has been approved. You now have the verified badge on renting.rw (your profile was already discoverable in search).</p>`,
     );
 
     return updated;
@@ -1616,7 +1711,15 @@ export class AdminService {
           email: true,
           phone: true,
           createdAt: true,
-          driverProfile: { select: { id: true, primaryCity: true, driverCategory: true, status: true } },
+          driverProfile: {
+            select: {
+              id: true,
+              primaryCity: true,
+              driverCategory: true,
+              status: true,
+              marketplaceVisibility: true,
+            },
+          },
           subscriptions: {
             where: { tier: 'free' },
             orderBy: { createdAt: 'desc' },
@@ -1650,7 +1753,10 @@ export class AdminService {
           driverCategory: u.driverProfile?.driverCategory ?? null,
           subscriptionStatus: sub ? sub.status : null,
           subscriptionRenewsAt: sub?.renewsAt ?? null,
-          isVisibleInSearch: u.driverProfile?.status === DriverProfileStatus.approved,
+          isVisibleInSearch:
+            u.driverProfile != null &&
+            u.driverProfile.status !== DriverProfileStatus.draft &&
+            u.driverProfile.marketplaceVisibility === MarketplaceVisibility.active,
         };
       }),
     };
@@ -2135,9 +2241,6 @@ export class AdminService {
   async setDriverMarketplaceVisibility(driverProfileId: string, target: MarketplaceVisibilityStatus) {
     const profile = await prisma.driverProfile.findUnique({ where: { id: driverProfileId } });
     if (!profile) throw new NotFoundException('Driver profile not found.');
-    if (profile.status !== DriverProfileStatus.approved) {
-      throw new BadRequestException('Driver must be approved before changing marketplace visibility.');
-    }
     return prisma.driverProfile.update({
       where: { id: driverProfileId },
       data: { marketplaceVisibility: target as MarketplaceVisibility },

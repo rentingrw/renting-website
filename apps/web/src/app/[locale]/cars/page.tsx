@@ -21,13 +21,12 @@ import {
 import { ListingPageHeader } from '@/components/web/listing-page-header';
 import { SiteFooter } from '@/components/web/site-footer';
 import { isSupportedLocale, routing, type SupportedLocale } from '@/i18n/routing';
-import { searchMarketplace, type SearchCar, type ServiceType, type VehicleType } from '@/lib/api';
+import { searchMarketplace, type SearchCar, type VehicleType } from '@/lib/api';
 
 const VEHICLE_TYPES: VehicleType[] = ['suv', 'sedan', 'hatchback', 'pickup', 'van', 'truck'];
 const VEHICLE_TYPE_LABELS: Record<string, string> = {
   suv: 'SUV', sedan: 'Sedan', hatchback: 'Hatchback', pickup: 'Pickup', van: 'Van', truck: 'Truck',
 };
-const SERVICE_TYPES: ServiceType[] = ['self_drive', 'with_driver'];
 const FUEL_TYPES = ['Petrol', 'Diesel', 'Hybrid', 'Electric'] as const;
 const PAGE_SIZE = 20;
 const CAR_PRICE = { min: 20_000, max: 250_000, step: 5_000 };
@@ -38,7 +37,7 @@ const CAR_PRICE_PRESETS = {
 } as const;
 const CURRENT_YEAR = new Date().getFullYear();
 
-type ListingSort = 'score' | 'price_asc' | 'price_desc' | '';
+type ListingSort = 'price_asc' | 'price_desc' | '';
 
 function CarCardSkeleton() {
   return (
@@ -60,7 +59,8 @@ export default function CarsPage({ params }: { params: Promise<{ locale: string 
   const [location, setLocation] = useState(searchParams.get('location') ?? '');
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
-  const [serviceType, setServiceType] = useState<ServiceType | ''>('');
+  const [brand, setBrand] = useState(searchParams.get('brand') ?? '');
+  const [model, setModel] = useState(searchParams.get('model') ?? '');
   const [vehicleType, setVehicleType] = useState<VehicleType | ''>('');
   const [transmission, setTransmission] = useState<'Manual' | 'Automatic' | ''>('');
   const [fuelType, setFuelType] = useState<string>('');
@@ -84,7 +84,6 @@ export default function CarsPage({ params }: { params: Promise<{ locale: string 
       location: location.trim() || undefined,
       latitude: latitude ?? undefined,
       longitude: longitude ?? undefined,
-      serviceType: serviceType || undefined,
       vehicleType: vehicleType || undefined,
       transmission: transmission || undefined,
       fuelType: fuelType || undefined,
@@ -93,11 +92,19 @@ export default function CarsPage({ params }: { params: Promise<{ locale: string 
       priceMin: priceMin > CAR_PRICE.min ? priceMin : undefined,
       priceMax: priceMax < CAR_PRICE.max ? priceMax : undefined,
       availableNow: availableNow || undefined,
+      brand: brand.trim() || undefined,
+      model: model.trim() || undefined,
       sort: sort || undefined,
       limit: PAGE_SIZE,
       offset: nextOffset,
     };
   }
+
+  useEffect(() => {
+    setLocation(searchParams.get('location') ?? '');
+    setBrand(searchParams.get('brand') ?? '');
+    setModel(searchParams.get('model') ?? '');
+  }, [searchParams]);
 
   useEffect(() => {
     let cancelled = false;
@@ -130,7 +137,7 @@ export default function CarsPage({ params }: { params: Promise<{ locale: string 
     runSearch();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [availableNow, fuelType, location, latitude, longitude, priceMax, priceMin, seatsMin, serviceType, sort, t, transmission, vehicleType, yearMin]);
+  }, [availableNow, brand, fuelType, location, latitude, longitude, model, priceMax, priceMin, seatsMin, sort, t, transmission, vehicleType, yearMin]);
 
   async function handleLoadMore() {
     const nextOffset = offset + PAGE_SIZE;
@@ -166,7 +173,8 @@ export default function CarsPage({ params }: { params: Promise<{ locale: string 
     setLocation('');
     setLatitude(null);
     setLongitude(null);
-    setServiceType('');
+    setBrand('');
+    setModel('');
     setVehicleType('');
     setTransmission('');
     setFuelType('');
@@ -192,20 +200,8 @@ export default function CarsPage({ params }: { params: Promise<{ locale: string 
             className="mb-1 h-10 w-full rounded-xl border-0 bg-white px-3 text-sm font-bold text-foreground placeholder:font-medium placeholder:text-muted-foreground focus:outline-none"
             showLocateMe
           />
-          {SERVICE_TYPES.map((st) => (
-            <FilterButton
-              key={st}
-              active={serviceType === st}
-              onClick={() => setServiceType((prev) => (prev === st ? '' : st))}
-            >
-              {st === 'self_drive' ? t('filters.selfDrive') : t('filters.withDriver')}
-            </FilterButton>
-          ))}
           <FilterButton active={availableNow} onClick={() => setAvailableNow((prev) => !prev)}>
             {t('listing.available')}
-          </FilterButton>
-          <FilterButton active={sort === 'score'} onClick={() => toggleSort('score')}>
-            {t('listing.topRated')}
           </FilterButton>
           <FilterButton active={sort === 'price_asc'} onClick={() => toggleSort('price_asc')}>
             {t('filters.sortLow')}

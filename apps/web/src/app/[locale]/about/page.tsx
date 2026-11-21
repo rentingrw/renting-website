@@ -50,8 +50,7 @@ export default function AboutPage({ params }: { params: Promise<{ locale: string
               an airport transfer, or a full week across the country.
             </p>
             <p className="mt-4 font-medium leading-relaxed text-muted-foreground">
-              Hosts and drivers earn a trust score from completed trips and reviews. Every booking
-              is protected by that system.
+              Every Standard booking is confirmed by the renting.rw desk before guests and hosts share contact details.
             </p>
           </div>
           <div>
@@ -78,7 +77,7 @@ export default function AboutPage({ params }: { params: Promise<{ locale: string
               {
                 icon: <ShieldCheck className="h-8 w-8 text-brand" />,
                 title: 'Trust & Safety',
-                desc: 'Public trust scores and reviews keep standards high on the marketplace.',
+                desc: 'Verified accounts, signed rental contracts, and support when something goes wrong.',
               },
               {
                 icon: <Star className="h-8 w-8 text-brand" />,

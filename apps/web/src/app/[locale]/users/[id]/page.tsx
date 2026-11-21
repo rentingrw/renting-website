@@ -13,7 +13,6 @@ import { ShareMenu } from '@/components/web/share-menu';
 import { isSupportedLocale, routing, type SupportedLocale } from '@/i18n/routing';
 import {
   getCarsByOwner,
-  getReviewsForUser,
   getUserPublicProfile,
   type SearchCar,
   type UserPublicProfile,
@@ -53,8 +52,6 @@ export default function UserProfilePage({ params }: Props) {
   const [userId, setUserId] = useState('');
   const [profile, setProfile] = useState<UserPublicProfile | null>(null);
   const [cars, setCars] = useState<SearchCar[]>([]);
-  const [averageRating, setAverageRating] = useState<number | null>(null);
-  const [totalReviews, setTotalReviews] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -79,18 +76,13 @@ export default function UserProfilePage({ params }: Props) {
       setError(null);
       try {
         const token = isSignedIn ? await getToken() : null;
-        const [userProfile, carListings, reviews] = await Promise.all([
+        const [userProfile, carListings] = await Promise.all([
           getUserPublicProfile(userId),
           getCarsByOwner(userId, undefined, token),
-          getReviewsForUser(userId).catch(() => null),
         ]);
         if (!cancelled) {
           setProfile(userProfile);
           setCars(carListings);
-          if (reviews) {
-            setAverageRating(reviews.averageRating);
-            setTotalReviews(reviews.totalReviews);
-          }
         }
       } catch {
         if (!cancelled) setError('User not found.');
@@ -128,9 +120,6 @@ export default function UserProfilePage({ params }: Props) {
           name={profile.fullName}
           photo={avatarSrc}
           city={profile.driverPrimaryCity}
-          trustScore={Number(profile.trustScore)}
-          rating={averageRating}
-          reviewCount={totalReviews}
           actions={
             <>
               <ShareMenu url={`/${locale}/users/${profile.id}`} title={profile.fullName} />
@@ -145,22 +134,6 @@ export default function UserProfilePage({ params }: Props) {
             </>
           }
         />
-
-        {profile.recentTrustEvents && profile.recentTrustEvents.length > 0 ? (
-          <section className="mb-8 rounded-md border-2 border-border bg-card p-4">
-            <h2 className="mb-3 text-sm font-black uppercase tracking-widest text-muted-foreground">{t('trustHistory')}</h2>
-            <ul className="space-y-2">
-              {profile.recentTrustEvents.map((event) => (
-                <li key={event.id} className="flex items-center justify-between text-sm">
-                  <span className="font-medium text-muted-foreground">{event.type.replace(/_/g, ' ')}</span>
-                  <span className={`font-black ${event.delta >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
-                    {event.delta > 0 ? '+' : ''}{event.delta}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </section>
-        ) : null}
 
         {cars.length > 0 && (
           <section>

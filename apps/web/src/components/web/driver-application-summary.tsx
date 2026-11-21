@@ -24,6 +24,7 @@ type DriverApplicationSummaryProps = {
   languages: string[];
   languageLabels: Record<string, string>;
   dailyRateRwf: string;
+  weeklyRateRwf: string;
   monthlyRateRwf: string;
   idDocumentUrl: string;
   licenseDocumentUrl: string;
@@ -110,6 +111,7 @@ export function DriverApplicationSummary({
   languages,
   languageLabels,
   dailyRateRwf,
+  weeklyRateRwf,
   monthlyRateRwf,
   idDocumentUrl,
   licenseDocumentUrl,
@@ -120,6 +122,7 @@ export function DriverApplicationSummary({
   const languageNames = languages.map((code) => languageLabels[code] ?? code.toUpperCase());
   const rates = [
     dailyRateRwf && Number(dailyRateRwf) >= 1000 ? `${formatRwf(Number(dailyRateRwf))} RWF / day` : null,
+    weeklyRateRwf && Number(weeklyRateRwf) >= 1000 ? `${formatRwf(Number(weeklyRateRwf))} RWF / week` : null,
     monthlyRateRwf && Number(monthlyRateRwf) >= 1000 ? `${formatRwf(Number(monthlyRateRwf))} RWF / month` : null,
   ].filter(Boolean);
 
@@ -147,7 +150,11 @@ export function DriverApplicationSummary({
                 value={
                   photoUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={photoUrl} alt="" className="h-20 w-20 rounded-full border-2 border-border object-cover" />
+                    <img
+                      src={photoUrl}
+                      alt=""
+                      className="h-[90px] w-[72px] rounded-t-2xl rounded-b-md border-2 border-border object-cover"
+                    />
                   ) : (
                     '—'
                   )

@@ -32,19 +32,19 @@ const DRIVER_PRICE_PRESETS = {
   high: { min: 80_000, max: 150_000 },
 } as const;
 
-type ListingSort = 'rating' | 'price_asc' | 'price_desc' | '';
+type ListingSort = 'price_asc' | 'price_desc' | '';
 
 function DriverCardSkeleton() {
   return (
-    <div className="overflow-hidden rounded-[1.35rem] border border-border bg-card animate-pulse">
-      <div className="flex flex-col items-center border-b border-border bg-brand-soft px-4 py-4">
-        <div className="h-16 w-16 rounded-full bg-muted" />
-        <div className="mt-2 h-4 w-32 rounded bg-muted" />
-        <div className="mt-2 h-3 w-24 rounded bg-muted" />
-      </div>
-      <div className="flex justify-between p-3">
-        <div className="h-4 w-16 rounded bg-muted" />
-        <div className="h-4 w-20 rounded bg-muted" />
+    <div className="overflow-hidden rounded-2xl border border-border bg-card animate-pulse">
+      <div className="aspect-[4/5] w-full bg-muted" />
+      <div className="space-y-2 p-4">
+        <div className="h-4 w-24 rounded-full bg-muted" />
+        <div className="h-5 w-32 rounded bg-muted" />
+        <div className="h-6 w-28 rounded-full bg-muted" />
+        <div className="mt-4 border-t border-border pt-3">
+          <div className="h-6 w-36 rounded bg-muted" />
+        </div>
       </div>
     </div>
   );
@@ -57,7 +57,6 @@ export default function DriversPage({ params }: { params: Promise<{ locale: stri
   const [location, setLocation] = useState(searchParams.get('location') ?? '');
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
-  const [driverHasVehicle, setDriverHasVehicle] = useState<boolean | null>(null);
   const [driverTransmission, setDriverTransmission] = useState<'Manual' | 'Automatic' | null>(null);
   const [driverLicenseCategory, setDriverLicenseCategory] = useState<string | null>(null);
   const [driverCategory, setDriverCategory] = useState<DriverCategory | ''>('');
@@ -80,7 +79,6 @@ export default function DriversPage({ params }: { params: Promise<{ locale: stri
       location: location.trim() || undefined,
       latitude: latitude ?? undefined,
       longitude: longitude ?? undefined,
-      driverHasVehicle: driverHasVehicle ?? undefined,
       driverTransmission: driverTransmission ?? undefined,
       driverLicenseCategory: driverLicenseCategory ?? undefined,
       driverCategory: driverCategory || undefined,
@@ -125,7 +123,7 @@ export default function DriversPage({ params }: { params: Promise<{ locale: stri
     runSearch();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [availableNow, driverCategory, driverHasVehicle, driverLicenseCategory, driverTransmission, experienceMin, location, latitude, longitude, priceMax, priceMin, sort, t]);
+  }, [availableNow, driverCategory, driverLicenseCategory, driverTransmission, experienceMin, location, latitude, longitude, priceMax, priceMin, sort, t]);
 
   async function handleLoadMore() {
     const nextOffset = offset + PAGE_SIZE;
@@ -166,7 +164,6 @@ export default function DriversPage({ params }: { params: Promise<{ locale: stri
     setLocation('');
     setLatitude(null);
     setLongitude(null);
-    setDriverHasVehicle(null);
     setDriverTransmission(null);
     setDriverLicenseCategory(null);
     setDriverCategory('');
@@ -191,23 +188,8 @@ export default function DriversPage({ params }: { params: Promise<{ locale: stri
             className="mb-1 h-10 w-full rounded-xl border-0 bg-white px-3 text-sm font-bold text-foreground placeholder:font-medium placeholder:text-muted-foreground focus:outline-none"
             showLocateMe
           />
-          <FilterButton
-            active={driverHasVehicle === false}
-            onClick={() => setDriverHasVehicle((prev) => (prev === false ? null : false))}
-          >
-            {t('listing.withoutCar')}
-          </FilterButton>
-          <FilterButton
-            active={driverHasVehicle === true}
-            onClick={() => setDriverHasVehicle((prev) => (prev === true ? null : true))}
-          >
-            {t('listing.withCar')}
-          </FilterButton>
           <FilterButton active={availableNow} onClick={() => setAvailableNow((prev) => !prev)}>
             {t('listing.available')}
-          </FilterButton>
-          <FilterButton active={sort === 'rating'} onClick={() => toggleSort('rating')}>
-            {t('listing.topRated')}
           </FilterButton>
           <FilterButton active={sort === 'price_asc'} onClick={() => toggleSort('price_asc')}>
             {t('filters.sortLow')}
@@ -304,7 +286,7 @@ export default function DriversPage({ params }: { params: Promise<{ locale: stri
             <p className="mt-2 rounded-xl bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{error}</p>
           ) : null}
 
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {loading ? (
               [...Array(8)].map((_, i) => <DriverCardSkeleton key={i} />)
             ) : (

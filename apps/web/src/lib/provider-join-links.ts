@@ -1,6 +1,6 @@
 /** One account: many car listings; at most one driver profile and one taxi profile. */
 
-export type ProviderJoinLabelKey = 'car' | 'driver' | 'taxi' | 'driverManage' | 'taxiManage';
+export type ProviderJoinLabelKey = 'car' | 'driver' | 'taxi' | 'driverManage' | 'taxiManage' | 'partner';
 
 export type ProviderJoinItem = {
   href: string;
@@ -11,7 +11,12 @@ export type ProviderJoinItem = {
 
 export function buildProviderJoinItems(
   locale: string,
-  profile: { hasDriverProfile?: boolean; hasTaxiProfile?: boolean },
+  profile: {
+    hasDriverProfile?: boolean;
+    hasTaxiProfile?: boolean;
+    companyPartnerApplication?: { status: string } | null;
+    hosterProfile?: { hostType?: string | null } | null;
+  },
 ): ProviderJoinItem[] {
   const driverHref = profile.hasDriverProfile
     ? `/${locale}/app/driver-profile`
@@ -38,4 +43,17 @@ export function buildProviderJoinItems(
       limitKey: 'single',
     },
   ];
+
+  const partnerApproved =
+    profile.companyPartnerApplication?.status === 'approved' || profile.hosterProfile?.hostType === 'company';
+  if (!partnerApproved) {
+    items.push({
+      href: `/${locale}/app/become-partner`,
+      labelKey: 'partner',
+      descKey: 'partner',
+      limitKey: 'single',
+    });
+  }
+
+  return items;
 }

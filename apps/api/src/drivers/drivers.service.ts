@@ -143,14 +143,6 @@ export class DriversService {
       throw new NotFoundException('Driver profile not found. Create one first.');
     }
 
-    if (profile.status === DriverProfileStatus.pending_approval) {
-      throw new BadRequestException('Your application is under review. You can edit again after admin responds.');
-    }
-
-    if (profile.status === DriverProfileStatus.approved) {
-      throw new BadRequestException('Your profile is approved. Contact support if you need to change details.');
-    }
-
     if (payload.availabilityCalendar) {
       this.validateAvailabilityCalendar(payload.availabilityCalendar);
     }
@@ -177,6 +169,8 @@ export class DriversService {
     if (payload.availabilityCalendar !== undefined) {
       updateData.availabilityCalendar = payload.availabilityCalendar as unknown as Prisma.JsonArray;
     }
+
+    this.applyReverificationAfterProfileChange(profile.status, updateData);
 
     const shouldUpdateCityLocation = payload.primaryCity !== undefined;
     const coordinates = shouldUpdateCityLocation
@@ -250,10 +244,6 @@ export class DriversService {
 
     if (profile.status === DriverProfileStatus.pending_approval) {
       throw new BadRequestException('Your application is already pending review.');
-    }
-
-    if (profile.status === DriverProfileStatus.approved) {
-      throw new BadRequestException('Your driver profile is already approved.');
     }
 
     if (!profile.idDocumentUrl || !profile.licenseDocumentUrl) {
@@ -356,9 +346,6 @@ export class DriversService {
     if (!profile) {
       throw new NotFoundException('Driver profile not found.');
     }
-    if (profile.status !== DriverProfileStatus.approved) {
-      throw new BadRequestException('Your driver profile must be approved before changing visibility.');
-    }
     const updated = await prisma.driverProfile.update({
       where: { id: profile.id },
       data: { marketplaceVisibility: target as MarketplaceVisibility },
@@ -388,7 +375,7 @@ export class DriversService {
       },
     });
 
-    if (!profile || profile.status !== DriverProfileStatus.approved) {
+    if (!profile || profile.status === DriverProfileStatus.draft) {
       throw new NotFoundException('Driver profile not found.');
     }
 
@@ -473,14 +460,14 @@ export class DriversService {
       throw new NotFoundException('Driver profile not found.');
     }
 
-    if (profile.status !== DriverProfileStatus.approved) {
-      throw new NotFoundException('Driver profile not found.');
-    }
-
     const caller = authUser
       ? await prisma.user.findUnique({ where: { clerkId: authUser.clerkUserId }, select: { id: true } })
       : null;
     const isSelf = caller?.id === profile.userId;
+
+    if (profile.status === DriverProfileStatus.draft && !isSelf) {
+      throw new NotFoundException('Driver profile not found.');
+    }
     let bookingConfirmed = false;
     if (caller && !isSelf) {
       const confirmed = await prisma.driverBooking.findFirst({
@@ -521,6 +508,26 @@ export class DriversService {
     }
 
     return user;
+  }
+
+  /** Approved/rejected edits go back to the admin queue; pending edits refresh submittedAt. */
+  private applyReverificationAfterProfileChange(
+    currentStatus: DriverProfileStatus,
+    updateData: Prisma.DriverProfileUpdateInput,
+  ) {
+    if (
+      currentStatus === DriverProfileStatus.approved ||
+      currentStatus === DriverProfileStatus.rejected
+    ) {
+      updateData.status = DriverProfileStatus.pending_approval;
+      updateData.submittedAt = new Date();
+      updateData.rejectionReason = null;
+      updateData.reviewedAt = null;
+      return;
+    }
+    if (currentStatus === DriverProfileStatus.pending_approval) {
+      updateData.submittedAt = new Date();
+    }
   }
 
   private mapProfile(
@@ -567,13 +574,9 @@ export class DriversService {
       createdAt: profile.createdAt,
       updatedAt: profile.updatedAt,
       dailyRateRwf: dailyRate,
-      ...(includeExactRates
-        ? {
-            hourlyRateRwf: hourlyRate,
-            weeklyRateRwf: weeklyRate,
-            monthlyRateRwf: monthlyRate,
-          }
-        : {}),
+      hourlyRateRwf: hourlyRate,
+      weeklyRateRwf: weeklyRate,
+      monthlyRateRwf: monthlyRate,
     };
   }
 

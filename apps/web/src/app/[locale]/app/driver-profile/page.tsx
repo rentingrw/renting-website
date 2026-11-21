@@ -5,19 +5,23 @@ import { DashboardHeader } from '@/components/web/dashboard-header';
 import { isSupportedLocale, routing, type SupportedLocale } from '@/i18n/routing';
 import { MarketplaceVisibilityControl, type MarketplaceVisibility } from '@/components/web/marketplace-visibility-control';
 import {
-  addRole,
-  createDriverProfile,
-  getDriverProfileFull,
+  loadDriverProfileForOwner,
+  saveDriverProfile,
   getMe,
   setDriverMarketplaceStatus,
-  updateDriverProfile,
-  type DriverCategory,
   type DriverProfileFull,
   type MeResponse,
-  type VehicleType,
 } from '@/lib/api';
+import { RwandaDistrictMultiSelect } from '@/components/web/rwanda-district-multi-select';
+import {
+  availabilityCertifications,
+  DRIVER_AVAILABILITY_OPTIONS,
+  parseAvailabilityFromProfile,
+  type DriverAvailabilityOption,
+} from '@/lib/driver-availability';
+import { DRIVER_PROFILE_API_DEFAULTS, defaultPrimaryCity } from '@/lib/driver-profile-defaults';
 import { useTranslations } from 'next-intl';
-import { CheckCircle2, Plus, X } from 'lucide-react';
+import { CheckCircle2 } from 'lucide-react';
 import { DashboardNav, resolveDashboardNavKey } from '@/components/web/dashboard-nav';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -26,20 +30,18 @@ type DriverProfilePageProps = {
   params: Promise<{ locale: string }>;
 };
 
-const DRIVER_CATEGORIES: DriverCategory[] = ['city', 'outstation', 'airport', 'chauffeur', 'tour_guide', 'delivery'];
-const VEHICLE_TYPES: VehicleType[] = ['sedan', 'suv', 'hatchback', 'pickup', 'van', 'truck'];
 const LANGUAGE_OPTIONS: { label: string; value: string }[] = [
   { label: 'English', value: 'en' },
   { label: 'French', value: 'fr' },
   { label: 'Kinyarwanda', value: 'rw' },
   { label: 'Swahili', value: 'sw' },
 ];
-const AVAILABILITY_MODES = ['Anytime', 'Daytime (6am–6pm)', 'Nighttime (6pm–6am)', 'Weekends only'];
 const DRIVING_CAPABILITIES = ['Manual', 'Automatic', 'Both'];
 const LICENSE_CATEGORIES = ['A', 'B', 'C', 'D', 'E', 'F'];
 
-function labelFor(value: string) {
-  return value.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+function parseHomeDistrict(addressText?: string | null): string {
+  const parts = (addressText ?? '').split(',').map((part) => part.trim()).filter(Boolean);
+  return parts.length >= 3 ? parts[2] : '';
 }
 
 export default function DriverProfilePage({ params }: DriverProfilePageProps) {
@@ -53,23 +55,19 @@ export default function DriverProfilePage({ params }: DriverProfilePageProps) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [pendingReviewMessage, setPendingReviewMessage] = useState<string | null>(null);
   const [error, setError] = useState('');
 
   // Form state
-  const [driverCategory, setDriverCategory] = useState<DriverCategory>('city');
   const [yearsExperience, setYearsExperience] = useState(1);
-  const [biography, setBiography] = useState('');
   const [dailyRateRwf, setDailyRateRwf] = useState(30000);
-  const [hourlyRateRwf, setHourlyRateRwf] = useState('');
   const [weeklyRateRwf, setWeeklyRateRwf] = useState('');
-  const [primaryCity, setPrimaryCity] = useState('Kigali');
+  const [monthlyRateRwf, setMonthlyRateRwf] = useState('');
+  const [homeDistrict, setHomeDistrict] = useState('');
   const [languages, setLanguages] = useState<string[]>(['en', 'rw']);
-  const [categories, setCategories] = useState<DriverCategory[]>(['city']);
-  const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>(['sedan']);
   const [certifications, setCertifications] = useState<string[]>([]);
-  const [serviceAreas, setServiceAreas] = useState<string[]>(['Kigali']);
-  const [customServiceArea, setCustomServiceArea] = useState('');
-  const [availabilityMode, setAvailabilityMode] = useState('Anytime');
+  const [serviceDistricts, setServiceDistricts] = useState<string[]>(['Kigali']);
+  const [availabilityModes, setAvailabilityModes] = useState<DriverAvailabilityOption[]>(['24/7']);
   const [drivingCapability, setDrivingCapability] = useState('Both');
   const [licenseCategories, setLicenseCategories] = useState<string[]>(['B']);
 
@@ -88,7 +86,7 @@ export default function DriverProfilePage({ params }: DriverProfilePageProps) {
         const me = await getMe(token);
         if (cancelled) return;
         setProfile(me);
-        const driverProfile = await getDriverProfileFull(token);
+        const driverProfile = await loadDriverProfileForOwner(token);
         if (cancelled) return;
         if (!driverProfile) {
           const routeParams = await params;
@@ -97,18 +95,20 @@ export default function DriverProfilePage({ params }: DriverProfilePageProps) {
           return;
         }
         setExisting(driverProfile);
-        setDriverCategory(driverProfile.driverCategory);
         setYearsExperience(driverProfile.yearsExperience);
-        setBiography(driverProfile.biography ?? '');
         setDailyRateRwf(driverProfile.dailyRateRwf);
-        setHourlyRateRwf(driverProfile.hourlyRateRwf != null ? String(driverProfile.hourlyRateRwf) : '');
-        setWeeklyRateRwf(driverProfile.weeklyRateRwf != null ? String(driverProfile.weeklyRateRwf) : '');
-        setPrimaryCity(driverProfile.primaryCity);
+        setWeeklyRateRwf(
+          driverProfile.weeklyRateRwf != null ? String(Math.round(Number(driverProfile.weeklyRateRwf))) : '',
+        );
+        setMonthlyRateRwf(
+          driverProfile.monthlyRateRwf != null ? String(Math.round(Number(driverProfile.monthlyRateRwf))) : '',
+        );
+        setHomeDistrict(parseHomeDistrict(driverProfile.addressText) || driverProfile.primaryCity || '');
         setLanguages(driverProfile.languages.length ? driverProfile.languages : ['en', 'rw']);
-        setCategories(driverProfile.categories.length ? (driverProfile.categories as DriverCategory[]) : [driverProfile.driverCategory]);
-        setVehicleTypes(driverProfile.vehicleTypes.length ? (driverProfile.vehicleTypes as VehicleType[]) : ['sedan']);
         setCertifications(driverProfile.certifications);
-        setServiceAreas(driverProfile.serviceAreas.length ? driverProfile.serviceAreas : ['Kigali']);
+        const areas = driverProfile.serviceAreas.filter((item) => !item.startsWith('Availability:'));
+        setServiceDistricts(areas.length ? areas : ['Kigali']);
+        setAvailabilityModes(parseAvailabilityFromProfile(driverProfile));
       } catch {
         // silently fail
       } finally {
@@ -142,6 +142,15 @@ export default function DriverProfilePage({ params }: DriverProfilePageProps) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
+    setPendingReviewMessage(null);
+    if (serviceDistricts.length === 0) {
+      setError('Select at least one district you serve.');
+      return;
+    }
+    if (availabilityModes.length === 0) {
+      setError('Select at least one availability option.');
+      return;
+    }
     setSaving(true);
     const token = await getToken();
     if (!token) { setError('Please sign in.'); setSaving(false); return; }
@@ -151,31 +160,37 @@ export default function DriverProfilePage({ params }: DriverProfilePageProps) {
       drivingCapability !== 'Both' ? `Drive: ${drivingCapability}` : null,
     ].filter(Boolean) as string[];
 
+    const weekly = weeklyRateRwf.trim() ? Number(weeklyRateRwf) : undefined;
+    const monthly = monthlyRateRwf.trim() ? Number(monthlyRateRwf) : undefined;
     const payload = {
-      driverCategory,
+      ...DRIVER_PROFILE_API_DEFAULTS,
       yearsExperience,
-      biography: biography.trim() || undefined,
       dailyRateRwf,
-      hourlyRateRwf: hourlyRateRwf ? Number(hourlyRateRwf) : undefined,
-      weeklyRateRwf: weeklyRateRwf ? Number(weeklyRateRwf) : undefined,
-      primaryCity: primaryCity.trim(),
+      ...(weekly !== undefined && weekly >= 1000 ? { weeklyRateRwf: weekly } : {}),
+      ...(monthly !== undefined && monthly >= 1000 ? { monthlyRateRwf: monthly } : {}),
+      primaryCity: defaultPrimaryCity(homeDistrict, serviceDistricts),
       languages,
-      categories,
-      vehicleTypes,
-      certifications: [...certifications.filter((c) => !c.startsWith('License:') && !c.startsWith('Drive:')), ...builtCerts],
-      serviceAreas: [...serviceAreas, availabilityMode !== 'Anytime' ? `Availability: ${availabilityMode}` : null].filter(Boolean) as string[],
+      certifications: [
+        ...certifications.filter(
+          (c) => !c.startsWith('License:') && !c.startsWith('Drive:') && !c.startsWith('Availability:'),
+        ),
+        ...builtCerts,
+        ...availabilityCertifications(availabilityModes),
+      ],
+      serviceAreas: serviceDistricts,
       availabilityCalendar: [],
     };
 
     try {
-      if (existing) {
-        await updateDriverProfile(token, payload);
-      } else {
-        await addRole(token, 'driver');
-        await createDriverProfile(token, payload);
-      }
+      const wasLive = existing?.status === 'approved';
+      const updated = await saveDriverProfile(token, payload);
+      setExisting(updated);
       setSaved(true);
-      setExisting({ ...existing!, ...payload, id: existing?.id ?? '', userId: existing?.userId ?? '', fullName: existing?.fullName ?? '', trustScore: existing?.trustScore ?? 100, rating: null, completedTrips: 0, bookingStats: { total: 0, pending: 0, confirmed: 0, active: 0, completed: 0 } });
+      if (updated.status === 'pending_approval' && (wasLive || existing)) {
+        setPendingReviewMessage(
+          'Your changes were saved. Your profile stays visible in search; admin verification is pending and your verified badge will return after approval.',
+        );
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save. Please try again.');
     } finally {
@@ -216,7 +231,7 @@ export default function DriverProfilePage({ params }: DriverProfilePageProps) {
           </p>
         </div>
 
-        {existing?.status === 'approved' ? (
+        {existing && existing.status !== 'draft' ? (
           <div className="mb-6 rounded-xl border border-border bg-card p-4">
             <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{tVis('sectionTitle')}</p>
             <p className="mt-1 text-xs text-muted-foreground">{tVis('hint')}</p>
@@ -246,41 +261,20 @@ export default function DriverProfilePage({ params }: DriverProfilePageProps) {
               </div>
             )}
 
-            {/* Main category */}
-            <div>
-              <label className={labelClass}>Primary Driver Category *</label>
-              <select
-                required
-                value={driverCategory}
-                onChange={(e) => setDriverCategory(e.target.value as DriverCategory)}
-                className={inputClass}
-              >
-                {DRIVER_CATEGORIES.map((cat) => (
-                  <option key={cat} value={cat}>{labelFor(cat)}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Categories (multiple) */}
-            <div>
-              <label className={labelClass}>Service Categories (select all that apply) *</label>
-              <div className="flex flex-wrap gap-2">
-                {DRIVER_CATEGORIES.map((cat) => (
-                  <button
-                    key={cat}
-                    type="button"
-                    onClick={() => toggleArrayItem(categories, cat, setCategories)}
-                    className={`rounded border-2 px-3 py-1.5 text-sm font-bold transition-all ${
-                      categories.includes(cat)
-                        ? 'border-brand bg-brand text-white'
-                        : 'border-neutral-300 bg-card text-muted-foreground hover:border-border'
-                    }`}
-                  >
-                    {labelFor(cat)}
-                  </button>
-                ))}
+            {pendingReviewMessage ? (
+              <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-950">
+                {pendingReviewMessage}
               </div>
-            </div>
+            ) : null}
+
+            {existing?.status === 'pending_approval' ? (
+              <div className="rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm text-amber-950">
+                <p className="font-bold">Awaiting verification</p>
+                <p className="mt-1 text-amber-900/90">
+                  You stay visible in search. Admin review is in progress; the verified badge appears once your profile is approved.
+                </p>
+              </div>
+            ) : null}
 
             {/* Years experience */}
             <div>
@@ -293,18 +287,6 @@ export default function DriverProfilePage({ params }: DriverProfilePageProps) {
                 value={yearsExperience}
                 onChange={(e) => setYearsExperience(Number(e.target.value))}
                 className={inputClass}
-              />
-            </div>
-
-            {/* Bio */}
-            <div>
-              <label className={labelClass}>Biography (optional)</label>
-              <textarea
-                value={biography}
-                onChange={(e) => setBiography(e.target.value)}
-                rows={3}
-                placeholder="Tell customers about your experience, specialties, and what makes you great..."
-                className={`${inputClass} resize-none`}
               />
             </div>
 
@@ -323,18 +305,6 @@ export default function DriverProfilePage({ params }: DriverProfilePageProps) {
                 />
               </div>
               <div>
-                <label className={labelClass}>Hourly Rate (RWF)</label>
-                <input
-                  type="number"
-                  min={1000}
-                  step={500}
-                  value={hourlyRateRwf}
-                  onChange={(e) => setHourlyRateRwf(e.target.value)}
-                  placeholder="Optional"
-                  className={inputClass}
-                />
-              </div>
-              <div>
                 <label className={labelClass}>Weekly Rate (RWF)</label>
                 <input
                   type="number"
@@ -346,32 +316,31 @@ export default function DriverProfilePage({ params }: DriverProfilePageProps) {
                   className={inputClass}
                 />
               </div>
-            </div>
-
-            {/* Primary city */}
-            <div>
-              <label className={labelClass}>Primary City *</label>
-              <input
-                type="text"
-                required
-                value={primaryCity}
-                onChange={(e) => setPrimaryCity(e.target.value)}
-                placeholder="Kigali"
-                className={inputClass}
-              />
+              <div>
+                <label className={labelClass}>Monthly Rate (RWF)</label>
+                <input
+                  type="number"
+                  min={1000}
+                  step={500}
+                  value={monthlyRateRwf}
+                  onChange={(e) => setMonthlyRateRwf(e.target.value)}
+                  placeholder="Optional"
+                  className={inputClass}
+                />
+              </div>
             </div>
 
             {/* Availability */}
             <div>
-              <label className={labelClass}>When Are You Available? *</label>
+              <label className={labelClass}>When are you available? (select all that apply) *</label>
               <div className="flex flex-wrap gap-2">
-                {AVAILABILITY_MODES.map((mode) => (
+                {DRIVER_AVAILABILITY_OPTIONS.map((mode) => (
                   <button
                     key={mode}
                     type="button"
-                    onClick={() => setAvailabilityMode(mode)}
+                    onClick={() => toggleArrayItem(availabilityModes, mode, setAvailabilityModes)}
                     className={`rounded border-2 px-3 py-1.5 text-sm font-bold transition-all ${
-                      availabilityMode === mode
+                      availabilityModes.includes(mode)
                         ? 'border-brand bg-brand text-white'
                         : 'border-neutral-300 bg-card text-muted-foreground hover:border-border'
                     }`}
@@ -425,27 +394,6 @@ export default function DriverProfilePage({ params }: DriverProfilePageProps) {
               <p className="mt-1 text-xs text-muted-foreground">B = car, C = truck, D = bus, A = motorcycle</p>
             </div>
 
-            {/* Vehicle types */}
-            <div>
-              <label className={labelClass}>Vehicle Types You Can Drive *</label>
-              <div className="flex flex-wrap gap-2">
-                {VEHICLE_TYPES.map((vt) => (
-                  <button
-                    key={vt}
-                    type="button"
-                    onClick={() => toggleArrayItem(vehicleTypes, vt, setVehicleTypes)}
-                    className={`rounded border-2 px-3 py-1.5 text-sm font-bold capitalize transition-all ${
-                      vehicleTypes.includes(vt)
-                        ? 'border-brand bg-brand text-white'
-                        : 'border-neutral-300 bg-card text-muted-foreground hover:border-border'
-                    }`}
-                  >
-                    {vt}
-                  </button>
-                ))}
-              </div>
-            </div>
-
             {/* Languages */}
             <div>
               <label className={labelClass}>Languages Spoken *</label>
@@ -473,59 +421,13 @@ export default function DriverProfilePage({ params }: DriverProfilePageProps) {
               </div>
             </div>
 
-            {/* Service areas */}
-            <div>
-              <label className={labelClass}>Service Areas *</label>
-              <div className="flex flex-wrap gap-2 mb-2">
-                {serviceAreas.filter((a) => !a.startsWith('Availability:')).map((area) => (
-                  <span
-                    key={area}
-                    className="flex items-center gap-1 rounded border-2 border-border bg-neutral-50 px-2.5 py-1 text-sm font-bold"
-                  >
-                    {area}
-                    <button
-                      type="button"
-                      onClick={() => setServiceAreas(serviceAreas.filter((a) => a !== area))}
-                      className="text-muted-foreground hover:text-red-600"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
-                ))}
-              </div>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={customServiceArea}
-                  onChange={(e) => setCustomServiceArea(e.target.value)}
-                  placeholder="Add a city or area..."
-                  className="flex-1 rounded border-2 border-border px-3 py-2 text-sm focus:border-brand focus:outline-none"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      const trimmed = customServiceArea.trim();
-                      if (trimmed && !serviceAreas.includes(trimmed)) {
-                        setServiceAreas([...serviceAreas, trimmed]);
-                      }
-                      setCustomServiceArea('');
-                    }
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    const trimmed = customServiceArea.trim();
-                    if (trimmed && !serviceAreas.includes(trimmed)) {
-                      setServiceAreas([...serviceAreas, trimmed]);
-                    }
-                    setCustomServiceArea('');
-                  }}
-                  className="flex items-center gap-1 rounded border-2 border-border px-3 py-2 text-sm font-bold hover:bg-muted"
-                >
-                  <Plus className="h-4 w-4" /> Add
-                </button>
-              </div>
-            </div>
+            <RwandaDistrictMultiSelect
+              variant="dashboard"
+              label="Districts you serve"
+              labelClassName={labelClass}
+              value={serviceDistricts}
+              onChange={setServiceDistricts}
+            />
 
             {error && (
               <div className="rounded border-2 border-red-400 bg-red-50 px-4 py-3">

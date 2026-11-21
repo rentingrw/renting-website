@@ -11,6 +11,7 @@ import { AddressInput } from '@/components/web/address-input';
 import { FavoriteButton, useFavoriteIds } from '@/components/web/favorite-button';
 import { InitialsAvatar } from '@/components/web/initials-avatar';
 import { MediaImage } from '@/components/web/media-image';
+import { DriverListingCard } from '@/components/web/driver-listing-card';
 import { ShareMenu } from '@/components/web/share-menu';
 import { isSupportedLocale, routing, type SupportedLocale } from '@/i18n/routing';
 import {
@@ -20,9 +21,9 @@ import {
   type SearchDriver,
   type SearchTaxi,
   type SearchType,
-  type ServiceType,
   type VehicleType,
 } from '@/lib/api';
+import { carListingSubtitleParts } from '@/lib/car-service-type';
 import { SearchFilterBar } from '@/components/web/search-filter-bar';
 import { formatSearchCarDailyPrice } from '@/lib/car-listing-price';
 import { formatCurrencyRwf, formatRange } from '@/lib/format';
@@ -47,7 +48,6 @@ const VEHICLE_TYPES: VehicleType[] = ['suv', 'sedan', 'hatchback', 'pickup', 'va
 const VEHICLE_TYPE_LABELS: Record<string, string> = { suv: 'SUV', sedan: 'Sedan', hatchback: 'Hatchback', pickup: 'Pickup', van: 'Van', truck: 'Truck' };
 const DRIVER_CATEGORIES: DriverCategory[] = ['city', 'outstation', 'airport', 'chauffeur', 'tour_guide', 'delivery'];
 const CATEGORY_LABELS: Record<string, string> = { city: 'City', outstation: 'Outstation', airport: 'Airport', chauffeur: 'Chauffeur', tour_guide: 'Tour Guide', delivery: 'Delivery' };
-const SERVICE_TYPES: ServiceType[] = ['self_drive', 'with_driver'];
 const PAGE_SIZE = 20;
 
 function parseCoordinate(value: string | null): number | null {
@@ -89,7 +89,6 @@ export default function SearchPage({ params }: SearchPageProps) {
   const [longitude, setLongitude] = useState<number | null>(initialLongitude);
   const [from, setFrom] = useState(searchParams.get('from') ?? '');
   const [to, setTo] = useState(searchParams.get('to') ?? '');
-  const [serviceType, setServiceType] = useState<ServiceType | ''>('');
   const [vehicleType, setVehicleType] = useState<VehicleType | ''>('');
   const [driverCategory, setDriverCategory] = useState<DriverCategory | ''>('');
   const [cars, setCars] = useState<SearchCar[]>([]);
@@ -102,7 +101,6 @@ export default function SearchPage({ params }: SearchPageProps) {
   const [activePin, setActivePin] = useState<string | null>(null);
   const [mobileView, setMobileView] = useState<'list' | 'map'>('list');
   const [availableNow, setAvailableNow] = useState(false);
-  const [topRated, setTopRated] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -132,11 +130,9 @@ export default function SearchPage({ params }: SearchPageProps) {
           longitude: longitude ?? undefined,
           from: from || undefined,
           to: to || undefined,
-          serviceType: serviceType || undefined,
           vehicleType: vehicleType || undefined,
           driverCategory: driverCategory || undefined,
           availableNow: availableNow || undefined,
-          sort: topRated ? 'score' : undefined,
           limit: PAGE_SIZE, offset: 0,
         });
         if (!cancelled) {
@@ -156,7 +152,7 @@ export default function SearchPage({ params }: SearchPageProps) {
     }
     runSearch();
     return () => { cancelled = true; };
-  }, [availableNow, driverCategory, from, latitude, location, longitude, serviceType, t, to, topRated, type, vehicleType]);
+  }, [availableNow, driverCategory, from, latitude, location, longitude, t, to, type, vehicleType]);
 
   async function handleLoadMore() {
     const nextOffset = offset + PAGE_SIZE;
@@ -169,11 +165,9 @@ export default function SearchPage({ params }: SearchPageProps) {
         longitude: longitude ?? undefined,
         from: from || undefined,
         to: to || undefined,
-        serviceType: serviceType || undefined,
         vehicleType: vehicleType || undefined,
           driverCategory: driverCategory || undefined,
           availableNow: availableNow || undefined,
-          sort: topRated ? 'score' : undefined,
           limit: PAGE_SIZE, offset: nextOffset,
       });
       setCars((prev) => [...prev, ...data.cars]);
@@ -201,7 +195,7 @@ export default function SearchPage({ params }: SearchPageProps) {
         return {
           id: car.id, label: car.title, address: car.locationText, photo: car.photos?.[0] ?? null,
           priceLabel, href: `/${locale}/cars/${car.id}`, kind: 'car' as const,
-          description: [car.vehicleType, car.serviceType.replace('_', ' ')].filter(Boolean).join(' • '),
+          description: carListingSubtitleParts(car.vehicleType, car.serviceType).join(' • '),
           latitude: car.pickupLatitude, longitude: car.pickupLongitude,
         };
       }) : []),
@@ -324,24 +318,8 @@ export default function SearchPage({ params }: SearchPageProps) {
             variant="dark"
             availableNow={availableNow}
             onAvailableNowChange={setAvailableNow}
-            topRated={topRated}
-            onTopRatedChange={setTopRated}
             resultCount={mergedResults.length}
             loading={loading}
-            extra={
-              <>
-                {SERVICE_TYPES.map((value) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setServiceType((prev) => (prev === value ? '' : value))}
-                    className={panelChip(serviceType === value)}
-                  >
-                    {value === 'self_drive' ? t('filters.selfDrive') : t('filters.withDriver')}
-                  </button>
-                ))}
-              </>
-            }
             moreFilters={
               <div className="grid grid-cols-1 gap-3">
                 <select
@@ -381,8 +359,6 @@ export default function SearchPage({ params }: SearchPageProps) {
                   type="button"
                   onClick={() => {
                     setAvailableNow(false);
-                    setTopRated(false);
-                    setServiceType('');
                     setVehicleType('');
                     setDriverCategory('');
                   }}
@@ -390,6 +366,19 @@ export default function SearchPage({ params }: SearchPageProps) {
                 >
                   {t('search.clearFilters')}
                 </button>
+              </div>
+            ) : type === 'drivers' ? (
+              <div className="mt-3 grid gap-3">
+                {drivers.map((driver) => (
+                  <DriverListingCard
+                    key={driver.id}
+                    driver={driver}
+                    locale={locale}
+                    size="medium"
+                    favorited={driverFavorites.ids.has(driver.id)}
+                    onFavoriteChange={(next) => driverFavorites.setFavorited(driver.id, next)}
+                  />
+                ))}
               </div>
             ) : (
               <>
@@ -422,7 +411,7 @@ export default function SearchPage({ params }: SearchPageProps) {
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-semibold text-foreground">{car.title}</p>
                         <p className="text-xs font-medium text-muted-foreground">
-                          {car.vehicleType} · {car.serviceType.replace('_', ' ')}
+                          {carListingSubtitleParts(car.vehicleType, car.serviceType).join(' · ') || car.vehicleType}
                           {car.isBookedNow ? ` · ${t('listing.booked')}` : ` · ${t('listing.available')}`}
                         </p>
                         {car.distanceMeters != null && (
@@ -460,7 +449,12 @@ export default function SearchPage({ params }: SearchPageProps) {
                           : 'border-border'
                       }`}
                     >
-                      <InitialsAvatar name={driver.fullName} src={driver.profilePhotoUrl} size={56} />
+                      <InitialsAvatar
+                        name={driver.fullName}
+                        src={driver.profilePhotoUrl}
+                        size={56}
+                        shape="portrait"
+                      />
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-black text-foreground">{driver.fullName}</p>
                         <p className="text-xs font-medium text-muted-foreground">{driver.categories.slice(0, 2).join(' · ')}</p>

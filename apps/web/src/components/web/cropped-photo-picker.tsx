@@ -4,7 +4,7 @@ import { Camera } from 'lucide-react';
 import { useRef, useState } from 'react';
 
 import { ImageCropDialog } from '@/components/web/image-crop-dialog';
-import { InitialsAvatar } from '@/components/web/initials-avatar';
+import { InitialsAvatar, type AvatarShape } from '@/components/web/initials-avatar';
 import { uploadImageFile } from '@/lib/api';
 
 type CroppedPhotoPickerProps = {
@@ -12,7 +12,9 @@ type CroppedPhotoPickerProps = {
   value?: string | null;
   folder: string;
   aspect?: number;
+  /** @deprecated Use `avatarShape="circle"` */
   round?: boolean;
+  avatarShape?: AvatarShape;
   nameForInitials?: string;
   getToken: () => Promise<string | null>;
   onUploaded: (url: string) => void;
@@ -24,10 +26,14 @@ export function CroppedPhotoPicker({
   folder,
   aspect = 1,
   round = false,
+  avatarShape: avatarShapeProp,
   nameForInitials,
   getToken,
   onUploaded,
 }: CroppedPhotoPickerProps) {
+  const avatarShape: AvatarShape = avatarShapeProp ?? 'circle';
+  const useAvatarPreview = round || avatarShapeProp != null;
+  const previewSize = 72;
   const inputRef = useRef<HTMLInputElement>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -58,8 +64,13 @@ export function CroppedPhotoPicker({
         disabled={uploading}
         className="flex w-full items-center gap-4 rounded-2xl border border-dashed border-border bg-muted/60 p-4 text-left transition hover:border-brand"
       >
-        {round ? (
-          <InitialsAvatar name={nameForInitials || 'Photo'} src={value} size={72} />
+        {useAvatarPreview ? (
+          <InitialsAvatar
+            name={nameForInitials || 'Photo'}
+            src={value}
+            size={previewSize}
+            shape={avatarShape}
+          />
         ) : value ? (
           <div className="relative h-16 w-24 overflow-hidden rounded-md border border-border bg-black">
             {/* eslint-disable-next-line @next/next/no-img-element */}

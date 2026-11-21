@@ -13,6 +13,11 @@ import { Camera, Check, ChevronLeft, ChevronRight, Minus, Plus, Upload } from 'l
 import { buildListingTitle, resolveColorLabel } from '@/lib/build-listing-title';
 
 import { uploadImageFile, type CarListingPayload, type CarListingRates, type OwnerCar, type ServiceType, type VehicleType } from '@/lib/api';
+import {
+  CAR_LISTING_SERVICE_OPTIONS,
+  DEFAULT_CAR_LISTING_SERVICE_TYPE,
+  normalizeCarListingServiceType,
+} from '@/lib/car-service-type';
 import { CarListingRatesFields, defaultCarListingRates } from '@/components/web/car-listing-rates-fields';
 import { parseListingCityFromLocationText } from '@/lib/listing-city';
 import { CarVehicleSelect } from '@/components/web/car-vehicle-select';
@@ -62,12 +67,7 @@ const VEHICLE_TYPE_OPTIONS: { value: VehicleType; label: string; emoji: string }
   { value: 'truck', label: 'Truck', emoji: '🚛' },
 ];
 
-const SERVICE_TYPE_OPTIONS: { value: ServiceType; label: string; desc: string }[] = [
-  { value: 'self_drive', label: 'Self-Drive', desc: 'Renter drives themselves' },
-  { value: 'with_driver', label: 'With Driver', desc: 'Your driver included' },
-  { value: 'airport_transfer', label: 'Airport Transfer', desc: 'Airport pickup & drop' },
-  { value: 'corporate', label: 'Corporate', desc: 'Business use' },
-];
+const SERVICE_TYPE_OPTIONS = CAR_LISTING_SERVICE_OPTIONS;
 
 const TRANSMISSION_OPTIONS = ['Manual', 'Automatic', 'Both'];
 const FUEL_OPTIONS = ['Petrol', 'Diesel', 'Electric', 'Hybrid', 'Other'];
@@ -97,7 +97,7 @@ function emptyState(): ListingFormState {
     title: '',
     description: '',
     vehicleType: 'sedan',
-    serviceType: 'self_drive',
+    serviceType: DEFAULT_CAR_LISTING_SERVICE_TYPE,
     brand: '',
     customBrand: '',
     model: '',
@@ -128,7 +128,7 @@ function fromCar(car: OwnerCar): ListingFormState {
     title: car.title,
     description: car.description ?? '',
     vehicleType: car.vehicleType,
-    serviceType: car.serviceType,
+    serviceType: normalizeCarListingServiceType(car.serviceType),
     brand: catalog.brand,
     customBrand: catalog.customBrand,
     model: catalog.model,
@@ -491,7 +491,7 @@ export function OwnerListingWizard({
             </div>
 
             <div>
-              <FieldLabel>Service Type</FieldLabel>
+              <FieldLabel>Listing type</FieldLabel>
               <div className="grid grid-cols-2 gap-2">
                 {SERVICE_TYPE_OPTIONS.map(({ value, label, desc }) => (
                   <button

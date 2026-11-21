@@ -20,6 +20,7 @@ import {
 import { useTranslations } from 'next-intl';
 
 export default function TaxiDashboardPage() {
+  const t = useTranslations('web');
   const tVis = useTranslations('web.app.marketplaceVisibility');
   const { getToken } = useAuth();
   const params = useParams();
@@ -91,9 +92,9 @@ export default function TaxiDashboardPage() {
             <p className="text-sm text-muted-foreground">You have not registered as a taxi driver yet.</p>
             <Link
               href={`/${locale}/onboard/taxi`}
-              className="mt-4 inline-block rounded-md bg-brand px-4 py-2 text-sm font-semibold text-white"
+              className="mt-4 inline-block rounded-full bg-gradient-to-br from-[#1f4a3f] via-brand to-brand-strong px-5 py-2.5 text-sm font-bold text-white"
             >
-              Register as taxi
+              {t('nav.becomeTaxi')}
             </Link>
           </div>
         ) : (

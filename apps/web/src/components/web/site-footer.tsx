@@ -11,6 +11,7 @@ import {
   SITE_PHONE_TEL,
   SITE_WHATSAPP_URL,
 } from '@/lib/site-contact';
+import { RWANDA_MAJOR_CITIES } from '@/lib/rwanda-cities';
 import { ArrowRight, Clock, Instagram, Mail, MapPin, Phone } from 'lucide-react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
@@ -34,19 +35,6 @@ function TikTokIcon({ className }: { className?: string }) {
     </svg>
   );
 }
-
-const RWANDA_CITIES = [
-  'Kigali',
-  'Musanze',
-  'Rubavu',
-  'Rusizi',
-  'Karongi',
-  'Huye',
-  'Muhanga',
-  'Nyagatare',
-  'Rwamagana',
-  'Kayonza',
-];
 
 function FooterLink({ href, children }: { href: string; children: ReactNode }) {
   return (
@@ -138,7 +126,7 @@ export function SiteFooter({ locale }: SiteFooterProps) {
           <div className="rounded-[1.25rem] border border-white/10 bg-white/[0.04] p-5 backdrop-blur-sm sm:col-span-2 lg:col-span-1">
             <h3 className="mb-3 text-[11px] font-black uppercase tracking-[0.2em] text-sun">{f('locations')}</h3>
             <div className="flex flex-wrap gap-1.5">
-              {RWANDA_CITIES.map((city) => (
+              {RWANDA_MAJOR_CITIES.map((city) => (
                 <Link
                   key={city}
                   href={`/${locale}/search?location=${encodeURIComponent(city)}`}

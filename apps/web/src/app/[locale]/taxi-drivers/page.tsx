@@ -1,5 +1,6 @@
 'use client';
 
+import { useAuth } from '@clerk/nextjs';
 import { Truck } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
@@ -17,6 +18,8 @@ import {
 import { SiteFooter } from '@/components/web/site-footer';
 import { TaxiListingCard } from '@/components/web/taxi-listing-card';
 import { isSupportedLocale, routing, type SupportedLocale } from '@/i18n/routing';
+import { getMe } from '@/lib/api';
+import { RWANDA_MAJOR_CITIES } from '@/lib/rwanda-cities';
 
 type TaxiDriversPageProps = {
   params: Promise<{ locale: string }>;
@@ -36,7 +39,7 @@ type TaxiDriver = {
   profilePhotoUrl?: string | null;
 };
 
-const CITIES = ['Kigali', 'Musanze', 'Rubavu', 'Huye', 'Karongi', 'Rusizi', 'Muhanga'] as const;
+const CITIES = RWANDA_MAJOR_CITIES;
 const TAXI_TYPES = ['sedan', 'suv', 'hatchback', 'van'] as const;
 const TAXI_TYPE_LABELS: Record<(typeof TAXI_TYPES)[number], string> = {
   sedan: 'Sedan',
@@ -47,6 +50,7 @@ const TAXI_TYPE_LABELS: Record<(typeof TAXI_TYPES)[number], string> = {
 
 export default function TaxiDriversPage({ params }: TaxiDriversPageProps) {
   const t = useTranslations('web');
+  const { isSignedIn, getToken } = useAuth();
   const searchParams = useSearchParams();
   const [locale, setLocale] = useState<SupportedLocale>(routing.defaultLocale);
   const [location, setLocation] = useState(searchParams.get('location') ?? '');
@@ -54,6 +58,32 @@ export default function TaxiDriversPage({ params }: TaxiDriversPageProps) {
   const [vehicleType, setVehicleType] = useState('');
   const [drivers, setDrivers] = useState<TaxiDriver[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showBecomeTaxi, setShowBecomeTaxi] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadViewer() {
+      if (!isSignedIn) {
+        if (!cancelled) setShowBecomeTaxi(true);
+        return;
+      }
+      const token = await getToken();
+      if (!token) {
+        if (!cancelled) setShowBecomeTaxi(true);
+        return;
+      }
+      try {
+        const me = await getMe(token);
+        if (!cancelled) setShowBecomeTaxi(!me?.hasTaxiProfile);
+      } catch {
+        if (!cancelled) setShowBecomeTaxi(true);
+      }
+    }
+    void loadViewer();
+    return () => {
+      cancelled = true;
+    };
+  }, [getToken, isSignedIn]);
 
   useEffect(() => {
     let cancelled = false;
@@ -159,15 +189,23 @@ export default function TaxiDriversPage({ params }: TaxiDriversPageProps) {
             subtitle={loading ? t('search.loading') : t('search.resultsCount', { count: filtered.length })}
           />
 
+          {showBecomeTaxi ? (
+            <Link
+              href={`/${locale}/onboard/taxi`}
+              className="mt-4 flex w-full max-w-md items-center justify-center rounded-full bg-gradient-to-br from-[#1f4a3f] via-brand to-brand-strong px-5 py-3 text-sm font-bold text-white shadow-card transition hover:brightness-110 sm:w-auto"
+            >
+              {t('nav.becomeTaxi')}
+            </Link>
+          ) : null}
+
           <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {loading ? (
               Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="overflow-hidden rounded-[1.35rem] border border-border bg-card animate-pulse">
-                  <div className="flex flex-col items-center border-b border-border bg-sun/20 px-4 py-4">
-                    <div className="h-16 w-16 rounded-full bg-muted" />
-                    <div className="mt-2 h-4 w-28 rounded bg-muted" />
+                <div key={i} className="overflow-hidden rounded-xl border border-border bg-card animate-pulse">
+                  <div className="aspect-[5/3] w-full bg-muted" />
+                  <div className="h-12 px-3 py-2.5">
+                    <div className="h-4 w-2/3 rounded bg-muted" />
                   </div>
-                  <div className="h-10 p-3" />
                 </div>
               ))
             ) : filtered.map((taxi) => (

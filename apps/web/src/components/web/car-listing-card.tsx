@@ -55,6 +55,7 @@ export function CarListingCard({
   const listingStatus = car.status && car.status !== 'active' ? car.status.replace(/_/g, ' ') : null;
   const availabilityLabel = listingStatus ?? (booked ? t('booked') : t('available'));
   const available = !listingStatus && !booked;
+  const hostLabel = car.isCompanyHost && car.hostDisplayName ? car.hostDisplayName : null;
   const medium = size === 'medium';
   const shellRadius = medium ? 'rounded-xl' : 'rounded-[1.35rem]';
 
@@ -94,6 +95,11 @@ export function CarListingCard({
             <span className="rounded-full bg-ink/90 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-white backdrop-blur-sm sm:text-[11px]">
               {VEHICLE_TYPE_LABELS[car.vehicleType] ?? car.vehicleType}
             </span>
+            {hostLabel ? (
+              <span className="max-w-[10rem] truncate rounded-full bg-brand/95 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-white backdrop-blur-sm sm:max-w-[12rem] sm:text-[11px]">
+                {hostLabel}
+              </span>
+            ) : null}
             <span
               className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold backdrop-blur-md sm:text-[11px] ${
               listingStatus

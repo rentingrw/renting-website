@@ -45,8 +45,6 @@ export default function FAQPage({ params }: { params: Promise<{ locale: string }
       items: [
         { q: t('bookingQ1'), a: t('bookingA1') },
         { q: t('bookingQ2'), a: t('bookingA2') },
-        { q: t('bookingQ3'), a: t('bookingA3') },
-        { q: t('bookingQ4'), a: t('bookingA4') },
       ],
     },
     {
@@ -64,14 +62,6 @@ export default function FAQPage({ params }: { params: Promise<{ locale: string }
         { q: t('ownerQ2'), a: t('ownerA2') },
         { q: t('ownerQ3'), a: t('ownerA3') },
         { q: t('ownerQ4'), a: t('ownerA4') },
-      ],
-    },
-    {
-      category: t('catTrust'),
-      items: [
-        { q: t('trustQ1'), a: t('trustA1') },
-        { q: t('trustQ2'), a: t('trustA2') },
-        { q: t('trustQ3'), a: t('trustA3') },
       ],
     },
   ];

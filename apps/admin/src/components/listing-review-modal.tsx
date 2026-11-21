@@ -1,12 +1,13 @@
 'use client';
 
 import Image from 'next/image';
-import { X } from 'lucide-react';
+import { Download, Loader2, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
+import { downloadAllListingPhotos, downloadListingPhoto } from '@/lib/download-listing-photos';
 import { getAdminListingDetail, type AdminListingItem, type AdminListingMarketplaceStatus } from '@/lib/api';
 
-import { formatRwfPlain } from '@rentingi/types';
+import { formatCarListingServiceLabel, formatRwfPlain } from '@rentingi/types';
 
 function row(label: string, value: string) {
   return (
@@ -40,6 +41,9 @@ export function ListingReviewModal({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+  const [downloadingAll, setDownloadingAll] = useState(false);
+  const [downloadingIndex, setDownloadingIndex] = useState<number | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -91,7 +95,31 @@ export function ListingReviewModal({
           ) : detail ? (
             <div className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
               <div>
-                <p className="mb-2 text-xs font-black uppercase tracking-wider text-muted-foreground">Photos</p>
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs font-black uppercase tracking-wider text-muted-foreground">Photos</p>
+                  {detail.photos.length > 0 ? (
+                    <button
+                      type="button"
+                      disabled={downloadingAll || downloadingIndex !== null}
+                      onClick={() => {
+                        setDownloadError(null);
+                        setDownloadingAll(true);
+                        void downloadAllListingPhotos(token, detail)
+                          .catch((err) =>
+                            setDownloadError(err instanceof Error ? err.message : 'Download failed.'),
+                          )
+                          .finally(() => setDownloadingAll(false));
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded border border-border bg-card px-2.5 py-1 text-xs font-black text-ink hover:bg-brand-soft disabled:opacity-50"
+                    >
+                      {downloadingAll ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                      Download all ({detail.photos.length})
+                    </button>
+                  ) : null}
+                </div>
+                {downloadError ? (
+                  <p className="mb-2 text-xs font-semibold text-red-700">{downloadError}</p>
+                ) : null}
                 {detail.photos.length ? (
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                     {detail.photos.map((url, index) => (
@@ -102,6 +130,27 @@ export function ListingReviewModal({
                             Cover
                           </span>
                         ) : null}
+                        <button
+                          type="button"
+                          title={`Download photo ${index + 1}`}
+                          disabled={downloadingAll || downloadingIndex !== null}
+                          onClick={() => {
+                            setDownloadError(null);
+                            setDownloadingIndex(index);
+                            void downloadListingPhoto(token, detail, index, url)
+                              .catch((err) =>
+                                setDownloadError(err instanceof Error ? err.message : 'Download failed.'),
+                              )
+                              .finally(() => setDownloadingIndex(null));
+                          }}
+                          className="absolute bottom-1 right-1 inline-flex items-center gap-1 rounded border border-white/30 bg-black/65 px-1.5 py-1 text-[10px] font-black text-white backdrop-blur-sm hover:bg-black/80 disabled:opacity-50"
+                        >
+                          {downloadingIndex === index ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <Download className="h-3 w-3" />
+                          )}
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -133,7 +182,7 @@ export function ListingReviewModal({
                 <dl className="rounded-xl border border-border bg-card px-3">
                   {row('Plate', detail.plateNumber ?? '—')}
                   {row('Vehicle', `${detail.vehicleType.replace(/_/g, ' ')} · ${detail.seats} seats`)}
-                  {row('Service', detail.serviceType.replace(/_/g, ' '))}
+                  {row('Service', formatCarListingServiceLabel(detail.serviceType) ?? 'Car rental')}
                   {row('Transmission', detail.transmission ?? '—')}
                   {row('Fuel', detail.fuelType ?? '—')}
                   {row('Listing city', city)}

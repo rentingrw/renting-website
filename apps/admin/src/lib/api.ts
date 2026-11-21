@@ -721,6 +721,10 @@ export async function listAdminListings(token: string, filters: ListListingsFilt
   return { ...res, items: res.items.map(normalizeAdminListing) };
 }
 
+export function adminListingPhotoDownloadPath(listingId: string, photoIndex: number): string {
+  return `${API_BASE_URL}/admin/listings/${listingId}/photos/${photoIndex}/download`;
+}
+
 export async function getAdminListingDetail(token: string, listingId: string) {
   const raw = await authRequest<AdminListingItem & LegacyAdminListingFields>(
     token,
@@ -1202,5 +1206,88 @@ export async function listAdminJobApplications(token: string, filters: ListJobAp
     `/admin/job-applications${suffix}`,
     undefined,
     'Failed to load applications.',
+  );
+}
+
+export type CompanyPartnerStatus = 'pending_approval' | 'approved' | 'rejected';
+
+export type AdminCompanyPartnerItem = {
+  id: string;
+  companyName: string;
+  contactPhone: string | null;
+  workAddress: string | null;
+  tinNumber: string | null;
+  message: string | null;
+  status: CompanyPartnerStatus;
+  rejectionReason: string | null;
+  submittedAt: string;
+  reviewedAt: string | null;
+  user: { id: string; fullName: string; email: string; phone: string | null };
+};
+
+export type AdminCompanyPartnerDetail = AdminCompanyPartnerItem & {
+  user: AdminCompanyPartnerItem['user'] & {
+    whatsapp: string | null;
+    createdAt: string;
+    carOwnerProfile: {
+      hostType: string | null;
+      companyName: string | null;
+      workAddress: string | null;
+      contactPhone: string | null;
+      tinNumber: string | null;
+    } | null;
+  };
+};
+
+export type ListCompanyPartnersFilters = {
+  page?: number;
+  pageSize?: number;
+  status?: CompanyPartnerStatus;
+  search?: string;
+};
+
+export async function listAdminCompanyPartners(token: string, filters: ListCompanyPartnersFilters = {}) {
+  const params = new URLSearchParams();
+  if (filters.page != null) params.set('page', String(filters.page));
+  if (filters.pageSize != null) params.set('pageSize', String(filters.pageSize));
+  if (filters.status) params.set('status', filters.status);
+  if (filters.search) params.set('search', filters.search);
+  const suffix = params.toString() ? `?${params.toString()}` : '';
+  return authRequest<Paginated<AdminCompanyPartnerItem>>(
+    token,
+    `/admin/company-partners${suffix}`,
+    undefined,
+    'Failed to load partner requests.',
+  );
+}
+
+export async function getAdminCompanyPartnerDetail(token: string, applicationId: string) {
+  return authRequest<AdminCompanyPartnerDetail>(
+    token,
+    `/admin/company-partners/${applicationId}`,
+    undefined,
+    'Failed to load partner request.',
+  );
+}
+
+export async function approveCompanyPartner(token: string, applicationId: string) {
+  return authRequest<{ id: string; status: string }>(
+    token,
+    `/admin/company-partners/${applicationId}/approve`,
+    { method: 'POST' },
+    'Failed to approve partner.',
+  );
+}
+
+export async function rejectCompanyPartner(token: string, applicationId: string, reason: string) {
+  return authRequest<{ id: string; status: string; rejectionReason: string }>(
+    token,
+    `/admin/company-partners/${applicationId}/reject`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason }),
+    },
+    'Failed to reject partner.',
   );
 }

@@ -6,7 +6,7 @@ import { MarketingPageHero } from '@/components/web/marketing-page-hero';
 import { SiteFooter } from '@/components/web/site-footer';
 import { IllustrationHowItWorks, IllustrationDriver, IllustrationSearch } from '@/components/web/illustrations';
 import { isSupportedLocale, routing, type SupportedLocale } from '@/i18n/routing';
-import { CalendarDays, Car, CheckCircle, Search, Star, UserRound } from 'lucide-react';
+import { CalendarDays, Car, CheckCircle, FileSignature, Search, Star, UserRound } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 
@@ -90,15 +90,16 @@ export default function HowItWorksPage({ params }: { params: Promise<{ locale: s
         </div>
       </section>
 
-      <section className="relative overflow-hidden bg-ink px-4 py-12 text-white sm:px-6">
-        <div className="hero-grid pointer-events-none absolute inset-0 opacity-40" aria-hidden />
-        <div className="relative mx-auto max-w-3xl text-center">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10 text-sun ring-1 ring-white/15">
-            <CheckCircle className="h-7 w-7" />
+      <section className="mx-auto w-full max-w-3xl px-4 pb-4 sm:px-6">
+        <MarketingCard className="flex gap-4 border-brand/25 bg-brand-soft/40 p-6">
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-border bg-card text-brand">
+            <FileSignature className="h-6 w-6" aria-hidden />
+          </span>
+          <div>
+            <h2 className="text-lg font-black text-foreground">{t('contractTitle')}</h2>
+            <p className="mt-2 text-sm font-medium leading-relaxed text-muted-foreground">{t('contractDesc')}</p>
           </div>
-          <h2 className="mb-2 text-xl font-black">{t('trustTitle')}</h2>
-          <p className="font-medium text-white/70">{t('trustDesc')}</p>
-        </div>
+        </MarketingCard>
       </section>
 
       <div className="flex-1" />

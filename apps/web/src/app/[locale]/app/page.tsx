@@ -2,13 +2,6 @@
 
 import React from 'react';
 import { useAuth, useUser } from '@clerk/nextjs';
-import {
-  Button,
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@rentingi/ui';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -16,9 +9,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { isSupportedLocale, routing, type SupportedLocale } from '@/i18n/routing';
 import { MediaImage } from '@/components/web/media-image';
 import {
-  cancelBooking,
   createCarListing,
-  createReview,
   flagBookingIssue,
   getCarBookingsMine,
   getCarsMine,
@@ -61,6 +52,7 @@ import { DashboardOverview } from '@/components/web/dashboard-overview';
 import { OwnerDashboardCarList } from '@/components/web/owner-dashboard-car-card';
 import { OwnerListingWizard } from '@/components/web/owner-listing-wizard';
 import Link from 'next/link';
+import { Button } from '@rentingi/ui';
 
 type AppPageProps = {
   params: Promise<{ locale: string }>;
@@ -68,6 +60,20 @@ type AppPageProps = {
 
 type BookingType = 'car' | 'driver';
 type DashboardSection = 'overview' | 'cars' | 'bookings';
+
+function isClosedBookingStatus(status: string): boolean {
+  return (
+    status === 'auto_cancelled' ||
+    status.startsWith('cancelled') ||
+    status === 'declined' ||
+    status === 'overlap_declined'
+  );
+}
+
+function bookingStatusLabel(status: string): string {
+  if (isClosedBookingStatus(status)) return 'Closed';
+  return status.replaceAll('_', ' ');
+}
 
 type DashboardBooking = {
   key: string;
@@ -87,7 +93,6 @@ type DashboardBooking = {
   photoUrl: string | null;
   youAre: 'renter' | 'owner' | 'driver';
   needsYourResponse: boolean;
-  canCancel: boolean;
   canMarkComplete: boolean;
   canFlagIssue: boolean;
   counterpartyPhone: string | null;
@@ -124,7 +129,6 @@ function toDashboardBookings(
       photoUrl: booking.listing.photos?.[0] ?? null,
       youAre,
       needsYourResponse: false,
-      canCancel: booking.status === 'confirmed',
       canMarkComplete: booking.status === 'active',
       canFlagIssue: booking.status === 'confirmed' || booking.status === 'active',
       counterpartyPhone: counterparty.phone ?? null,
@@ -152,7 +156,6 @@ function toDashboardBookings(
       photoUrl: null,
       youAre,
       needsYourResponse: false,
-      canCancel: booking.status === 'confirmed',
       canMarkComplete: booking.status === 'active',
       canFlagIssue: booking.status === 'confirmed' || booking.status === 'active',
       counterpartyPhone: counterparty.phone ?? null,
@@ -186,16 +189,6 @@ export default function AppPage({ params }: AppPageProps) {
   const [activeSection, setActiveSection] = useState<DashboardSection>('overview');
   const [selectedBookingKey, setSelectedBookingKey] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<string[]>([]);
-  const [trustScore, setTrustScore] = useState<number | null>(null);
-  const [reviewTarget, setReviewTarget] = useState<{
-    open: boolean;
-    bookingType: BookingType;
-    bookingId: string;
-    toUserId: string;
-    toName: string;
-  } | null>(null);
-  const [reviewRating, setReviewRating] = useState(5);
-  const [reviewComment, setReviewComment] = useState('');
   const [listingWizardOpen, setListingWizardOpen] = useState(false);
   const [editingCar, setEditingCar] = useState<OwnerCar | null>(null);
   const storeLocale = useStore((state) => state.locale);
@@ -349,33 +342,6 @@ export default function AppPage({ params }: AppPageProps) {
         await loadDashboardData(token);
       }
     };
-    const reviewHandler = (payload: unknown) => {
-      if (
-        typeof payload === 'object' &&
-        payload !== null &&
-        'bookingType' in payload &&
-        'booking' in payload
-      ) {
-        const body = payload as { bookingType: BookingType; booking: { id: string } };
-        const match = bookings.find((item) => item.key === `${body.bookingType}:${body.booking.id}`);
-        if (match) {
-          setReviewTarget({
-            open: true,
-            bookingType: match.bookingType,
-            bookingId: match.id,
-            toUserId: match.counterpartyId,
-            toName: match.counterpartyName,
-          });
-        }
-      }
-    };
-    const trustHandler = (payload: unknown) => {
-      if (typeof payload === 'object' && payload !== null && 'trustScore' in payload) {
-        const score = (payload as { trustScore: number }).trustScore;
-        setTrustScore(score);
-      }
-    };
-
     const bookingNewRequestHandler = async () => {
       notify('New booking request.');
       await refreshHandler();
@@ -388,26 +354,15 @@ export default function AppPage({ params }: AppPageProps) {
       notify('A booking was declined.');
       await refreshHandler();
     };
-    const bookingAutoCancelledHandler = async () => {
-      notify('A booking was auto-cancelled.');
-      await refreshHandler();
-    };
     socket.on('booking:new_request', bookingNewRequestHandler);
     socket.on('booking:confirmed', bookingConfirmedHandler);
     socket.on('booking:declined', bookingDeclinedHandler);
-    socket.on('booking:auto_cancelled', bookingAutoCancelledHandler);
     socket.on('booking:mark_complete_received', refreshHandler);
-    socket.on('review:prompt', reviewHandler);
-    socket.on('trust_score:updated', trustHandler);
-
     return () => {
       socket.off('booking:new_request', bookingNewRequestHandler);
       socket.off('booking:confirmed', bookingConfirmedHandler);
       socket.off('booking:declined', bookingDeclinedHandler);
-      socket.off('booking:auto_cancelled', bookingAutoCancelledHandler);
       socket.off('booking:mark_complete_received', refreshHandler);
-      socket.off('review:prompt', reviewHandler);
-      socket.off('trust_score:updated', trustHandler);
     };
   }, [bookings, profile]);
 
@@ -512,23 +467,12 @@ export default function AppPage({ params }: AppPageProps) {
     return handler(token);
   }
 
-  async function runBookingAction(action: 'cancel' | 'complete' | 'flag') {
+  async function runBookingAction(action: 'complete' | 'flag') {
     if (!selectedBooking) {
       return;
     }
     await withToken(async (token) => {
-      if (action === 'cancel') {
-        const lessThan24Hours = new Date(selectedBooking.startAt).getTime() - Date.now() < 24 * 60 * 60 * 1000;
-        const proceed = window.confirm(
-          lessThan24Hours
-            ? 'This booking starts in less than 24 hours and may affect trust score. Continue?'
-            : 'Cancel this booking?',
-        );
-        if (!proceed) {
-          return;
-        }
-        await cancelBooking(token, selectedBooking.bookingType, selectedBooking.id);
-      } else if (action === 'complete') {
+      if (action === 'complete') {
         await markBookingComplete(token, selectedBooking.bookingType, selectedBooking.id);
       } else {
         const reason = window.prompt('Issue details');
@@ -538,25 +482,6 @@ export default function AppPage({ params }: AppPageProps) {
         await flagBookingIssue(token, selectedBooking.bookingType, selectedBooking.id, reason);
       }
       await loadDashboardData(token);
-    });
-  }
-
-  async function handleReviewSubmit() {
-    if (!reviewTarget) {
-      return;
-    }
-    await withToken(async (token) => {
-      await createReview(token, {
-        toUserId: reviewTarget.toUserId,
-        rating: reviewRating,
-        comment: reviewComment.trim() || undefined,
-        carBookingId: reviewTarget.bookingType === 'car' ? reviewTarget.bookingId : undefined,
-        driverBookingId: reviewTarget.bookingType === 'driver' ? reviewTarget.bookingId : undefined,
-      });
-      setReviewTarget(null);
-      setReviewRating(5);
-      setReviewComment('');
-      setNotifications((previous) => ['Review submitted.', ...previous].slice(0, 6));
     });
   }
 
@@ -841,8 +766,8 @@ export default function AppPage({ params }: AppPageProps) {
                 const imgSrc = booking.photoUrl ?? (booking.bookingType === 'driver' ? stockImages.carInterior : stockImages.carPlaceholder);
                 const isExpanded = selectedBookingKey === booking.key;
                 const statusColors =
-                  booking.status === 'cancelled' || booking.status === 'auto_cancelled'
-                    ? 'border-red-200 bg-red-50 text-red-700'
+                  isClosedBookingStatus(booking.status)
+                    ? 'border-border bg-muted text-muted-foreground'
                     : booking.status === 'active'
                       ? 'border-brand/25 bg-brand-soft text-brand'
                       : booking.status === 'confirmed'
@@ -853,7 +778,7 @@ export default function AppPage({ params }: AppPageProps) {
                 const counterpartyLabel = booking.youAre === 'renter'
                   ? (booking.bookingType === 'driver' ? t('app.bookings.driver') : t('app.bookings.owner'))
                   : t('app.bookings.renter');
-                const statusLabel = booking.status === 'auto_cancelled' || booking.status === 'cancelled_by_renter' || booking.status === 'cancelled_by_owner' || booking.status === 'cancelled_admin' ? 'Cancelled' : booking.status.replaceAll('_', ' ');
+                const statusLabel = bookingStatusLabel(booking.status);
                 return (
                   <div
                     key={booking.key}
@@ -943,11 +868,6 @@ export default function AppPage({ params }: AppPageProps) {
                           <div className="space-y-2">
                             <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Actions</p>
                             <div className="flex flex-wrap gap-2">
-                              {booking.canCancel && (
-                                <button type="button" onClick={() => runBookingAction('cancel')} className="rounded border-2 border-border bg-card px-3 py-1.5 text-xs font-black text-foreground hover:bg-muted">
-                                  {t('app.actions.cancel')}
-                                </button>
-                              )}
                               {booking.canMarkComplete && (
                                 <button type="button" onClick={() => runBookingAction('complete')} className="rounded border-2 border-border bg-card px-3 py-1.5 text-xs font-black text-foreground hover:bg-muted">
                                   {t('app.actions.markComplete')}
@@ -958,19 +878,7 @@ export default function AppPage({ params }: AppPageProps) {
                                   {t('app.actions.flagIssue')}
                                 </button>
                               )}
-                              {(booking.status === 'completed' || booking.status === 'auto_completed') && (
-                                <button
-                                  type="button"
-                                  onClick={() => setReviewTarget({ open: true, bookingType: booking.bookingType, bookingId: booking.id, toUserId: booking.counterpartyId, toName: booking.counterpartyName })}
-                                  className="rounded border-2 border-border bg-card px-3 py-1.5 text-xs font-black text-foreground hover:bg-muted"
-                                >
-                                  {t('app.actions.leaveReview')}
-                                </button>
-                              )}
                             </div>
-                            {booking.canCancel && new Date(booking.startAt).getTime() - Date.now() < 24 * 60 * 60 * 1000 && (
-                              <p className="text-xs font-medium text-amber-600">{t('app.booking.cancelWarning')}</p>
-                            )}
                           </div>
                         </div>
                       </div>
@@ -989,36 +897,6 @@ export default function AppPage({ params }: AppPageProps) {
           {error ?? 'Refreshing dashboard...'}
         </div>
       ) : null}
-
-      <Dialog open={Boolean(reviewTarget?.open)} onOpenChange={(open) => !open && setReviewTarget(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('app.review.title')} {reviewTarget?.toName}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <label className="block text-sm">
-              {t('app.review.rating')}
-              <input
-                type="number"
-                min={1}
-                max={5}
-                className="mt-1 w-full rounded border px-3 py-2 text-sm"
-                value={reviewRating}
-                onChange={(event) => setReviewRating(Number(event.target.value))}
-              />
-            </label>
-            <label className="block text-sm">
-              {t('app.review.comment')}
-              <textarea
-                className="mt-1 min-h-24 w-full rounded border p-3 text-sm"
-                value={reviewComment}
-                onChange={(event) => setReviewComment(event.target.value)}
-              />
-            </label>
-            <Button onClick={handleReviewSubmit}>{t('app.review.submit')}</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       <OwnerListingWizard
         open={listingWizardOpen}

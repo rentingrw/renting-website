@@ -59,8 +59,8 @@ export default function ListYourCarPage({ params }: { params: Promise<{ locale: 
             },
             {
               icon: <BadgeCheck className="h-8 w-8 text-brand" />,
-              title: 'Trusted renters',
-              desc: 'Our trust score system filters out low-trust users. You choose who gets your car.',
+              title: 'Verified bookings',
+              desc: 'Renters sign in to book. The renting.rw desk confirms Standard requests before handover.',
             },
             {
               icon: <Camera className="h-8 w-8 text-brand" />,
@@ -70,7 +70,7 @@ export default function ListYourCarPage({ params }: { params: Promise<{ locale: 
             {
               icon: <TrendingUp className="h-8 w-8 text-brand" />,
               title: 'Grow Your Business',
-              desc: 'Collect reviews, build your reputation, and get more bookings over time.',
+              desc: 'Keep your calendar up to date and respond quickly to earn repeat customers.',
             },
           ].map((item) => (
             <MarketingCard key={item.title}>
@@ -91,7 +91,7 @@ export default function ListYourCarPage({ params }: { params: Promise<{ locale: 
               { step: '1', title: 'Create an account', desc: 'Sign up with your email in under 2 minutes.' },
               { step: '2', title: 'Complete host onboarding', desc: 'Add your details and host profile so renters know who they are booking with.' },
               { step: '3', title: 'Create your listing', desc: 'Add photos, set your price, choose your availability. Use the listing wizard from your dashboard.' },
-              { step: '4', title: 'Get booked', desc: 'The renting.rw desk confirms Standard bookings after calling you. Extra Premium listings book instantly.' },
+              { step: '4', title: 'Get booked', desc: 'The renting.rw desk confirms Standard bookings after calling you. Extra Premium listings book instantly. At pickup, give the guest your rental contract to sign before they take the car.' },
             ].map((s) => (
               <li key={s.step} className="flex gap-4">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border-2 border-brand bg-brand text-white font-black shadow-brutal-xs">

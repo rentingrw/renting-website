@@ -69,12 +69,12 @@ export default function DriveWithUsPage({ params }: { params: Promise<{ locale: 
             {
               icon: <BadgeCheck className="h-8 w-8 text-brand" />,
               title: 'Registered clients',
-              desc: 'Clients sign in to book. Our trust system protects you from problem bookings.',
+              desc: 'Clients sign in to book. The renting.rw desk confirms requests before you meet.',
             },
             {
               icon: <Clock className="h-8 w-8 text-brand" />,
               title: 'Grow Your Reputation',
-              desc: 'Collect reviews, build your trust score, and get featured to attract more clients.',
+              desc: 'Complete trips on time and keep your profile accurate to attract more clients.',
             },
           ].map((item) => (
             <div key={item.title} className="rounded-2xl border border-border bg-card p-5 shadow-card">

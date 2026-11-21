@@ -8,6 +8,7 @@ import { TrustScoreModule } from '../trust-score/trust-score.module';
 import { UsersModule } from '../users/users.module';
 import { BookingsModule } from '../bookings/bookings.module';
 import { DriverBookingsModule } from '../driver-bookings/driver-bookings.module';
+import { CompanyPartnersModule } from '../company-partners/company-partners.module';
 import { AdminController } from './admin.controller';
 import { AdminService } from './admin.service';
 import { BannersPublicController } from './banners-public.controller';
@@ -23,6 +24,7 @@ import { JobsPublicController } from './jobs-public.controller';
     UsersModule,
     BookingsModule,
     DriverBookingsModule,
+    CompanyPartnersModule,
   ],
   controllers: [AdminController, BannersPublicController, JobsPublicController],
   providers: [AdminService],

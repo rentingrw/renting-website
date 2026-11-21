@@ -7,8 +7,6 @@ import { useState, type ReactNode } from 'react';
 type SearchFilterBarProps = {
   availableNow: boolean;
   onAvailableNowChange: (value: boolean) => void;
-  topRated: boolean;
-  onTopRatedChange: (value: boolean) => void;
   resultCount?: number;
   loading?: boolean;
   extra?: ReactNode;
@@ -19,8 +17,6 @@ type SearchFilterBarProps = {
 export function SearchFilterBar({
   availableNow,
   onAvailableNowChange,
-  topRated,
-  onTopRatedChange,
   resultCount,
   loading,
   extra,
@@ -53,15 +49,6 @@ export function SearchFilterBar({
           }`}
         >
           {t('availableNow')}
-        </button>
-        <button
-          type="button"
-          onClick={() => onTopRatedChange(!topRated)}
-          className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${
-            topRated ? 'border-sun bg-sun text-ink' : idleChip
-          }`}
-        >
-          {t('topRated')}
         </button>
         {extra}
         {moreFilters ? (

@@ -236,7 +236,12 @@ export function SearchPopup({ open, onOpenChange, locale }: SearchPopupProps) {
                   >
                     <Card className="overflow-hidden border-border bg-card shadow-sm transition hover:border-sky-500/50 hover:shadow-md">
                       <CardContent className="flex gap-3 p-3">
-                        <InitialsAvatar name={driver.fullName} src={driver.profilePhotoUrl} size={64} />
+                        <InitialsAvatar
+                          name={driver.fullName}
+                          src={driver.profilePhotoUrl}
+                          size={64}
+                          shape="portrait"
+                        />
                         <div className="min-w-0 flex-1">
                           <p className="font-medium text-foreground">{driver.fullName}</p>
                           <p className="text-xs text-muted-foreground">

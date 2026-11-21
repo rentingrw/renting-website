@@ -123,7 +123,7 @@ async function main() {
         title: 'Toyota RAV4 2021 - Kacyiru',
           description: 'Comfortable SUV ideal for Kigali and weekend upcountry trips.',
           vehicleType: 'suv',
-          serviceType: 'self_drive',
+          serviceType: 'corporate',
           brand: 'Toyota',
           model: 'RAV4',
           year: 2021,
@@ -150,7 +150,7 @@ async function main() {
         title: 'Hyundai Tucson 2019 - Kimihurura',
           description: 'Reliable SUV for city and family travel.',
           vehicleType: 'suv',
-          serviceType: 'with_driver',
+          serviceType: 'corporate',
           brand: 'Hyundai',
           model: 'Tucson',
           year: 2019,
@@ -177,7 +177,7 @@ async function main() {
         title: 'Toyota Corolla 2020 - Nyarutarama',
           description: 'Fuel-efficient sedan for business and city movement.',
           vehicleType: 'sedan',
-          serviceType: 'self_drive',
+          serviceType: 'corporate',
           brand: 'Toyota',
           model: 'Corolla',
           year: 2020,
@@ -230,6 +230,8 @@ async function main() {
       const dp1 = await tx.driverProfile.create({
       data: {
         userId: driverOne.id,
+        status: 'approved',
+        marketplaceVisibility: 'active',
         driverCategory: 'city',
         yearsExperience: 6,
         biography: 'Professional city and airport transfer driver based in Kigali.',
@@ -249,6 +251,8 @@ async function main() {
       const dp2 = await tx.driverProfile.create({
       data: {
         userId: driverTwo.id,
+        status: 'approved',
+        marketplaceVisibility: 'active',
         driverCategory: 'chauffeur',
         yearsExperience: 4,
         biography: 'Experienced private chauffeur for corporate and family bookings.',

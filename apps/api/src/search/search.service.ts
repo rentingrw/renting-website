@@ -5,6 +5,7 @@ import type { AuthenticatedUser } from '../auth/types/authenticated-request.inte
 import { prisma } from '../database/prisma';
 import { liveSubscriptionWhere } from '../subscriptions/subscription-tier.util';
 import { SearchSort, SearchType, type SearchQueryDto } from './dto/search-query.dto';
+import { resolveCarHostDisplay } from '../common/listing-host.util';
 import { coordsForRwandaCity, distanceMeters } from './rwanda-city-coords';
 
 function rethrowSchemaDrift(error: unknown): never {
@@ -54,6 +55,9 @@ interface SearchCarRow {
   ownerTrustScore: number | null;
   isBookedNow: boolean;
   verified: boolean;
+  ownerFullName: string | null;
+  ownerHostType: string | null;
+  ownerCompanyName: string | null;
 }
 
 interface SearchDriverRow {
@@ -62,6 +66,7 @@ interface SearchDriverRow {
   fullName: string;
   profilePhotoUrl: string | null;
   trustScore: number;
+  status: string;
   driverCategory: string;
   yearsExperience: number;
   biography: string | null;
@@ -263,6 +268,9 @@ export class SearchService {
             : Prisma.sql`0`
         } AS "searchRank",
         (SELECT u.trust_score::float8 FROM users u WHERE u.id = cl.owner_id) AS "ownerTrustScore",
+        (SELECT u.full_name FROM users u WHERE u.id = cl.owner_id) AS "ownerFullName",
+        cop.host_type::text AS "ownerHostType",
+        cop.company_name AS "ownerCompanyName",
         EXISTS (
           SELECT 1 FROM car_bookings cb_now
           WHERE cb_now.listing_id = cl.id
@@ -272,6 +280,7 @@ export class SearchService {
         ) AS "isBookedNow",
         (live_sub.tier = 'business'::"SubscriptionTier") AS "verified"
       FROM car_listings cl
+      LEFT JOIN car_owner_profiles cop ON cop.user_id = cl.owner_id
       LEFT JOIN LATERAL (
         SELECT s.tier
         FROM subscriptions s
@@ -284,13 +293,20 @@ export class SearchService {
       ) live_sub ON TRUE
       WHERE ${whereClause}
       ORDER BY
-        ${this.orderByPriceOrFallback(
-          query.sort,
-          Prisma.sql`cl.daily_rate_in_city_rwf`,
-          query.sort === SearchSort.score || query.sort === SearchSort.rating
-            ? Prisma.sql`"ownerTrustScore" DESC NULLS LAST,`
-            : Prisma.sql`CASE WHEN live_sub.tier IN ('premium'::"SubscriptionTier", 'business'::"SubscriptionTier") THEN 0 ELSE 1 END,`,
-        )}
+        ${
+          this.isPriceSort(query.sort)
+            ? this.orderByPriceOrFallback(
+                query.sort,
+                Prisma.sql`cl.daily_rate_in_city_rwf`,
+                Prisma.empty,
+              )
+            : this.companyHostPriorityOrder()
+        }
+        ${
+          this.isPriceSort(query.sort)
+            ? this.companyHostPriorityOrder()
+            : this.carSearchRelevanceOrder(query.sort)
+        }
         ${hasQuery ? Prisma.sql`"searchRank" DESC,` : Prisma.empty}
         ${hasGeo ? Prisma.sql`"distanceMeters" ASC,` : Prisma.empty}
         cl.created_at DESC
@@ -298,7 +314,13 @@ export class SearchService {
       OFFSET ${offset}
     `);
 
-    return rows.map((row) => ({
+    return rows.map((row) => {
+      const host = resolveCarHostDisplay({
+        hostType: row.ownerHostType,
+        companyName: row.ownerCompanyName,
+        ownerFullName: row.ownerFullName ?? 'Host',
+      });
+      return {
       id: row.id,
       ownerId: row.ownerId,
       title: row.title,
@@ -329,7 +351,11 @@ export class SearchService {
         ? { dailyRateOutsideCityRwf: row.dailyRateOutsideCityRwf }
         : {}),
       listingCity: row.listingCity,
-    }));
+      hostDisplayName: host.hostDisplayName,
+      isCompanyHost: host.isCompanyHost,
+      companyName: host.companyName,
+    };
+    });
   }
 
   private async searchDrivers(
@@ -400,7 +426,7 @@ export class SearchService {
       conditions.push(Prisma.sql`dp.years_experience >= ${query.experienceMin}`);
     }
 
-    conditions.push(Prisma.sql`dp.status = 'approved'::"DriverProfileStatus"`);
+    conditions.push(Prisma.sql`dp.status <> 'draft'::"DriverProfileStatus"`);
     conditions.push(Prisma.sql`dp.marketplace_visibility = 'active'::"MarketplaceVisibility"`);
 
     if (query.availableNow) {
@@ -424,6 +450,7 @@ export class SearchService {
         u.full_name AS "fullName",
         u.avatar_url AS "profilePhotoUrl",
         u.trust_score::float8 AS "trustScore",
+        dp.status::text AS status,
         dp.driver_category AS "driverCategory",
         dp.years_experience AS "yearsExperience",
         dp.biography,
@@ -489,6 +516,8 @@ export class SearchService {
       fullName: row.fullName,
       profilePhotoUrl: row.profilePhotoUrl,
       trustScore: row.trustScore,
+      status: row.status,
+      verified: row.status === 'approved',
       driverCategory: row.driverCategory,
       yearsExperience: row.yearsExperience,
       biography: row.biography,
@@ -676,5 +705,21 @@ export class SearchService {
     if (sort === SearchSort.price_asc) return Prisma.sql`${priceColumn} ASC,`;
     if (sort === SearchSort.price_desc) return Prisma.sql`${priceColumn} DESC,`;
     return fallback;
+  }
+
+  private isPriceSort(sort?: SearchSort): boolean {
+    return sort === SearchSort.price_asc || sort === SearchSort.price_desc;
+  }
+
+  /** Fleet partners (host_type company) rank above individual hosts in filtered car search. */
+  private companyHostPriorityOrder(): Prisma.Sql {
+    return Prisma.sql`CASE WHEN cop.host_type = 'company'::"CarHostType" THEN 0 ELSE 1 END,`;
+  }
+
+  private carSearchRelevanceOrder(sort?: SearchSort): Prisma.Sql {
+    if (sort === SearchSort.score || sort === SearchSort.rating) {
+      return Prisma.sql`"ownerTrustScore" DESC NULLS LAST,`;
+    }
+    return Prisma.sql`CASE WHEN live_sub.tier IN ('premium'::"SubscriptionTier", 'business'::"SubscriptionTier") THEN 0 ELSE 1 END,`;
   }
 }

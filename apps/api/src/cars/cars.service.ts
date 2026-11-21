@@ -17,16 +17,20 @@ import { assertAndRecordProviderAgreement } from '../common/provider-agreement.u
 import type { CreateCarDto } from './dto/create-car.dto';
 import type { UpdateCarDto } from './dto/update-car.dto';
 import type { OwnerListingMarketplaceStatus } from './dto/set-listing-status.dto';
+import { resolveCarHostDisplay } from '../common/listing-host.util';
+
+const listingOwnerSelect = {
+  id: true,
+  fullName: true,
+  phone: true,
+  trustScore: true,
+  driverProfile: { select: { id: true } },
+  carOwnerProfile: { select: { hostType: true, companyName: true } },
+} as const;
 
 type CarListingWithOwner = Prisma.CarListingGetPayload<{
   include: {
-    owner: {
-      select: {
-        id: true;
-        fullName: true;
-        phone: true;
-      };
-    };
+    owner: { select: typeof listingOwnerSelect };
   };
 }>;
 
@@ -77,13 +81,7 @@ export class CarsService {
       return tx.carListing.findUnique({
         where: { id: listing.id },
         include: {
-          owner: {
-            select: {
-              id: true,
-              fullName: true,
-              phone: true,
-            },
-          },
+          owner: { select: listingOwnerSelect },
         },
       });
     });
@@ -148,13 +146,7 @@ export class CarsService {
     const updated = await prisma.carListing.findUnique({
       where: { id: listing.id },
       include: {
-        owner: {
-          select: {
-            id: true,
-            fullName: true,
-            phone: true,
-          },
-        },
+        owner: { select: listingOwnerSelect },
       },
     });
 
@@ -201,13 +193,7 @@ export class CarsService {
       where: { id: listing.id },
       data: { status: ListingStatus.pending_approval },
       include: {
-        owner: {
-          select: {
-            id: true,
-            fullName: true,
-            phone: true,
-          },
-        },
+        owner: { select: listingOwnerSelect },
       },
     });
 
@@ -256,13 +242,7 @@ export class CarsService {
       where: { id: listing.id },
       data: { status: this.toPrismaMarketplaceStatus(target) },
       include: {
-        owner: {
-          select: {
-            id: true,
-            fullName: true,
-            phone: true,
-          },
-        },
+        owner: { select: listingOwnerSelect },
       },
     });
 
@@ -273,15 +253,7 @@ export class CarsService {
     const listing = await prisma.carListing.findUnique({
       where: { id: listingId },
       include: {
-        owner: {
-          select: {
-            id: true,
-            fullName: true,
-            phone: true,
-            trustScore: true,
-            driverProfile: { select: { id: true } },
-          },
-        },
+        owner: { select: listingOwnerSelect },
       },
     });
 
@@ -333,13 +305,7 @@ export class CarsService {
       where: { ownerId: owner.id },
       orderBy: { createdAt: 'desc' },
       include: {
-        owner: {
-          select: {
-            id: true,
-            fullName: true,
-            phone: true,
-          },
-        },
+        owner: { select: listingOwnerSelect },
       },
     });
 
@@ -420,14 +386,7 @@ export class CarsService {
       orderBy: { createdAt: 'desc' },
       take: isOwnerViewingSelf ? 100 : 6,
       include: {
-        owner: {
-          select: {
-            id: true,
-            fullName: true,
-            phone: true,
-            trustScore: true,
-          },
-        },
+        owner: { select: listingOwnerSelect },
       },
     });
     return listings.map((l) => this.mapListing(l, isOwnerViewingSelf, { showContact: false }));
@@ -485,10 +444,19 @@ export class CarsService {
     extras?: { showContact?: boolean; verified?: boolean; instantBooking?: boolean; isBookedNow?: boolean },
   ) {
     const showContact = extras?.showContact ?? includeExactRates;
+    const host = resolveCarHostDisplay({
+      hostType: listing.owner.carOwnerProfile?.hostType,
+      companyName: listing.owner.carOwnerProfile?.companyName,
+      ownerFullName: listing.owner.fullName,
+    });
     return {
       id: listing.id,
       ownerId: listing.ownerId,
-      ownerName: listing.owner.fullName,
+      ownerName: host.hostDisplayName,
+      hostDisplayName: host.hostDisplayName,
+      isCompanyHost: host.isCompanyHost,
+      companyName: host.companyName,
+      hostContactName: host.isCompanyHost ? listing.owner.fullName : null,
       ownerPhone: showContact ? listing.owner.phone ?? null : null,
       ownerDriverProfileId: (listing.owner as { driverProfile?: { id: string } | null }).driverProfile?.id ?? null,
       ownerTrustScore: Number((listing.owner as { trustScore?: unknown }).trustScore ?? 100),

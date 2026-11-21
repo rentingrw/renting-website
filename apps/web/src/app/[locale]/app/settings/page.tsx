@@ -26,6 +26,7 @@ const JOIN_LABEL: Record<string, string> = {
   taxi: 'joinTaxi',
   driverManage: 'joinDriverManage',
   taxiManage: 'joinTaxiManage',
+  partner: 'joinPartner',
 };
 
 const JOIN_DESC: Record<string, string> = {
@@ -34,6 +35,7 @@ const JOIN_DESC: Record<string, string> = {
   taxi: 'joinTaxiDesc',
   driverManage: 'joinDriverManageDesc',
   taxiManage: 'joinTaxiManageDesc',
+  partner: 'joinPartnerDesc',
 };
 
 export default function SettingsPage() {

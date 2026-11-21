@@ -4,9 +4,11 @@ import {
   Delete,
   Get,
   Param,
+  ParseIntPipe,
   Patch,
   Post,
   Query,
+  StreamableFile,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -43,6 +45,8 @@ import { AdminSetTaxiStatusDto } from './dto/admin-set-taxi-status.dto';
 import { CreatePromoCodeDto, UpdatePromoCodeDto } from './dto/promo-code.dto';
 import { ListJobApplicationsQueryDto } from './dto/list-job-applications.query.dto';
 import { CreateJobOpeningDto, UpdateJobOpeningDto } from './dto/job-opening.dto';
+import { ListCompanyPartnersQueryDto } from './dto/list-company-partners.query.dto';
+import { CompanyPartnersService } from '../company-partners/company-partners.service';
 
 @ApiTags('Admin')
 @ApiBearerAuth()
@@ -55,6 +59,7 @@ export class AdminController {
     private readonly usersService: UsersService,
     private readonly carsService: CarsService,
     private readonly imageUploadService: ImageUploadService,
+    private readonly companyPartnersService: CompanyPartnersService,
   ) {}
 
   @Get('overview')
@@ -160,6 +165,19 @@ export class AdminController {
     return this.adminService.getListingDetail(listingId);
   }
 
+  @Get('listings/:listingId/photos/:photoIndex/download')
+  @ApiOperation({ summary: 'Download one listing photo (admin)' })
+  async downloadListingPhoto(
+    @Param('listingId') listingId: string,
+    @Param('photoIndex', ParseIntPipe) photoIndex: number,
+  ): Promise<StreamableFile> {
+    const file = await this.adminService.downloadListingPhoto(listingId, photoIndex);
+    return new StreamableFile(file.buffer, {
+      type: file.contentType,
+      disposition: `attachment; filename="${file.filename}"`,
+    });
+  }
+
   @Patch('listings/:id/approve')
   @ApiOperation({ summary: 'Approve a pending car listing and make it active' })
   approveListing(@Param('id') listingId: string) {
@@ -249,6 +267,35 @@ export class AdminController {
   @ApiOperation({ summary: 'Create a driver profile on behalf of a user' })
   adminCreateDriver(@Body() payload: AdminCreateDriverDto) {
     return this.adminService.adminCreateDriver(payload);
+  }
+
+  @Get('company-partners')
+  @ApiOperation({ summary: 'List company partner applications' })
+  listCompanyPartners(@Query() query: ListCompanyPartnersQueryDto) {
+    return this.companyPartnersService.listApplications({
+      status: query.status,
+      search: query.search,
+      page: Number(query.page ?? 1),
+      pageSize: Number(query.pageSize ?? 20),
+    });
+  }
+
+  @Get('company-partners/:id')
+  @ApiOperation({ summary: 'Get a company partner application for review' })
+  getCompanyPartner(@Param('id') applicationId: string) {
+    return this.companyPartnersService.getApplicationDetail(applicationId);
+  }
+
+  @Post('company-partners/:id/approve')
+  @ApiOperation({ summary: 'Approve a pending company partner request' })
+  approveCompanyPartner(@Param('id') applicationId: string) {
+    return this.companyPartnersService.approveApplication(applicationId);
+  }
+
+  @Post('company-partners/:id/reject')
+  @ApiOperation({ summary: 'Reject a pending company partner request' })
+  rejectCompanyPartner(@Param('id') applicationId: string, @Body() payload: RejectListingDto) {
+    return this.companyPartnersService.rejectApplication(applicationId, payload.reason);
   }
 
   @Get('taxis')

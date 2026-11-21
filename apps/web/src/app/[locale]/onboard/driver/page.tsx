@@ -8,23 +8,28 @@ import { DriverApplicationSummary } from '@/components/web/driver-application-su
 import { OnboardWizardShell, onboardInputClass, onboardLabelClass } from '@/components/web/onboard-wizard-shell';
 import { RegistrationAgreement, registrationAgreementError } from '@/components/web/registration-agreement';
 import { RwandaAdminAddressSelect } from '@/components/web/rwanda-admin-address-select';
+import { RwandaDistrictMultiSelect } from '@/components/web/rwanda-district-multi-select';
+import {
+  availabilityCertifications,
+  DRIVER_AVAILABILITY_OPTIONS,
+  parseAvailabilityFromProfile,
+  type DriverAvailabilityOption,
+} from '@/lib/driver-availability';
+import { DRIVER_PROFILE_API_DEFAULTS, defaultPrimaryCity } from '@/lib/driver-profile-defaults';
 import { isSupportedLocale, routing, type SupportedLocale } from '@/i18n/routing';
 import {
-  addRole,
-  createDriverProfile,
-  getDriverProfileFull,
+  loadDriverProfileForOwner,
+  saveDriverProfile,
   getMe,
   submitDriverProfileForReview,
-  updateDriverProfile,
   updateMe,
   type DriverProfilePayload,
 } from '@/lib/api';
 
-const STEPS = ['Name', 'Photo', 'Phone', 'Address', 'License', 'Languages', 'Rates', 'Documents', 'Agreement'];
+const STEPS = ['Name', 'Photo', 'Phone', 'Address', 'Service areas', 'License', 'Languages', 'Rates', 'Documents', 'Agreement'];
 type ApprovalStatus = 'draft' | 'pending_approval' | 'approved' | 'rejected';
 const LICENSE_CATEGORIES = ['A', 'B', 'C', 'D', 'E', 'F'];
 const TRANSMISSIONS = ['Manual', 'Automatic', 'Both'];
-const AVAILABILITY = ['24/7', 'Weekends', 'Daytime', 'Nighttime'] as const;
 const LANGUAGE_OPTIONS = [
   { code: 'en', label: 'English' },
   { code: 'rw', label: 'Kinyarwanda' },
@@ -34,26 +39,6 @@ const LANGUAGE_OPTIONS = [
 
 function formatRwf(value: number) {
   return new Intl.NumberFormat('en-RW').format(value);
-}
-
-function parseAvailability(profile: {
-  certifications?: string[];
-  serviceAreas?: string[];
-}): (typeof AVAILABILITY)[number] {
-  const fromCert = profile.certifications?.find((item) => item.startsWith('Availability: '))?.replace('Availability: ', '');
-  const fromArea = profile.serviceAreas?.find((item) => item.startsWith('Availability: '))?.replace('Availability: ', '');
-  const raw = fromCert || fromArea || '';
-  const legacy: Record<string, (typeof AVAILABILITY)[number]> = {
-    Anytime: '24/7',
-    'Daytime (6am–6pm)': 'Daytime',
-    'Daytime (6am-6pm)': 'Daytime',
-    'Nighttime (6pm–6am)': 'Nighttime',
-    'Nighttime (6pm-6am)': 'Nighttime',
-    'Weekends only': 'Weekends',
-  };
-  if (raw && (AVAILABILITY as readonly string[]).includes(raw)) return raw as (typeof AVAILABILITY)[number];
-  if (raw && legacy[raw]) return legacy[raw];
-  return '24/7';
 }
 
 const LANGUAGE_LABELS: Record<string, string> = Object.fromEntries(LANGUAGE_OPTIONS.map((item) => [item.code, item.label]));
@@ -73,12 +58,14 @@ export default function DriverOnboardPage({ params }: { params: Promise<{ locale
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
   const [primaryDistrict, setPrimaryDistrict] = useState('');
+  const [serviceDistricts, setServiceDistricts] = useState<string[]>(['Kigali']);
   const [yearsExperience, setYearsExperience] = useState(1);
   const [licenseCategories, setLicenseCategories] = useState<string[]>(['B']);
   const [transmission, setTransmission] = useState('Both');
-  const [availability, setAvailability] = useState<(typeof AVAILABILITY)[number]>('24/7');
+  const [availabilityModes, setAvailabilityModes] = useState<DriverAvailabilityOption[]>(['24/7']);
   const [languages, setLanguages] = useState<string[]>(['en', 'rw']);
   const [dailyRateRwf, setDailyRateRwf] = useState('');
+  const [weeklyRateRwf, setWeeklyRateRwf] = useState('');
   const [monthlyRateRwf, setMonthlyRateRwf] = useState('');
   const [idDocumentUrl, setIdDocumentUrl] = useState('');
   const [licenseDocumentUrl, setLicenseDocumentUrl] = useState('');
@@ -107,7 +94,8 @@ export default function DriverOnboardPage({ params }: { params: Promise<{ locale
     async function load() {
       const token = await getToken();
       if (!token) return;
-      const [me, profile] = await Promise.all([getMe(token), getDriverProfileFull(token)]);
+      const me = await getMe(token);
+      const profile = await loadDriverProfileForOwner(token);
       if (cancelled) return;
       if (me) {
         setFullName(me.fullName || user?.fullName || '');
@@ -122,12 +110,15 @@ export default function DriverOnboardPage({ params }: { params: Promise<{ locale
         setPhone(profile.phone || me?.phone || '');
         setAddress(profile.addressText || '');
         setPrimaryDistrict(profile.primaryCity || '');
+        const areas = (profile.serviceAreas ?? []).filter((item) => !item.startsWith('Availability:'));
+        if (areas.length) setServiceDistricts(areas);
         setYearsExperience(profile.yearsExperience || 1);
         setLicenseCategories(profile.licenseCategories?.length ? profile.licenseCategories : ['B']);
         setTransmission(profile.transmission || 'Both');
-        setAvailability(parseAvailability(profile));
+        setAvailabilityModes(parseAvailabilityFromProfile(profile));
         if (profile.languages?.length) setLanguages(profile.languages);
         if (profile.dailyRateRwf) setDailyRateRwf(String(Math.round(profile.dailyRateRwf)));
+        if (profile.weeklyRateRwf) setWeeklyRateRwf(String(Math.round(profile.weeklyRateRwf)));
         if (profile.monthlyRateRwf) setMonthlyRateRwf(String(Math.round(profile.monthlyRateRwf)));
         setIdDocumentUrl(profile.idDocumentUrl || '');
         setLicenseDocumentUrl(profile.licenseDocumentUrl || '');
@@ -147,6 +138,12 @@ export default function DriverOnboardPage({ params }: { params: Promise<{ locale
     );
   }
 
+  function toggleAvailability(mode: DriverAvailabilityOption) {
+    setAvailabilityModes((prev) =>
+      prev.includes(mode) ? (prev.length === 1 ? prev : prev.filter((item) => item !== mode)) : [...prev, mode],
+    );
+  }
+
   function toggleLanguage(code: string) {
     setLanguages((prev) =>
       prev.includes(code) ? (prev.length === 1 ? prev : prev.filter((item) => item !== code)) : [...prev, code],
@@ -154,25 +151,31 @@ export default function DriverOnboardPage({ params }: { params: Promise<{ locale
   }
 
   function payload(): DriverProfilePayload {
-    const city = primaryDistrict.trim() || address.split(',').map((part) => part.trim())[2] || 'Kigali';
+    const city = defaultPrimaryCity(primaryDistrict, serviceDistricts);
     const daily = dailyRateRwf.trim() ? Number(dailyRateRwf) : 0;
+    const weekly = weeklyRateRwf.trim() ? Number(weeklyRateRwf) : undefined;
     const monthly = monthlyRateRwf.trim() ? Number(monthlyRateRwf) : undefined;
     const dailyForApi =
-      daily >= 1000 ? daily : monthly && monthly >= 1000 ? Math.max(1000, Math.round(monthly / 30)) : 1000;
+      daily >= 1000
+        ? daily
+        : weekly && weekly >= 1000
+          ? Math.max(1000, Math.round(weekly / 7))
+          : monthly && monthly >= 1000
+            ? Math.max(1000, Math.round(monthly / 30))
+            : 1000;
     return {
-      driverCategory: 'city',
+      ...DRIVER_PROFILE_API_DEFAULTS,
       yearsExperience,
       dailyRateRwf: dailyForApi,
+      ...(weekly !== undefined && weekly >= 1000 ? { weeklyRateRwf: weekly } : {}),
       ...(monthly !== undefined && monthly >= 1000 ? { monthlyRateRwf: monthly } : {}),
       primaryCity: city,
       languages,
-      categories: ['city'],
-      vehicleTypes: ['sedan'],
       certifications: [
         ...licenseCategories.map((item) => `License: ${item}`),
-        `Availability: ${availability}`,
+        ...availabilityCertifications(availabilityModes),
       ],
-      serviceAreas: [city],
+      serviceAreas: serviceDistricts.length ? serviceDistricts : [city],
       availabilityCalendar: [],
       licenseCategories,
       transmission,
@@ -192,12 +195,9 @@ export default function DriverOnboardPage({ params }: { params: Promise<{ locale
       ...(photoUrl ? { profilePhotoUrl: photoUrl } : {}),
       ...(phone.trim() ? { phone: phone.trim() } : {}),
     });
-    await addRole(token, 'driver');
-    if (hasProfile) await updateDriverProfile(token, payload());
-    else {
-      await createDriverProfile(token, payload());
-      setHasProfile(true);
-    }
+    const saved = await saveDriverProfile(token, payload());
+    setHasProfile(true);
+    if (saved.status) setApprovalStatus(saved.status);
   }
 
   async function handleNext() {
@@ -219,23 +219,38 @@ export default function DriverOnboardPage({ params }: { params: Promise<{ locale
       setError('Select your province, district, sector, and cell.');
       return;
     }
-    if (step === 4 && licenseCategories.length === 0) {
-      setError('Select at least one license category.');
+    if (step === 4 && serviceDistricts.length === 0) {
+      setError('Select at least one district where you can work.');
       return;
     }
-    if (step === 5 && languages.length === 0) {
+    if (step === 5) {
+      if (licenseCategories.length === 0) {
+        setError('Select at least one license category.');
+        return;
+      }
+      if (availabilityModes.length === 0) {
+        setError('Select at least one availability option.');
+        return;
+      }
+    }
+    if (step === 6 && languages.length === 0) {
       setError('Select at least one language you can speak with customers.');
       return;
     }
-    if (step === 6) {
+    if (step === 7) {
       const daily = dailyRateRwf.trim() ? Number(dailyRateRwf) : 0;
+      const weekly = weeklyRateRwf.trim() ? Number(weeklyRateRwf) : 0;
       const monthly = monthlyRateRwf.trim() ? Number(monthlyRateRwf) : 0;
-      if (daily < 1000 && monthly < 1000) {
-        setError('Enter your rate per day and/or per month (minimum 1,000 RWF).');
+      if (daily < 1000 && weekly < 1000 && monthly < 1000) {
+        setError('Enter at least one rate: daily, weekly, or monthly (minimum 1,000 RWF each).');
         return;
       }
       if (daily > 0 && daily < 1000) {
         setError('Daily rate must be at least 1,000 RWF.');
+        return;
+      }
+      if (weekly > 0 && weekly < 1000) {
+        setError('Weekly rate must be at least 1,000 RWF.');
         return;
       }
       if (monthly > 0 && monthly < 1000) {
@@ -243,11 +258,11 @@ export default function DriverOnboardPage({ params }: { params: Promise<{ locale
         return;
       }
     }
-    if (step === 7 && (!idDocumentUrl || !licenseDocumentUrl)) {
+    if (step === 8 && (!idDocumentUrl || !licenseDocumentUrl)) {
       setError('Upload both your national ID and driving license.');
       return;
     }
-    if (step === 8) {
+    if (step === 9) {
       const agreementError = registrationAgreementError(agreedToPolicy, agreedToFee);
       if (agreementError) {
         setError(agreementError);
@@ -257,7 +272,7 @@ export default function DriverOnboardPage({ params }: { params: Promise<{ locale
 
     setBusy(true);
     try {
-      if (step === 8) {
+      if (step === 9) {
         await saveProfile();
         const token = await getToken();
         if (!token) throw new Error('Please sign in.');
@@ -270,7 +285,7 @@ export default function DriverOnboardPage({ params }: { params: Promise<{ locale
         setEditingAfterReject(false);
         return;
       }
-      if (step >= 4) await saveProfile();
+      if (step >= 5) await saveProfile();
       setStep((prev) => Math.min(prev + 1, STEPS.length - 1));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save profile.');
@@ -292,10 +307,11 @@ export default function DriverOnboardPage({ params }: { params: Promise<{ locale
         licenseCategories={licenseCategories}
         yearsExperience={yearsExperience}
         transmission={transmission}
-        availability={availability}
+        availability={availabilityModes.join(', ')}
         languages={languages}
         languageLabels={LANGUAGE_LABELS}
         dailyRateRwf={dailyRateRwf}
+        weeklyRateRwf={weeklyRateRwf}
         monthlyRateRwf={monthlyRateRwf}
         idDocumentUrl={idDocumentUrl}
         licenseDocumentUrl={licenseDocumentUrl}
@@ -348,7 +364,8 @@ export default function DriverOnboardPage({ params }: { params: Promise<{ locale
             label="Profile photo"
             value={photoUrl}
             folder="rentingi/drivers/profiles"
-            round
+            aspect={4 / 5}
+            avatarShape="portrait"
             nameForInitials={fullName.trim() || user?.fullName || 'Driver'}
             getToken={getToken}
             onUploaded={setPhotoUrl}
@@ -374,6 +391,14 @@ export default function DriverOnboardPage({ params }: { params: Promise<{ locale
       ) : null}
 
       {step === 4 ? (
+        <RwandaDistrictMultiSelect
+          label="Districts you serve"
+          value={serviceDistricts}
+          onChange={setServiceDistricts}
+        />
+      ) : null}
+
+      {step === 5 ? (
         <div className="space-y-5">
           <div>
             <p className={onboardLabelClass}>License categories</p>
@@ -421,15 +446,17 @@ export default function DriverOnboardPage({ params }: { params: Promise<{ locale
             </div>
           </div>
           <div>
-            <p className={onboardLabelClass}>Availability</p>
+            <p className={onboardLabelClass}>Availability (select all that apply)</p>
             <div className="flex flex-wrap gap-2">
-              {AVAILABILITY.map((item) => (
+              {DRIVER_AVAILABILITY_OPTIONS.map((item) => (
                 <button
                   key={item}
                   type="button"
-                  onClick={() => setAvailability(item)}
+                  onClick={() => toggleAvailability(item)}
                   className={`rounded border px-3 py-1.5 text-sm font-bold ${
-                    availability === item ? 'border-brand bg-brand-soft text-foreground' : 'border-border text-muted-foreground'
+                    availabilityModes.includes(item)
+                      ? 'border-brand bg-brand-soft text-foreground'
+                      : 'border-border text-muted-foreground'
                   }`}
                 >
                   {item}
@@ -440,7 +467,7 @@ export default function DriverOnboardPage({ params }: { params: Promise<{ locale
         </div>
       ) : null}
 
-      {step === 5 ? (
+      {step === 6 ? (
         <div>
           <p className={onboardLabelClass}>Languages you speak</p>
           <div className="flex flex-wrap gap-2">
@@ -460,9 +487,11 @@ export default function DriverOnboardPage({ params }: { params: Promise<{ locale
         </div>
       ) : null}
 
-      {step === 6 ? (
+      {step === 7 ? (
         <div className="space-y-4">
-          <p className="text-sm text-muted-foreground">Tell customers what you charge. Enter at least one of daily or monthly rate.</p>
+          <p className="text-sm text-muted-foreground">
+            Tell customers what you charge. Enter at least one of daily, weekly, or monthly rate (min. 1,000 RWF each).
+          </p>
           <div>
             <label className={onboardLabelClass} htmlFor="driver-daily-rate">
               Rate per day (RWF)
@@ -478,8 +507,22 @@ export default function DriverOnboardPage({ params }: { params: Promise<{ locale
             />
           </div>
           <div>
+            <label className={onboardLabelClass} htmlFor="driver-weekly-rate">
+              Rate per week (RWF)
+            </label>
+            <input
+              id="driver-weekly-rate"
+              type="number"
+              min={1000}
+              className={onboardInputClass}
+              value={weeklyRateRwf}
+              onChange={(e) => setWeeklyRateRwf(e.target.value)}
+              placeholder="e.g. 200000"
+            />
+          </div>
+          <div>
             <label className={onboardLabelClass} htmlFor="driver-monthly-rate">
-              Rate per month (RWF, optional)
+              Rate per month (RWF)
             </label>
             <input
               id="driver-monthly-rate"
@@ -494,7 +537,7 @@ export default function DriverOnboardPage({ params }: { params: Promise<{ locale
         </div>
       ) : null}
 
-      {step === 7 ? (
+      {step === 8 ? (
         <div className="space-y-4">
           <CroppedPhotoPicker
             label="National ID photo"
@@ -518,7 +561,7 @@ export default function DriverOnboardPage({ params }: { params: Promise<{ locale
         </div>
       ) : null}
 
-      {step === 8 ? (
+      {step === 9 ? (
         <RegistrationAgreement
           locale={locale}
           agreedToPolicy={agreedToPolicy}

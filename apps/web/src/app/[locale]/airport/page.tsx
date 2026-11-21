@@ -4,8 +4,8 @@ import { AppHeader } from '@/components/web/app-header';
 import { MarketingPageHero } from '@/components/web/marketing-page-hero';
 import { SiteFooter } from '@/components/web/site-footer';
 import { isSupportedLocale, routing, type SupportedLocale } from '@/i18n/routing';
-import { SITE_PHONE_DISPLAY, SITE_WHATSAPP_URL } from '@/lib/site-contact';
-import { Car, MapPin, Plane, PlaneLanding, PlaneTakeoff, RotateCcw, UserRound } from 'lucide-react';
+import { SITE_EMAIL, SITE_PHONE_DISPLAY, SITE_WHATSAPP_URL } from '@/lib/site-contact';
+import { Car, Mail, MapPin, Plane, PlaneLanding, PlaneTakeoff, RotateCcw, UserRound } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
@@ -114,22 +114,32 @@ export default function AirportPage({ params }: { params: Promise<{ locale: stri
           <h3 className="font-black text-foreground">What to tell us</h3>
           <ul className="mt-3 list-disc space-y-2 pl-5 text-sm font-medium leading-relaxed text-muted-foreground">
             <li>Arrival or departure time, and the airport (usually Kigali International Airport).</li>
-            <li>Whether you want only a transfer, a self-drive car delivered to you, or a driver for the trip.</li>
+            <li>Whether you want only a transfer, a rental car delivered to you, or a driver for the trip.</li>
             <li>Where the car should go back: the owner&apos;s place, the airport, or another address.</li>
             <li>Passengers, luggage, and a phone number we can reach on the day.</li>
           </ul>
           <p className="mt-4 text-sm font-medium text-muted-foreground">
             The rental price is the rate on the listing. Airport delivery and a driver are arranged with the host
-            when the booking is confirmed.
+            when the booking is confirmed. You can send the details above by WhatsApp or email before or with your
+            booking request.
           </p>
-          <a
-            href={SITE_WHATSAPP_URL}
-            target="_blank"
-            rel="noreferrer"
-            className="mt-5 inline-flex rounded-full bg-brand px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-hover"
-          >
-            WhatsApp {SITE_PHONE_DISPLAY}
-          </a>
+          <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+            <a
+              href={SITE_WHATSAPP_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex justify-center rounded-full bg-brand px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-hover"
+            >
+              WhatsApp {SITE_PHONE_DISPLAY}
+            </a>
+            <a
+              href={`mailto:${SITE_EMAIL}?subject=${encodeURIComponent('Airport transfer / delivery')}`}
+              className="inline-flex items-center justify-center gap-2 rounded-full border border-border bg-card px-5 py-2.5 text-sm font-semibold text-foreground hover:bg-muted"
+            >
+              <Mail className="h-4 w-4 shrink-0" aria-hidden />
+              {SITE_EMAIL}
+            </a>
+          </div>
         </div>
       </section>
 

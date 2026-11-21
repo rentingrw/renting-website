@@ -1,5 +1,6 @@
 'use client';
 
+import { ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 
@@ -16,11 +17,19 @@ import {
   type ListBookingsFilters,
 } from '@/lib/api';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
-import { adminBtnPrimary, adminInput, adminPage, adminSelect } from '@/components/admin/admin-ui';
+import {
+  adminBtnDanger,
+  adminBtnGhost,
+  adminBtnPrimary,
+  adminBtnSecondary,
+  adminInput,
+  adminPage,
+  adminSelect,
+} from '@/components/admin/admin-ui';
 import { useAuthToken } from '@/lib/use-auth-token';
-import { TableRowSkeleton } from '@/components/ui/skeleton';
 
 const AUTH_ERROR_MSG = 'Session not ready. Please refresh the page or sign out and sign in again.';
+const AUTO_REFRESH_MS = 45_000;
 
 const STATUSES = [
   'pending', 'confirmed', 'active', 'disputed', 'completed', 'auto_completed',
@@ -77,6 +86,10 @@ function formatWhen(value: string) {
   });
 }
 
+function formatUpdatedAt(date: Date) {
+  return date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+}
+
 const PUBLIC_APP_URL = (process.env.NEXT_PUBLIC_APP_URL ?? 'https://renting.rw').replace(/\/$/, '');
 
 function publicAssetHref(booking: AdminBookingItem): string | null {
@@ -89,6 +102,155 @@ function publicAssetHref(booking: AdminBookingItem): string | null {
   return null;
 }
 
+const compactBtnPrimary =
+  'inline-flex items-center justify-center rounded-full bg-brand px-2.5 py-1 text-xs font-bold text-white hover:brightness-110 disabled:opacity-40';
+const compactBtnDanger =
+  'inline-flex items-center justify-center rounded-full border border-red-300 bg-red-50 px-2.5 py-1 text-xs font-bold text-red-700 hover:bg-red-100 disabled:opacity-40';
+const compactBtnGhost =
+  'inline-flex items-center justify-center rounded-full border border-border bg-card px-2.5 py-1 text-xs font-bold text-ink hover:bg-brand-soft disabled:opacity-40';
+
+function BookingCardSkeleton() {
+  return (
+    <li className="animate-pulse rounded-lg border border-border bg-card px-3 py-2.5">
+      <div className="h-3.5 w-48 rounded bg-muted" />
+      <div className="mt-1.5 h-3 w-full max-w-2xl rounded bg-muted/80" />
+    </li>
+  );
+}
+
+type BookingDeskCardProps = {
+  booking: AdminBookingItem;
+  actingId: string | null;
+  onConfirm: (b: AdminBookingItem) => void;
+  onReject: (b: AdminBookingItem) => void;
+  onTryNext: (b: AdminBookingItem) => void;
+  onCancel: (b: AdminBookingItem) => void;
+};
+
+function BookingDeskCard({ booking, actingId, onConfirm, onReject, onTryNext, onCancel }: BookingDeskCardProps) {
+  const clientPhone = booking.renterPhone || booking.renter.phone;
+  const providerPhone = booking.ownerOrDriver.whatsapp ?? booking.ownerOrDriver.phone;
+  const providerWaUrl = waHref(providerPhone, providerDeskWhatsAppText(booking));
+  const pendingDesk = booking.status === 'pending' && !booking.isInstant;
+  const isInstant = booking.isInstant || booking.fulfillment === 'instant';
+  const siteHref = publicAssetHref(booking);
+  const busy = actingId === booking.id;
+  const showActions =
+    pendingDesk || !['completed', 'auto_completed', 'cancelled_admin', 'declined'].includes(booking.status);
+  const tripLine = [
+    `${formatWhen(booking.startsAt)} → ${formatWhen(booking.endsAt)}`,
+    booking.pickupAddress ? `Pickup: ${booking.pickupAddress}` : null,
+    booking.notes ? `Note: ${booking.notes}` : null,
+    `${booking.amountRwf.toLocaleString('en-RW')} RWF`,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+  return (
+    <li className="rounded-lg border border-border bg-card px-3 py-2.5 text-sm">
+      <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between md:gap-3">
+        <div className="min-w-0 flex-1 space-y-1">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span
+              className={`rounded border px-1.5 py-0 text-[10px] font-black capitalize leading-5 ${STATUS_STYLE[booking.status] ?? 'border-border bg-muted text-ink/80'}`}
+            >
+              {booking.status.replace(/_/g, ' ')}
+            </span>
+            <span className="rounded border border-border px-1.5 py-0 text-[10px] font-black uppercase leading-5 text-ink/70">
+              {booking.bookingType}
+            </span>
+            {isInstant ? (
+              <span className="rounded border border-sky-400 bg-sky-50 px-1.5 py-0 text-[10px] font-black uppercase leading-5 text-sky-900">
+                Instant
+              </span>
+            ) : null}
+            <span className="truncate font-black text-ink">{booking.summary}</span>
+            {siteHref ? (
+              <a
+                href={siteHref}
+                target="_blank"
+                rel="noreferrer"
+                className="shrink-0 text-[10px] font-bold text-brand hover:underline"
+              >
+                View
+              </a>
+            ) : null}
+            <span className="ml-auto shrink-0 text-[10px] font-medium text-muted-foreground md:ml-0">
+              {formatWhen(booking.createdAt)}
+            </span>
+          </div>
+          <p className="text-xs font-medium leading-snug text-ink/90">
+            <span className="font-bold">Client</span> {booking.renter.fullName}
+            {clientPhone ? (
+              <>
+                {' '}
+                <a className="text-sky-800 hover:underline" href={telHref(clientPhone) ?? undefined}>
+                  {clientPhone}
+                </a>
+              </>
+            ) : null}
+            <span className="text-muted-foreground"> · </span>
+            <span className="font-bold">Provider</span> {booking.ownerOrDriver.fullName}
+            {providerPhone ? (
+              <>
+                {' '}
+                <a className="text-sky-800 hover:underline" href={telHref(providerPhone) ?? undefined}>
+                  {providerPhone}
+                </a>
+              </>
+            ) : null}
+            {providerWaUrl ? (
+              <>
+                {' '}
+                <a
+                  className="font-bold text-emerald-800 hover:underline"
+                  href={providerWaUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  WA
+                </a>
+              </>
+            ) : null}
+          </p>
+          <p className="truncate text-xs text-muted-foreground" title={tripLine}>
+            {tripLine}
+          </p>
+        </div>
+
+        {showActions ? (
+          <div className="flex shrink-0 flex-wrap gap-1 md:max-w-[220px] md:justify-end">
+            {pendingDesk ? (
+              <>
+                <button type="button" className={compactBtnPrimary} disabled={busy} onClick={() => void onConfirm(booking)}>
+                  Confirm
+                </button>
+                <button type="button" className={compactBtnDanger} disabled={busy} onClick={() => void onReject(booking)}>
+                  Reject
+                </button>
+                <button type="button" className={compactBtnGhost} disabled={busy} onClick={() => void onTryNext(booking)}>
+                  Try next
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                className={compactBtnDanger}
+                disabled={
+                  busy || ['completed', 'auto_completed', 'cancelled_admin', 'declined'].includes(booking.status)
+                }
+                onClick={() => void onCancel(booking)}
+              >
+                Cancel
+              </button>
+            )}
+          </div>
+        ) : null}
+      </div>
+    </li>
+  );
+}
+
 export default function AdminBookingsPage() {
   const searchParams = useSearchParams();
   const { fetchToken, isLoaded, isSignedIn } = useAuthToken();
@@ -99,60 +261,106 @@ export default function AdminBookingsPage() {
   });
   const [filters, setFilters] = useState<ListBookingsFilters>(() => {
     const userId = searchParams.get('userId')?.trim();
+    const statusParam = searchParams.get('status')?.trim();
+    const typeParam = searchParams.get('type')?.trim();
+    const dateFrom = searchParams.get('dateFrom')?.trim();
+    const dateTo = searchParams.get('dateTo')?.trim();
+    const deskType =
+      typeParam === 'car' || typeParam === 'driver' || typeParam === 'all' ? typeParam : 'all';
     if (userId) {
       return {
-        type: 'all',
-        status: undefined,
+        type: deskType,
+        status: statusParam || undefined,
         userId,
-        dateFrom: undefined,
-        dateTo: undefined,
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
         page: 1,
         pageSize: PAGE_SIZE,
       };
     }
     return {
-      type: 'all',
-      status: 'pending',
+      type: deskType,
+      status: statusParam || 'pending',
       userId: undefined,
-      dateFrom: undefined,
-      dateTo: undefined,
+      dateFrom: dateFrom || undefined,
+      dateTo: dateTo || undefined,
       page: 1,
       pageSize: PAGE_SIZE,
     };
   });
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<Date | null>(null);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actingId, setActingId] = useState<string | null>(null);
   const [tryNextFor, setTryNextFor] = useState<AdminBookingItem | null>(null);
   const [alternatives, setAlternatives] = useState<Array<DeskCarAlternative | DeskDriverAlternative>>([]);
   const [loadingAlts, setLoadingAlts] = useState(false);
 
-  const loadBookings = useCallback(async () => {
-    if (!isLoaded || !isSignedIn) {
-      if (isLoaded) setLoading(false);
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      const token = await fetchToken();
-      if (!token) throw new Error(AUTH_ERROR_MSG);
-      const payload: ListBookingsFilters = { page: filters.page, pageSize: PAGE_SIZE };
-      if (filters.type) payload.type = filters.type as 'car' | 'driver' | 'all';
-      if (filters.status) payload.status = filters.status;
-      if (filters.userId?.trim()) payload.userId = filters.userId.trim();
-      if (filters.dateFrom) payload.dateFrom = filters.dateFrom;
-      if (filters.dateTo) payload.dateTo = filters.dateTo;
-      const response = await listAdminBookings(token, payload);
-      setData({ items: response.items, total: response.total, page: response.page });
-    } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'Failed to load bookings.');
-    } finally {
-      setLoading(false);
-    }
-  }, [fetchToken, isLoaded, isSignedIn, filters.page, filters.type, filters.status, filters.userId, filters.dateFrom, filters.dateTo]);
+  useEffect(() => {
+    const userId = searchParams.get('userId')?.trim();
+    const statusParam = searchParams.get('status')?.trim();
+    const typeParam = searchParams.get('type')?.trim();
+    const dateFrom = searchParams.get('dateFrom')?.trim();
+    const dateTo = searchParams.get('dateTo')?.trim();
+    const deskType =
+      typeParam === 'car' || typeParam === 'driver' || typeParam === 'all' ? typeParam : undefined;
+    setFilters((prev) => ({
+      ...prev,
+      userId: userId || undefined,
+      status: userId ? statusParam || undefined : statusParam || 'pending',
+      type: (deskType ?? prev.type ?? 'all') as ListBookingsFilters['type'],
+      dateFrom: dateFrom || undefined,
+      dateTo: dateTo || undefined,
+      page: 1,
+    }));
+  }, [searchParams]);
 
-  useEffect(() => { void loadBookings(); }, [loadBookings]);
+  const loadBookings = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      if (!isLoaded || !isSignedIn) {
+        return;
+      }
+      if (opts?.silent) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+      setError(null);
+      try {
+        const token = await fetchToken();
+        if (!token) throw new Error(AUTH_ERROR_MSG);
+        const payload: ListBookingsFilters = { page: filters.page, pageSize: PAGE_SIZE };
+        if (filters.type) payload.type = filters.type as 'car' | 'driver' | 'all';
+        if (filters.status) payload.status = filters.status;
+        if (filters.userId?.trim()) payload.userId = filters.userId.trim();
+        if (filters.dateFrom) payload.dateFrom = filters.dateFrom;
+        if (filters.dateTo) payload.dateTo = filters.dateTo;
+        const response = await listAdminBookings(token, payload);
+        setData({ items: response.items, total: response.total, page: response.page });
+        setLastRefreshedAt(new Date());
+      } catch (loadError) {
+        setError(loadError instanceof Error ? loadError.message : 'Failed to load bookings.');
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [fetchToken, isLoaded, isSignedIn, filters.page, filters.type, filters.status, filters.userId, filters.dateFrom, filters.dateTo],
+  );
+
+  useEffect(() => {
+    void loadBookings();
+  }, [loadBookings]);
+
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn) return;
+    const id = window.setInterval(() => {
+      void loadBookings({ silent: true });
+    }, AUTO_REFRESH_MS);
+    return () => window.clearInterval(id);
+  }, [isLoaded, isSignedIn, loadBookings]);
 
   const withAction = async (booking: AdminBookingItem, handler: (token: string) => Promise<void>) => {
     setActingId(booking.id);
@@ -161,7 +369,7 @@ export default function AdminBookingsPage() {
       const token = await fetchToken();
       if (!token) throw new Error(AUTH_ERROR_MSG);
       await handler(token);
-      await loadBookings();
+      await loadBookings({ silent: true });
     } catch (actionError) {
       setError(actionError instanceof Error ? actionError.message : 'Failed to update booking.');
     } finally {
@@ -220,56 +428,88 @@ export default function AdminBookingsPage() {
     <main className={adminPage}>
       <AdminPageHeader
         title="Booking desk"
-        description={`Call the host or driver (cars, chauffeurs, taxi, airport trips), then confirm or reject. ${deskPending} pending desk request${deskPending === 1 ? '' : 's'} on this page.`}
+        description={
+          loading && !refreshing
+            ? 'Loading requests…'
+            : `${deskPending} pending on this page · call the provider, then confirm or reject.`
+        }
         actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <select
-              className={adminSelect}
-              value={filters.type ?? ''}
-              onChange={(e) => {
-                const v = e.target.value as '' | 'car' | 'driver' | 'all';
-                setFilters((f) => ({ ...f, type: v || undefined, page: 1 }));
-              }}
-            >
-              <option value="">All types</option>
-              <option value="car">Car</option>
-              <option value="driver">Driver</option>
-              <option value="all">All</option>
-            </select>
-            <select
-              className={adminSelect}
-              value={filters.status ?? ''}
-              onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value || undefined, page: 1 }))}
-            >
-              <option value="">All statuses</option>
-              {STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {s.replace(/_/g, ' ')}
-                </option>
-              ))}
-            </select>
-            <input
-              className={`h-9 ${adminInput}`}
-              value={filters.userId ?? ''}
-              onChange={(e) => setFilters((f) => ({ ...f, userId: e.target.value, page: 1 }))}
-              placeholder="User ID"
-              type="text"
-            />
-            <input
-              className={`h-9 ${adminInput}`}
-              type="date"
-              value={filters.dateFrom ?? ''}
-              onChange={(e) => setFilters((f) => ({ ...f, dateFrom: e.target.value || undefined, page: 1 }))}
-            />
-            <input
-              className={`h-9 ${adminInput}`}
-              type="date"
-              value={filters.dateTo ?? ''}
-              onChange={(e) => setFilters((f) => ({ ...f, dateTo: e.target.value || undefined, page: 1 }))}
-            />
-            <button type="button" className={`h-9 ${adminBtnPrimary}`} onClick={() => void loadBookings()}>
-              Filter
-            </button>
+          <div className="flex w-full flex-col gap-2 sm:w-auto">
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                className={adminSelect}
+                value={filters.type ?? 'all'}
+                onChange={(e) => {
+                  const v = e.target.value as 'car' | 'driver' | 'all';
+                  setFilters((f) => ({ ...f, type: v, page: 1 }));
+                }}
+              >
+                <option value="all">All types</option>
+                <option value="car">Cars</option>
+                <option value="driver">Drivers</option>
+              </select>
+              <select
+                className={adminSelect}
+                value={filters.status ?? ''}
+                onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value || undefined, page: 1 }))}
+              >
+                <option value="">All statuses</option>
+                {STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {s.replace(/_/g, ' ')}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className={adminBtnSecondary}
+                disabled={loading || refreshing}
+                onClick={() => void loadBookings({ silent: Boolean(data.items.length) })}
+              >
+                <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} aria-hidden />
+                Refresh
+              </button>
+              <button
+                type="button"
+                className={adminBtnGhost}
+                onClick={() => setShowAdvancedFilters((v) => !v)}
+                aria-expanded={showAdvancedFilters}
+              >
+                {showAdvancedFilters ? <ChevronUp className="h-3.5 w-3.5" aria-hidden /> : <ChevronDown className="h-3.5 w-3.5" aria-hidden />}
+                More filters
+              </button>
+            </div>
+            {lastRefreshedAt ? (
+              <p className="text-xs font-medium text-muted-foreground">
+                Last updated {formatUpdatedAt(lastRefreshedAt)}
+                {refreshing ? ' · refreshing…' : ` · auto-refresh every ${AUTO_REFRESH_MS / 1000}s`}
+              </p>
+            ) : null}
+            {showAdvancedFilters ? (
+              <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card p-3">
+                <input
+                  className={`h-9 max-w-xs ${adminInput}`}
+                  value={filters.userId ?? ''}
+                  onChange={(e) => setFilters((f) => ({ ...f, userId: e.target.value, page: 1 }))}
+                  placeholder="Filter by user ID"
+                  type="text"
+                />
+                <input
+                  className={`h-9 ${adminInput}`}
+                  type="date"
+                  aria-label="From date"
+                  value={filters.dateFrom ?? ''}
+                  onChange={(e) => setFilters((f) => ({ ...f, dateFrom: e.target.value || undefined, page: 1 }))}
+                />
+                <input
+                  className={`h-9 ${adminInput}`}
+                  type="date"
+                  aria-label="To date"
+                  value={filters.dateTo ?? ''}
+                  onChange={(e) => setFilters((f) => ({ ...f, dateTo: e.target.value || undefined, page: 1 }))}
+                />
+              </div>
+            ) : null}
           </div>
         }
       />
@@ -284,15 +524,18 @@ export default function AdminBookingsPage() {
         <section className="rounded-2xl border border-border bg-[#fbf4e0] p-4 shadow-brutal">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h2 className="text-lg font-black text-ink">Try next for {tryNextFor.summary}</h2>
+              <h2 className="text-lg font-black text-ink">Try another provider</h2>
               <p className="text-sm font-medium text-muted-foreground">
-                {tryNextFor.renter.fullName} · {tryNextFor.renterPhone ?? tryNextFor.renter.phone ?? 'no phone'} · {formatWhen(tryNextFor.startsAt)}
+                {tryNextFor.summary} · {tryNextFor.renter.fullName} · {formatWhen(tryNextFor.startsAt)}
               </p>
             </div>
             <button
               type="button"
-              className="rounded border border-border px-3 py-1 text-xs font-black"
-              onClick={() => { setTryNextFor(null); setAlternatives([]); }}
+              className={adminBtnGhost}
+              onClick={() => {
+                setTryNextFor(null);
+                setAlternatives([]);
+              }}
             >
               Close
             </button>
@@ -312,11 +555,13 @@ export default function AdminBookingsPage() {
                 return (
                   <li key={item.id} className="rounded-xl border border-border bg-card p-3">
                     <p className="font-black text-ink">{title}</p>
-                    <p className="text-xs font-medium text-muted-foreground">{provider} · {meta}</p>
+                    <p className="text-xs font-medium text-muted-foreground">
+                      {provider} · {meta}
+                    </p>
                     {phone ? <p className="mt-1 text-sm font-semibold">{phone}</p> : null}
                     <button
                       type="button"
-                      className="mt-2 rounded border border-border bg-brand px-3 py-1 text-xs font-black text-white disabled:opacity-40"
+                      className={`mt-2 ${adminBtnPrimary}`}
                       disabled={actingId === tryNextFor.id}
                       onClick={() => void onPickAlternative(item)}
                     >
@@ -330,213 +575,58 @@ export default function AdminBookingsPage() {
         </section>
       ) : null}
 
-      <section className="admin-panel">
-        <div className="overflow-auto">
-          <table className="min-w-full text-left text-sm">
-            <thead>
-              <tr className="bg-brand text-white">
-                <th className="px-4 py-3 text-xs font-black uppercase tracking-wider">Client</th>
-                <th className="px-4 py-3 text-xs font-black uppercase tracking-wider">Service</th>
-                <th className="px-4 py-3 text-xs font-black uppercase tracking-wider">When</th>
-                <th className="px-4 py-3 text-xs font-black uppercase tracking-wider">Plan</th>
-                <th className="px-4 py-3 text-xs font-black uppercase tracking-wider">Status</th>
-                <th className="px-4 py-3 text-xs font-black uppercase tracking-wider text-right">Desk</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                Array.from({ length: 5 }).map((_, i) => <TableRowSkeleton key={i} cols={6} />)
-              ) : data.items.length === 0 ? (
-                <tr>
-                  <td className="px-4 py-8 font-semibold text-muted-foreground text-center" colSpan={6}>
-                    No bookings found.
-                  </td>
-                </tr>
-              ) : (
-                data.items.map((booking) => {
-                  const clientPhone = booking.renterPhone || booking.renter.phone;
-                  const providerPhone = booking.ownerOrDriver.whatsapp ?? booking.ownerOrDriver.phone;
-                  const providerWaUrl = waHref(providerPhone, providerDeskWhatsAppText(booking));
-                  const pendingDesk = booking.status === 'pending' && !booking.isInstant;
-                  const planLabel = booking.isInstant || booking.fulfillment === 'instant' ? 'Instant' : 'Desk';
-                  return (
-                    <tr key={`${booking.bookingType}:${booking.id}`} className="border-t border-border hover:bg-brand-soft transition-colors align-top">
-                      <td className="px-4 py-3">
-                        <div className="font-bold text-ink">{booking.renter.fullName}</div>
-                        {clientPhone ? (
-                          <a className="text-xs font-bold text-sky-800" href={telHref(clientPhone) ?? undefined}>{clientPhone}</a>
-                        ) : (
-                          <div className="text-xs font-medium text-muted-foreground">No phone</div>
-                        )}
-                        {booking.renterEmail || booking.renter.email ? (
-                          <a
-                            className="mt-0.5 block text-xs font-medium text-muted-foreground hover:text-brand"
-                            href={`mailto:${booking.renterEmail ?? booking.renter.email}`}
-                          >
-                            {booking.renterEmail ?? booking.renter.email}
-                          </a>
-                        ) : null}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="rounded border border-border px-2 py-0.5 text-[10px] font-black uppercase">
-                          {booking.bookingType}
-                        </span>
-                        <div className="mt-1 font-semibold text-ink">{booking.summary}</div>
-                        {booking.assetDetail ? (
-                          <div className="mt-1 text-xs font-semibold text-ink/90">{booking.assetDetail}</div>
-                        ) : null}
-                        <div className="mt-1 text-xs font-medium text-muted-foreground">
-                          Provider: {booking.ownerOrDriver.fullName}
-                          {booking.ownerOrDriver.phone ? ` · ${booking.ownerOrDriver.phone}` : ''}
-                        </div>
-                        {publicAssetHref(booking) ? (
-                          <a
-                            href={publicAssetHref(booking) ?? undefined}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="mt-1 inline-block text-xs font-bold text-brand hover:underline"
-                          >
-                            View on site
-                          </a>
-                        ) : null}
-                        {booking.pickupAddress ? (
-                          <div className="mt-1 text-xs text-muted-foreground">Pickup: {booking.pickupAddress}</div>
-                        ) : null}
-                        {booking.dropoffAddress ? (
-                          <div className="mt-1 text-xs text-muted-foreground">Drop-off: {booking.dropoffAddress}</div>
-                        ) : null}
-                        {booking.notes ? (
-                          <div className="mt-1 rounded-lg bg-muted/60 px-2 py-1 text-xs text-ink/80">
-                            <span className="font-bold">Client notes:</span> {booking.notes}
-                          </div>
-                        ) : null}
-                        <div className="mt-1 text-xs font-semibold text-muted-foreground">
-                          Est. RF {booking.amountRwf.toLocaleString('en-RW')}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="font-semibold">{formatWhen(booking.startsAt)}</div>
-                        <div className="text-xs text-muted-foreground">to {formatWhen(booking.endsAt)}</div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`rounded border px-2 py-0.5 text-xs font-black ${planLabel === 'Instant' ? 'border-sky-700 bg-sky-50 text-sky-900' : 'border-border bg-muted text-ink/80'}`}>
-                          {planLabel}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`rounded border px-2 py-0.5 text-xs font-black capitalize ${STATUS_STYLE[booking.status] ?? 'bg-muted border-border text-ink/80'}`}>
-                          {booking.status.replace(/_/g, ' ')}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex flex-wrap justify-end gap-1.5">
-                          {providerPhone ? (
-                            <a
-                              href={telHref(providerPhone) ?? undefined}
-                              className="rounded-xl border border-border bg-card px-2.5 py-1 text-xs font-bold"
-                            >
-                              Call provider
-                            </a>
-                          ) : null}
-                          {clientPhone ? (
-                            <a
-                              href={telHref(clientPhone) ?? undefined}
-                              className="rounded-xl border border-border bg-card px-2.5 py-1 text-xs font-bold"
-                            >
-                              Call client
-                            </a>
-                          ) : null}
-                          {providerWaUrl ? (
-                            <a
-                              href={providerWaUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="rounded-full border border-hill/40 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-900"
-                            >
-                              WhatsApp provider
-                            </a>
-                          ) : null}
-                          {waHref(clientPhone) ? (
-                            <a
-                              href={waHref(clientPhone) ?? undefined}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="rounded-xl border border-border bg-card px-2.5 py-1 text-xs font-bold"
-                            >
-                              WhatsApp client
-                            </a>
-                          ) : null}
-                          {pendingDesk ? (
-                            <>
-                              <button
-                                type="button"
-                                className="rounded-full border border-hill/40 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-800 disabled:opacity-40"
-                                disabled={actingId === booking.id}
-                                onClick={() => void onConfirm(booking)}
-                              >
-                                Mark confirmed
-                              </button>
-                              <button
-                                type="button"
-                                className="rounded-xl border border-border bg-card px-2.5 py-1 text-xs font-bold disabled:opacity-40"
-                                disabled={actingId === booking.id}
-                                onClick={() => void onOpenTryNext(booking)}
-                              >
-                                Try next
-                              </button>
-                              <button
-                                type="button"
-                                className="rounded border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-bold text-red-700 disabled:opacity-40"
-                                disabled={actingId === booking.id}
-                                onClick={() => void onReject(booking)}
-                              >
-                                Reject
-                              </button>
-                            </>
-                          ) : (
-                            <button
-                              type="button"
-                              className="rounded border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-bold text-red-700 shadow-brutal-xs hover:bg-red-100 disabled:opacity-40"
-                              disabled={actingId === booking.id || ['completed', 'auto_completed', 'cancelled_admin', 'declined'].includes(booking.status)}
-                              onClick={() => void onCancel(booking)}
-                            >
-                              Cancel
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between border-t border-border px-4 py-3 bg-muted">
+      <section className="admin-panel p-3 sm:p-4">
+        {loading && data.items.length === 0 ? (
+          <ul className="grid gap-1.5">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <BookingCardSkeleton key={i} />
+            ))}
+          </ul>
+        ) : data.items.length === 0 ? (
+          <p className="py-10 text-center text-sm font-semibold text-muted-foreground">
+            No bookings match these filters. Try <strong>Refresh</strong> or set status to &quot;All statuses&quot;.
+          </p>
+        ) : (
+          <ul className={`grid gap-1.5 ${refreshing ? 'opacity-70 transition-opacity' : ''}`}>
+            {data.items.map((booking) => (
+              <BookingDeskCard
+                key={`${booking.bookingType}:${booking.id}`}
+                booking={booking}
+                actingId={actingId}
+                onConfirm={onConfirm}
+                onReject={onReject}
+                onTryNext={onOpenTryNext}
+                onCancel={onCancel}
+              />
+            ))}
+          </ul>
+        )}
+
+        {totalPages > 1 ? (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-4">
             <p className="text-sm font-semibold text-muted-foreground">
               Page {data.page} of {totalPages} · {data.total} total
             </p>
             <div className="flex gap-2">
               <button
                 type="button"
-                className="rounded border border-border px-3 py-1.5 text-sm font-bold shadow-brutal-xs transition disabled:opacity-40"
+                className={adminBtnGhost}
                 disabled={data.page <= 1}
                 onClick={() => setFilters((f) => ({ ...f, page: Math.max(1, f.page ?? 1) - 1 }))}
               >
-                ← Previous
+                Previous
               </button>
               <button
                 type="button"
-                className="rounded border border-border px-3 py-1.5 text-sm font-bold shadow-brutal-xs transition disabled:opacity-40"
+                className={adminBtnGhost}
                 disabled={data.page >= totalPages}
                 onClick={() => setFilters((f) => ({ ...f, page: Math.min(totalPages, (f.page ?? 1) + 1) }))}
               >
-                Next →
+                Next
               </button>
             </div>
           </div>
-        )}
+        ) : null}
       </section>
     </main>
   );

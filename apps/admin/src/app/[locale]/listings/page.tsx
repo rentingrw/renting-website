@@ -22,9 +22,17 @@ import { adminBtnGhost, adminBtnPrimary, adminPage, adminSelect } from '@/compon
 import { useAuthToken } from '@/lib/use-auth-token';
 import { Skeleton, TableRowSkeleton } from '@/components/ui/skeleton';
 import { ListingReviewModal } from '@/components/listing-review-modal';
+import { downloadAllListingPhotos } from '@/lib/download-listing-photos';
+
+import {
+  ADMIN_CAR_LISTING_SERVICE_TYPES,
+  DEFAULT_CAR_LISTING_SERVICE_TYPE,
+  formatCarListingServiceLabel,
+  formatRwfPlain,
+} from '@rentingi/types';
 
 const VEHICLE_TYPES = ['sedan', 'suv', 'hatchback', 'pickup', 'van', 'truck'] as const;
-const SERVICE_TYPES = ['self_drive', 'with_driver', 'private_driver', 'airport_transfer', 'corporate'] as const;
+const SERVICE_TYPES = ADMIN_CAR_LISTING_SERVICE_TYPES;
 const STATUSES = ['pending_approval', 'active', 'inactive', 'booked', 'draft', 'rejected', 'archived'] as const;
 const PAGE_SIZE = 20;
 
@@ -39,7 +47,6 @@ const STATUS_STYLE: Record<string, string> = {
   archived: 'bg-muted text-muted-foreground border-border',
 };
 
-import { formatRwfPlain } from '@rentingi/types';
 
 function adminVisibilitySelectValue(status: string): AdminListingMarketplaceStatus {
   if (status === 'active' || status === 'booked') return status;
@@ -135,7 +142,7 @@ function AddCarModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
   const { fetchToken } = useAuthToken();
   const [form, setForm] = useState<Partial<AdminCreateCarPayload & { photos: string[] }>>({
     vehicleType: 'sedan',
-    serviceType: 'self_drive',
+    serviceType: DEFAULT_CAR_LISTING_SERVICE_TYPE,
     seats: 5,
     photos: [],
   });
@@ -205,7 +212,11 @@ function AddCarModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
             </div>
             <div>
               <label className="mb-1 block text-xs font-black uppercase tracking-wider text-muted-foreground">Service Type *</label>
-              <select value={form.serviceType ?? 'self_drive'} onChange={(e) => set('serviceType', e.target.value)} className={fieldClass}>
+              <select
+                value={form.serviceType ?? DEFAULT_CAR_LISTING_SERVICE_TYPE}
+                onChange={(e) => set('serviceType', e.target.value)}
+                className={fieldClass}
+              >
                 {SERVICE_TYPES.map((t) => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
               </select>
             </div>
@@ -276,6 +287,7 @@ export default function AdminListingsPage() {
   const [showAddCar, setShowAddCar] = useState(false);
   const [reviewListingId, setReviewListingId] = useState<string | null>(null);
   const [reviewToken, setReviewToken] = useState<string | null>(null);
+  const [downloadingPhotosId, setDownloadingPhotosId] = useState<string | null>(null);
 
   const loadListings = useCallback(async () => {
     if (!isLoaded || !isSignedIn) {
@@ -351,6 +363,21 @@ export default function AdminListingsPage() {
     }
   };
 
+  const onDownloadPhotos = async (listing: AdminListingItem) => {
+    if (!listing.photos.length) return;
+    setDownloadingPhotosId(listing.id);
+    setError(null);
+    try {
+      const token = await fetchToken();
+      if (!token) throw new Error(AUTH_ERROR_MSG);
+      await downloadAllListingPhotos(token, listing);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to download photos.');
+    } finally {
+      setDownloadingPhotosId(null);
+    }
+  };
+
   const onDelete = async (id: string) => {
     if (!window.confirm('Permanently delete this listing? This cannot be undone.')) return;
     setActingId(id);
@@ -380,7 +407,7 @@ export default function AdminListingsPage() {
             ) : null}
           </span>
         }
-        description={`Review self-drive, with-driver, and airport delivery cars. Hosts keep 90% of each rental.${totalLabel}`}
+        description={`Review car listings and airport fleet. Hosts keep 90% of each rental.${totalLabel}`}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <select
@@ -494,7 +521,9 @@ export default function AdminListingsPage() {
                             {listing.year} {listing.brand} {listing.model} · {listing.vehicleType.replace(/_/g, ' ')}
                             {listing.plateNumber ? ` · ${listing.plateNumber}` : ''}
                           </div>
-                          <div className="text-[11px] font-medium text-muted-foreground">{listing.serviceType.replace(/_/g, ' ')}</div>
+                          <div className="text-[11px] font-medium text-muted-foreground">
+                            {formatCarListingServiceLabel(listing.serviceType) ?? 'Car rental'}
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -527,6 +556,17 @@ export default function AdminListingsPage() {
                         >
                           <Eye className="h-3.5 w-3.5" />
                         </button>
+                        {listing.photos.length > 0 ? (
+                          <button
+                            type="button"
+                            disabled={downloadingPhotosId === listing.id}
+                            onClick={() => void onDownloadPhotos(listing)}
+                            className="rounded-xl border border-border bg-card p-1.5 text-ink hover:bg-brand-soft disabled:opacity-40"
+                            title={`Download ${listing.photos.length} photo${listing.photos.length === 1 ? '' : 's'}`}
+                          >
+                            <Download className={`h-3.5 w-3.5 ${downloadingPhotosId === listing.id ? 'animate-pulse' : ''}`} />
+                          </button>
+                        ) : null}
                         {listing.status === 'pending_approval' && (
                           <>
                             <button

@@ -17,6 +17,16 @@ export class UsersService {
         taxiDriver: { select: { id: true } },
         driverProfile: { select: { id: true } },
         carOwnerProfile: { select: { companyName: true, workAddress: true, contactPhone: true, hostType: true } },
+        companyPartnerApplication: {
+          select: {
+            id: true,
+            companyName: true,
+            status: true,
+            rejectionReason: true,
+            submittedAt: true,
+            reviewedAt: true,
+          },
+        },
       },
     });
 
@@ -53,6 +63,16 @@ export class UsersService {
             companyName: user.carOwnerProfile.companyName,
             workAddress: user.carOwnerProfile.workAddress,
             contactPhone: user.carOwnerProfile.contactPhone,
+          }
+        : null,
+      companyPartnerApplication: user.companyPartnerApplication
+        ? {
+            id: user.companyPartnerApplication.id,
+            companyName: user.companyPartnerApplication.companyName,
+            status: user.companyPartnerApplication.status,
+            rejectionReason: user.companyPartnerApplication.rejectionReason,
+            submittedAt: user.companyPartnerApplication.submittedAt,
+            reviewedAt: user.companyPartnerApplication.reviewedAt,
           }
         : null,
       createdAt: user.createdAt,

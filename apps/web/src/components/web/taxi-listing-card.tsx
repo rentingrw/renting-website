@@ -1,14 +1,16 @@
 'use client';
 
-import { ArrowRight, Car, Phone, Users } from 'lucide-react';
+import { ArrowRight, Phone, Users } from 'lucide-react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 
 import { InitialsAvatar } from '@/components/web/initials-avatar';
+import { MediaImage } from '@/components/web/media-image';
 import { ShareMenu } from '@/components/web/share-menu';
 import { listingActionChrome } from '@/components/web/listing-action-chrome';
 import type { SupportedLocale } from '@/i18n/routing';
 import type { ListingCardSize } from '@/components/web/car-listing-card';
+import { taxiCarPhotos } from '@/lib/taxi-photos';
 
 export type TaxiCardData = {
   id: string;
@@ -33,9 +35,10 @@ type TaxiListingCardProps = {
 export function TaxiListingCard({ taxi, locale, size = 'default', showContactCta = false }: TaxiListingCardProps) {
   const t = useTranslations('web.listing');
   const href = `/${locale}/taxi-drivers/${taxi.id}`;
-  const photo = taxi.profilePhotoUrl ?? taxi.photoUrl ?? taxi.photos?.[0] ?? null;
+  const carPhoto = taxiCarPhotos(taxi)[0] ?? null;
+  const profilePhoto = taxi.profilePhotoUrl ?? null;
   const medium = size === 'medium';
-  const avatarSize = medium ? 72 : 88;
+  const avatarSize = medium ? 52 : 60;
   const shellRadius = medium ? 'rounded-xl' : 'rounded-[1.35rem]';
 
   return (
@@ -54,31 +57,36 @@ export function TaxiListingCard({ taxi, locale, size = 'default', showContactCta
       </div>
 
       <Link href={href} className="flex flex-1 flex-col">
-        <div
-          className={`relative overflow-hidden bg-gradient-to-br from-sun via-[#e7b93a] to-[#f0d060] px-4 text-ink ${
-            medium ? 'pb-4 pt-5' : 'pb-5 pt-6'
-          }`}
-        >
-          <Car
-            className="pointer-events-none absolute -bottom-6 -right-4 h-28 w-28 text-ink/10"
-            strokeWidth={1.25}
-            aria-hidden
-          />
-          <div className="relative flex flex-col items-center">
-            <div className="rounded-full bg-ink/10 p-[3px] shadow-md ring-2 ring-white/50">
-              <InitialsAvatar name={taxi.fullName} src={photo} size={avatarSize} className="!border-[3px] !border-white" />
-            </div>
-            <p className={`text-center font-extrabold tracking-tight ${medium ? 'mt-2.5 text-sm' : 'mt-3 text-base'}`}>
-              {taxi.fullName}
-            </p>
-            <p className="mt-1 text-center text-xs font-semibold text-ink/70">
-              {taxi.city}
-              {taxi.carModel ? ` · ${taxi.carModel}` : ''}
-            </p>
-          </div>
-          <span className="absolute left-3 top-3 rounded-full bg-ink px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-sun">
+        <div className={`relative w-full overflow-hidden bg-muted ${medium ? 'aspect-[5/3]' : 'aspect-[16/10]'}`}>
+          {carPhoto ? (
+            <MediaImage
+              src={carPhoto}
+              alt=""
+              fill
+              sizes="(max-width:640px) 100vw, 360px"
+              className="object-cover transition duration-500 group-hover/card:scale-[1.03]"
+            />
+          ) : (
+            <div className="absolute inset-0 bg-gradient-to-br from-muted via-brand-soft to-muted" />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-ink/90 via-ink/40 to-ink/10" />
+
+          <span className="absolute left-3 top-3 z-10 rounded-full bg-sun px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-ink shadow-sm">
             Taxi
           </span>
+
+          <div className="absolute inset-x-0 bottom-0 z-10 flex items-end gap-3 p-3 sm:p-4">
+            <div className="shrink-0 rounded-full ring-2 ring-white/90 shadow-md">
+              <InitialsAvatar name={taxi.fullName} src={profilePhoto} size={avatarSize} className="!border-[2px] !border-white" />
+            </div>
+            <div className="min-w-0 pb-0.5 text-white">
+              <p className={`truncate font-extrabold tracking-tight ${medium ? 'text-sm' : 'text-base'}`}>{taxi.fullName}</p>
+              <p className="mt-0.5 truncate text-xs font-semibold text-white/85">
+                {taxi.city}
+                {taxi.carModel ? ` · ${taxi.carModel}` : taxi.vehicleType ? ` · ${taxi.vehicleType.replace(/_/g, ' ')}` : ''}
+              </p>
+            </div>
+          </div>
         </div>
 
         <div className={`mt-auto flex items-center justify-between gap-2 ${medium ? 'px-3 py-2.5' : 'px-4 py-3'}`}>

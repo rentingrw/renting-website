@@ -51,8 +51,7 @@ export default function PrivacyPage({ params }: { params: Promise<{ locale: stri
             <h2 className="mb-3 text-xl font-black text-foreground">2. How We Use Your Information</h2>
             <ul className="list-inside list-disc space-y-2">
               <li>To operate the platform and facilitate bookings between renters, car owners, and drivers.</li>
-              <li>To prevent fraud and keep listings accountable through trust scores and booking history.</li>
-              <li>To calculate and display your trust score to other users.</li>
+              <li>To prevent fraud and keep listings accountable through booking history and support records.</li>
               <li>To send booking confirmations, notifications, and support communications.</li>
               <li>To improve our services through analytics and usage patterns.</li>
               <li>To comply with legal obligations under Rwandan law.</li>
@@ -63,7 +62,7 @@ export default function PrivacyPage({ params }: { params: Promise<{ locale: stri
             <h2 className="mb-3 text-xl font-black text-foreground">3. Information Sharing</h2>
             <p>We do not sell your personal information. We may share your data with:</p>
             <ul className="mt-3 list-inside list-disc space-y-2">
-              <li><strong className="text-foreground">Other users:</strong> Your public profile, trust score, and reviews are visible to other users on the platform.</li>
+              <li><strong className="text-foreground">Other users:</strong> Your public profile and listing details are visible to other users on the platform.</li>
               <li><strong className="text-foreground">Payment processors:</strong> iPay processes payments; their privacy policy applies.</li>
               <li><strong className="text-foreground">Service providers:</strong> Hosting, email, and SMS services used to operate the platform.</li>
               <li><strong className="text-foreground">Legal authorities:</strong> When required by Rwandan law or court order.</li>

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Car, CarTaxiFront, ChevronRight, UserRound } from 'lucide-react';
+import { Building2, Car, CarTaxiFront, ChevronRight, UserRound } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
 import { Button } from '@rentingi/ui';
@@ -84,6 +84,9 @@ export function DashboardOverview({
   const previewBookings = bookings.slice(0, 4);
 
   const showAssetSections = isCarOwner || isDriver || isTaxi;
+  const partnerStatus = profile.companyPartnerApplication?.status;
+  const showBecomePartner =
+    partnerStatus !== 'approved' && profile.hosterProfile?.hostType !== 'company';
 
   return (
     <div className="space-y-6">
@@ -97,6 +100,34 @@ export function DashboardOverview({
           </ul>
         </div>
       ) : null}
+
+      {showBecomePartner ? (
+        <section className="rounded-xl border border-border bg-gradient-to-br from-card to-muted/40 p-5">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand/15 text-brand">
+                <Building2 className="h-5 w-5" aria-hidden />
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-foreground">{t('partnerTitle')}</h2>
+                <p className="mt-1 text-xs text-muted-foreground">{t('partnerHint')}</p>
+                {partnerStatus === 'pending_approval' ? (
+                  <p className="mt-2 text-xs font-semibold text-amber-800">{t('partnerPending')}</p>
+                ) : partnerStatus === 'rejected' ? (
+                  <p className="mt-2 text-xs font-semibold text-red-700">{t('partnerRejected')}</p>
+                ) : null}
+              </div>
+            </div>
+            <Link
+              href={`/${locale}/app/become-partner`}
+              className="inline-flex shrink-0 items-center justify-center rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white transition hover:bg-brand/90"
+            >
+              {partnerStatus === 'pending_approval' ? t('partnerViewStatus') : t('partnerCta')}
+            </Link>
+          </div>
+        </section>
+      ) : null}
+
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <button
           type="button"

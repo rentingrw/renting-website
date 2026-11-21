@@ -27,7 +27,9 @@ import {
   bookingDeclinedEmailHtml,
   bookingCompletedEmailHtml,
   bookingDeskRequestEmailHtml,
+  bookingRequestEmailHtml,
 } from '../notifications/email-templates';
+import { providerLabelForBooking, resolveCarHostDisplay } from '../common/listing-host.util';
 import {
   adminBookingsDeskUrl,
   formatAdminDeskWhatsAppMessage,
@@ -110,12 +112,13 @@ export class BookingsService {
 
     if (isInstant) {
       await this.notifyCarConfirmed(booking);
+      const providerName = this.ownerProviderLabel(booking.owner);
       const instantWa = formatAdminDeskWhatsAppMessage({
         kind: 'car',
         title: `${booking.listing.title} (instant)`,
         renterName: booking.renter.fullName,
         renterPhone,
-        providerName: booking.owner.fullName,
+        providerName,
         providerPhone: booking.owner.phone,
         start: booking.startDate,
         end: booking.endDate,
@@ -137,19 +140,22 @@ export class BookingsService {
         ...booking,
         fulfillment: 'instant' as const,
         providerContact: {
-          name: booking.owner.fullName,
+          name: providerName,
           phone: booking.owner.phone,
           whatsapp: booking.owner.whatsapp,
         },
       };
     }
 
+    await this.notifyCarPendingRequestToHost(booking, renterPhone);
+
+    const providerName = this.ownerProviderLabel(booking.owner);
     const whatsappText = formatAdminDeskWhatsAppMessage({
       kind: 'car',
       title: booking.listing.title,
       renterName: booking.renter.fullName,
       renterPhone,
-      providerName: booking.owner.fullName,
+      providerName,
       providerPhone: booking.owner.phone,
       start: booking.startDate,
       end: booking.endDate,
@@ -328,6 +334,7 @@ export class BookingsService {
       `Moved ${booking.renter.fullName} (${booking.renterPhone}) from ${booking.listing.title} to ${created.listing.title}.`,
       bookingDeskRequestEmailHtml(this.carDeskEmailInput(created, created.renterPhone)),
     );
+    await this.notifyCarPendingRequestToHost(created, created.renterPhone);
 
     return created;
   }
@@ -738,7 +745,7 @@ export class BookingsService {
       endDate: booking.endDate,
       pickup: booking.pickupAddress,
       notes: booking.notes,
-      providerName: booking.owner.fullName,
+      providerName: this.ownerProviderLabel(booking.owner),
       providerPhone: booking.owner.phone,
       providerWhatsapp: booking.owner.whatsapp,
       assetDetail: formatCarListingDeskDetail(booking.listing),
@@ -769,6 +776,8 @@ export class BookingsService {
           avatarUrl: true,
           phone: true,
           whatsapp: true,
+          email: true,
+          carOwnerProfile: { select: { hostType: true, companyName: true } },
         },
       },
       renter: {
@@ -817,8 +826,51 @@ export class BookingsService {
     };
   }
 
+  private ownerProviderLabel(owner: {
+    fullName: string;
+    carOwnerProfile?: { hostType: string | null; companyName: string | null } | null;
+  }) {
+    return providerLabelForBooking({
+      hostType: owner.carOwnerProfile?.hostType,
+      companyName: owner.carOwnerProfile?.companyName,
+      ownerFullName: owner.fullName,
+    });
+  }
+
+  private async notifyCarPendingRequestToHost(
+    booking: Awaited<ReturnType<BookingsService['requireBooking']>>,
+    renterPhone: string,
+  ) {
+    const host = resolveCarHostDisplay({
+      hostType: booking.owner.carOwnerProfile?.hostType,
+      companyName: booking.owner.carOwnerProfile?.companyName,
+      ownerFullName: booking.owner.fullName,
+    });
+    const emailGreeting = host.isCompanyHost ? host.hostDisplayName : booking.owner.fullName;
+    this.notificationsService.queueEmailToUsers(
+      [booking.ownerId],
+      'New booking request — renting.rw',
+      `${booking.renter.fullName} requested ${booking.listing.title}. Client phone: ${renterPhone}.`,
+      bookingRequestEmailHtml(
+        emailGreeting,
+        booking.renter.fullName,
+        booking.listing.title,
+        booking.startDate,
+        booking.endDate,
+      ),
+    );
+    this.notificationsService.queueSmsToUsers(
+      [booking.ownerId],
+      `New renting.rw request: ${booking.renter.fullName} for ${booking.listing.title}. Client: ${renterPhone}.`,
+    );
+  }
+
   private async notifyCarConfirmed(booking: Awaited<ReturnType<BookingsService['requireBooking']>>) {
-    const provider = formatContactLine(booking.owner.fullName, booking.owner.phone, booking.owner.whatsapp);
+    const provider = formatContactLine(
+      this.ownerProviderLabel(booking.owner),
+      booking.owner.phone,
+      booking.owner.whatsapp,
+    );
     this.notificationsService.queueSmsToPhones(
       [booking.renterPhone, booking.renter.phone].filter((value): value is string => Boolean(value)),
       `Your renting.rw booking is confirmed. Provider: ${provider}.`,

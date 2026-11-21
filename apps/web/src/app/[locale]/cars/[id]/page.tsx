@@ -12,8 +12,6 @@ import {
   Gauge,
   Phone,
   ShieldCheck,
-  Star,
-  ThumbsUp,
   User,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -28,12 +26,11 @@ import { MediaImage } from '@/components/web/media-image';
 import { ShareMenu } from '@/components/web/share-menu';
 import { CarListingCard } from '@/components/web/car-listing-card';
 import { isSupportedLocale, routing, type SupportedLocale } from '@/i18n/routing';
-import { getCarAvailability, getCarById, getCarsByOwner, getFavorites, getReviewsForUser, searchMarketplace, type CarDetail, type SearchCar } from '@/lib/api';
+import { getCarAvailability, getCarById, getCarsByOwner, getFavorites, type CarDetail, type SearchCar } from '@/lib/api';
 import { inCityRateLabel, outsideCityRateLabel } from '@/lib/listing-city';
 import { pickInCityDailyApproxRange } from '@rentingi/types';
 import { formatCurrencyRwf, formatRange } from '@/lib/format';
 import { stockImages } from '@/lib/stock-images';
-import { TrustBadge } from '@/components/web/trust-badge';
 import { listingActionChrome } from '@/components/web/listing-action-chrome';
 
 type CarPageProps = {
@@ -75,15 +72,13 @@ export default function CarDetailPage({ params }: CarPageProps) {
   const [carId, setCarId] = useState('');
   const [detail, setDetail] = useState<CarDetail | null>(null);
   const [bookedRanges, setBookedRanges] = useState<Array<{ startDate: string; endDate: string }>>([]);
-  const [reviews, setReviews] = useState<Awaited<ReturnType<typeof getReviewsForUser>> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [bookingOpen, setBookingOpen] = useState(false);
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0);
   const [showAllFeatures, setShowAllFeatures] = useState(false);
   const [isFavorited, setIsFavorited] = useState(false);
-  const [ownerCars, setOwnerCars] = useState<SearchCar[]>([]);
-  const [similarCars, setSimilarCars] = useState<SearchCar[]>([]);
+  const [hostOtherCars, setHostOtherCars] = useState<SearchCar[]>([]);
   const carFavorites = useFavoriteIds('car');
 
   useEffect(() => {
@@ -108,25 +103,16 @@ export default function CarDetailPage({ params }: CarPageProps) {
       try {
         const token = isSignedIn ? await getToken() : null;
         const car = await getCarById(carId, token ?? undefined);
-        const [availability, reviewsData, favs, otherCars, similarData] = await Promise.all([
+        const [availability, favs, otherCars] = await Promise.all([
           getCarAvailability(carId, new Date().toISOString().slice(0, 7)),
-          getReviewsForUser(car.ownerId),
           token ? getFavorites(token).catch(() => []) : Promise.resolve([]),
           getCarsByOwner(car.ownerId, carId, token),
-          searchMarketplace({ type: 'cars', vehicleType: car.vehicleType, limit: 8 }).catch(() => null),
         ]);
         if (!cancelled) {
           setDetail(car);
           setBookedRanges(availability.bookedRanges.map((item) => ({ startDate: item.startDate, endDate: item.endDate })));
-          setReviews(reviewsData);
           setIsFavorited(favs.some((f) => f.carListing.id === carId));
-          setOwnerCars(otherCars);
-          const ownerIds = new Set(otherCars.map((item) => item.id));
-          setSimilarCars(
-            (similarData?.cars ?? [])
-              .filter((item) => item.id !== carId && !ownerIds.has(item.id))
-              .slice(0, 6),
-          );
+          setHostOtherCars(otherCars);
         }
       } catch (loadError) {
         if (!cancelled) setError(loadError instanceof Error ? loadError.message : t('detail.error'));
@@ -289,14 +275,6 @@ export default function CarDetailPage({ params }: CarPageProps) {
                 {detail.year} {detail.brand} {detail.model}
               </p>
               <div className="mt-3 flex flex-wrap items-center gap-2">
-                {reviews && reviews.totalReviews > 0 && (
-                  <span className="flex items-center gap-1 rounded border-2 border-border bg-card px-2.5 py-1 text-sm font-black text-foreground">
-                    <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
-                    {reviews.averageRating?.toFixed(1)}
-                    <span className="font-medium text-muted-foreground">({reviews.totalReviews} {t('detail.trips')})</span>
-                  </span>
-                )}
-                <TrustBadge score={detail.ownerTrustScore ?? 100} verified={detail.verified} />
                 <span className={`rounded border-2 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide ${bookedNow ? 'border-amber-500 bg-amber-500 text-black' : 'border-emerald-500 bg-emerald-500 text-black'}`}>
                   {bookedNow ? t('detail.bookedNow') : t('detail.available')}
                 </span>
@@ -329,7 +307,9 @@ export default function CarDetailPage({ params }: CarPageProps) {
 
             {/* Hosted by */}
             <div className="rounded-md border-2 border-border bg-card p-4 shadow-brutal-xs">
-              <h2 className="mb-3 text-xs font-black uppercase tracking-widest text-muted-foreground">{t('detail.hostedBy')}</h2>
+              <h2 className="mb-3 text-xs font-black uppercase tracking-widest text-muted-foreground">
+                {detail.isCompanyHost ? t('detail.hostedByCompanyHeading') : t('detail.hostedBy')}
+              </h2>
               <div className="flex items-center gap-3">
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-border bg-brand-soft">
                   <User className="h-6 w-6 text-brand" />
@@ -341,12 +321,11 @@ export default function CarDetailPage({ params }: CarPageProps) {
                   >
                     {detail.ownerName}
                   </Link>
-                  {reviews && reviews.totalReviews > 0 && (
+                  {detail.isCompanyHost && detail.hostContactName ? (
                     <p className="text-sm font-medium text-muted-foreground">
-                      {reviews.averageRating?.toFixed(1)} ★ · {reviews.totalReviews} {t('detail.trips')}
+                      {t('detail.companyContact', { name: detail.hostContactName })}
                     </p>
-                  )}
-                  <TrustBadge score={detail.ownerTrustScore ?? 100} verified={detail.verified} />
+                  ) : null}
                 </div>
               </div>
               {/* Contact actions */}
@@ -428,66 +407,13 @@ export default function CarDetailPage({ params }: CarPageProps) {
               )}
             </div>
 
-            {/* Reviews */}
-            <div>
-              <h2 className="mb-3 text-lg font-black text-foreground">{t('detail.reviews')}</h2>
-              <div className="rounded-md border-2 border-border bg-card p-4 shadow-brutal-xs">
-                {reviews && reviews.totalReviews > 0 ? (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 text-sm">
-                      <div className="flex items-center gap-1">
-                        <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
-                        <span className="font-black text-foreground">{reviews.averageRating?.toFixed(1)}</span>
-                      </div>
-                      <span className="text-muted-foreground">·</span>
-                      <span className="font-medium text-muted-foreground">{reviews.totalReviews} {t('detail.reviewsCount')}</span>
-                    </div>
-                    <ul className="space-y-3">
-                      {reviews.reviews.slice(0, 5).map((r) => (
-                        <li key={r.id} className="rounded border-2 border-border bg-neutral-50 p-3">
-                          <div className="flex items-center gap-2 text-sm">
-                            <span className="font-black text-foreground">{r.fromUser.fullName}</span>
-                            <span className="flex items-center gap-0.5 font-semibold text-amber-500">
-                              <Star className="h-3.5 w-3.5 fill-current" />
-                              {r.rating}
-                            </span>
-                            <span className="text-xs font-medium text-muted-foreground">
-                              {new Date(r.createdAt).toLocaleDateString()}
-                            </span>
-                          </div>
-                          {r.comment ? <p className="mt-1 text-sm font-medium text-muted-foreground">{r.comment}</p> : null}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : (
-                  <p className="text-sm font-medium text-muted-foreground">{t('detail.reviewsPending')}</p>
-                )}
-              </div>
-            </div>
-            {/* More from this hoster */}
-            {ownerCars.length > 0 && (
-              <div id="more-from-owner">
-                <h2 className="mb-3 text-lg font-black text-foreground">{t('listing.moreFrom', { name: detail.ownerName })}</h2>
+            {hostOtherCars.length > 0 && (
+              <div id="more-from-host">
+                <h2 className="mb-3 text-lg font-black text-foreground">
+                  {t('listing.moreFrom', { name: detail.hostDisplayName ?? detail.ownerName })}
+                </h2>
                 <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                  {ownerCars.map((car) => (
-                    <CarListingCard
-                      key={car.id}
-                      car={car}
-                      locale={locale}
-                      size="medium"
-                      favorited={carFavorites.ids.has(car.id)}
-                      onFavoriteChange={(next) => carFavorites.setFavorited(car.id, next)}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-            {similarCars.length > 0 && (
-              <div>
-                <h2 className="mb-3 text-lg font-black text-foreground">{t('listing.similarCars')}</h2>
-                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                  {similarCars.map((car) => (
+                  {hostOtherCars.map((car) => (
                     <CarListingCard
                       key={car.id}
                       car={car}
@@ -605,14 +531,6 @@ export default function CarDetailPage({ params }: CarPageProps) {
 
                 <div className="space-y-3 border-t-2 border-neutral-100 pt-4">
                   <div className="flex items-start gap-2">
-                    <ThumbsUp className="mt-0.5 h-4 w-4 shrink-0 text-brand" />
-                    <div>
-                      <p className="text-sm font-black text-foreground">{t('detail.cancellationPolicy')}</p>
-                      <p className="text-xs font-medium text-muted-foreground">{t('detail.freeCancellation')}</p>
-                      <p className="text-xs font-medium text-muted-foreground">{t('detail.cancellationNote')}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-2">
                     <CreditCard className="mt-0.5 h-4 w-4 shrink-0 text-brand" />
                     <div>
                       <p className="text-sm font-black text-foreground">{t('detail.paymentOptions')}</p>
@@ -668,7 +586,10 @@ export default function CarDetailPage({ params }: CarPageProps) {
           mode: 'car',
           id: detail.id,
           title: detail.title,
-          ownerLabel: `${t('detail.owner')}: ${detail.ownerName}`,
+          ownerLabel:
+            detail.isCompanyHost && detail.companyName
+              ? t('detail.hostedByCompany', { company: detail.companyName })
+              : `${t('detail.owner')}: ${detail.ownerName}`,
           defaultServiceType: detail.serviceType,
           exactDailyRate: priceBlock?.exact,
           bookedRanges: bookedRanges,

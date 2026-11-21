@@ -43,6 +43,12 @@ enum DriverProfileStatus {
   rejected
 }
 
+enum CompanyPartnerApplicationStatus {
+  pending_approval
+  approved
+  rejected
+}
+
 enum MarketplaceVisibility {
   active
   inactive
@@ -195,6 +201,7 @@ model User {
   disputesResolved       Dispute[]         @relation("DisputeResolvedBy")
   favorites              Favorite[]
   driverFavorites        DriverFavorite[]
+  companyPartnerApplication CompanyPartnerApplication?
 
   @@map("users")
 }
@@ -231,6 +238,26 @@ model CarOwnerProfile {
   subscriptions    Subscription[]
 
   @@map("car_owner_profiles")
+}
+
+model CompanyPartnerApplication {
+  id              String                          @id @default(uuid()) @db.Uuid
+  userId          String                          @unique @map("user_id") @db.Uuid
+  companyName     String                          @map("company_name")
+  contactPhone    String?                         @map("contact_phone")
+  workAddress     String?                         @map("work_address")
+  tinNumber       String?                         @map("tin_number")
+  message         String?
+  status          CompanyPartnerApplicationStatus @default(pending_approval)
+  rejectionReason String?                         @map("rejection_reason")
+  submittedAt     DateTime                        @default(now()) @map("submitted_at")
+  reviewedAt      DateTime?                       @map("reviewed_at")
+  createdAt       DateTime                        @default(now()) @map("created_at")
+  updatedAt       DateTime                        @updatedAt @map("updated_at")
+  user            User                            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, submittedAt])
+  @@map("company_partner_applications")
 }
 
 model DriverProfile {
@@ -342,6 +369,7 @@ model CarBooking {
   trustScoreEvents     TrustScoreEvent[]
 
   @@index([status, createdAt])
+  @@index([tryNextGroupId])
   @@map("car_bookings")
 }
 
@@ -376,6 +404,7 @@ model DriverBooking {
   trustScoreEvents     TrustScoreEvent[]
 
   @@index([status, createdAt])
+  @@index([tryNextGroupId])
   @@map("driver_bookings")
 }
 

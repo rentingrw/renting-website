@@ -20,9 +20,9 @@ import {
   updateMe,
   upsertHosterProfile,
   type CarListingRates,
-  type ServiceType,
   type VehicleType,
 } from '@/lib/api';
+import { DEFAULT_CAR_LISTING_SERVICE_TYPE } from '@/lib/car-service-type';
 
 const STEPS = ['Host', 'Photo', 'Location', 'Vehicle', 'Plate', 'Photos', 'Rates', 'Agreement'];
 
@@ -33,13 +33,6 @@ const VEHICLE_TYPE_OPTIONS: { value: VehicleType; label: string }[] = [
   { value: 'pickup', label: 'Pickup' },
   { value: 'van', label: 'Van' },
   { value: 'truck', label: 'Truck' },
-];
-
-const SERVICE_TYPE_OPTIONS: { value: ServiceType; label: string }[] = [
-  { value: 'self_drive', label: 'Self-drive' },
-  { value: 'with_driver', label: 'With driver' },
-  { value: 'airport_transfer', label: 'Airport transfer' },
-  { value: 'corporate', label: 'Corporate' },
 ];
 
 const TRANSMISSION_OPTIONS = ['Manual', 'Automatic', 'Both'];
@@ -72,7 +65,7 @@ export default function CarListOnboardPage({ params }: { params: Promise<{ local
   const [contactPhone, setContactPhone] = useState('');
 
   const [vehicleType, setVehicleType] = useState<VehicleType>('sedan');
-  const [serviceType, setServiceType] = useState<ServiceType>('self_drive');
+  const serviceType = DEFAULT_CAR_LISTING_SERVICE_TYPE;
   const [brand, setBrand] = useState('');
   const [customBrand, setCustomBrand] = useState('');
   const [model, setModel] = useState('');
@@ -375,23 +368,6 @@ export default function CarListOnboardPage({ params }: { params: Promise<{ local
                   onClick={() => setVehicleType(option.value)}
                   className={`rounded-lg border-2 py-2 text-xs font-bold ${
                     vehicleType === option.value ? 'border-brand bg-brand-soft' : 'border-border'
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div>
-            <p className={onboardLabelClass}>Rental service</p>
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              {SERVICE_TYPE_OPTIONS.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => setServiceType(option.value)}
-                  className={`rounded-lg border-2 p-2 text-left text-xs font-bold ${
-                    serviceType === option.value ? 'border-brand bg-brand-soft' : 'border-border'
                   }`}
                 >
                   {option.label}

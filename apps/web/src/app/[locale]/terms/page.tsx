@@ -47,7 +47,7 @@ export default function TermsPage({ params }: { params: Promise<{ locale: string
             <h2 className="mb-2 text-lg font-black text-foreground">2. Eligibility</h2>
             <ul className="list-inside list-disc space-y-1">
               <li>You must be at least 18 years old to use the platform.</li>
-              <li>You must hold a valid driver&apos;s license to rent or list a self-drive vehicle.</li>
+              <li>You must hold a valid driver&apos;s license to rent or list a vehicle where the renter will drive.</li>
               <li>You must provide accurate information during registration.</li>
               <li>One account per person. Duplicate accounts may be suspended.</li>
             </ul>
@@ -61,15 +61,29 @@ export default function TermsPage({ params }: { params: Promise<{ locale: string
               After confirmation you receive the provider name and phone. There is no in-app chat.
               A confirmed booking constitutes a binding agreement between Guest and Host.
             </p>
+          </div>
+
+          <div>
+            <h2 className="mb-2 text-lg font-black text-foreground">4. Rental contract at handover</h2>
+            <p>
+              Car hosts must use a written rental contract for each trip. Before the Guest takes the vehicle,
+              the Host must give the Guest that contract to read and sign. Handover must not proceed until the
+              Guest has signed. Hosts are responsible for preparing a lawful contract that covers the vehicle,
+              dates, fees, deposit (if any), and both parties&apos; duties under Rwandan law.
+            </p>
             <p className="mt-2">
-              Cancellations within 24 hours of trip start may result in partial refunds at the
-              Host&apos;s discretion and may affect the cancelling party&apos;s trust score.
+              Guests must read and sign the Host&apos;s rental contract before driving or taking custody of the
+              vehicle. By using the platform, Hosts and Guests agree to this handover requirement in addition to
+              any contract terms they set between themselves.
             </p>
           </div>
 
           <div>
-            <h2 className="mb-2 text-lg font-black text-foreground">4. Host Obligations</h2>
+            <h2 className="mb-2 text-lg font-black text-foreground">5. Host Obligations</h2>
             <ul className="list-inside list-disc space-y-1">
+              <li>
+                Provide your rental contract and obtain the Guest&apos;s signature before the vehicle is handed over.
+              </li>
               <li>Cars must be roadworthy, legally registered, and insured.</li>
               <li>Listings must accurately represent the vehicle or service offered.</li>
               <li>Hosts keep availability accurate. Standard bookings are confirmed by the renting.rw desk after calling the host.</li>
@@ -79,8 +93,9 @@ export default function TermsPage({ params }: { params: Promise<{ locale: string
           </div>
 
           <div>
-            <h2 className="mb-2 text-lg font-black text-foreground">5. Guest Obligations</h2>
+            <h2 className="mb-2 text-lg font-black text-foreground">6. Guest Obligations</h2>
             <ul className="list-inside list-disc space-y-1">
+              <li>Sign the Host&apos;s rental contract before taking the vehicle, as required at handover.</li>
               <li>Guests must treat vehicles and drivers with respect.</li>
               <li>Guests are responsible for damages caused during the rental period.</li>
               <li>Guests must return vehicles in the same condition as received.</li>
@@ -89,7 +104,7 @@ export default function TermsPage({ params }: { params: Promise<{ locale: string
           </div>
 
           <div>
-            <h2 className="mb-2 text-lg font-black text-foreground">6. Payments and Fees</h2>
+            <h2 className="mb-2 text-lg font-black text-foreground">7. Payments and Fees</h2>
             <p>
               Payments are processed via iPay. Hosts and drivers pay renting.rw a platform fee of{' '}
               <strong className="text-foreground">10% of the rental amount</strong> on each confirmed
@@ -99,19 +114,19 @@ export default function TermsPage({ params }: { params: Promise<{ locale: string
           </div>
 
           <div>
-            <h2 className="mb-2 text-lg font-black text-foreground">7. Prohibited Conduct</h2>
+            <h2 className="mb-2 text-lg font-black text-foreground">8. Prohibited Conduct</h2>
             <p>You may not use the platform to:</p>
             <ul className="mt-2 list-inside list-disc space-y-1">
               <li>Post false or misleading listings.</li>
               <li>Circumvent the platform to avoid fees.</li>
               <li>Harass, threaten, or defraud other users.</li>
               <li>Use the platform for any unlawful purpose.</li>
-              <li>Create fake reviews or manipulate the trust score system.</li>
+              <li>Create fake accounts, listings, or manipulate booking or payment systems.</li>
             </ul>
           </div>
 
           <div>
-            <h2 className="mb-2 text-lg font-black text-foreground">8. Limitation of Liability</h2>
+            <h2 className="mb-2 text-lg font-black text-foreground">9. Limitation of Liability</h2>
             <p>
               CARIRWA LTD is a marketplace facilitator and is not liable for accidents, damage,
               theft, or disputes arising from bookings. The Company&apos;s liability is limited to the
@@ -120,7 +135,7 @@ export default function TermsPage({ params }: { params: Promise<{ locale: string
           </div>
 
           <div>
-            <h2 className="mb-2 text-lg font-black text-foreground">9. Account Termination</h2>
+            <h2 className="mb-2 text-lg font-black text-foreground">10. Account Termination</h2>
             <p>
               The Company may suspend or terminate accounts for violations of these Terms, fraudulent
               activity, or behaviour harmful to the community. Users may delete their accounts at any
@@ -129,7 +144,7 @@ export default function TermsPage({ params }: { params: Promise<{ locale: string
           </div>
 
           <div>
-            <h2 className="mb-2 text-lg font-black text-foreground">10. Governing Law</h2>
+            <h2 className="mb-2 text-lg font-black text-foreground">11. Governing Law</h2>
             <p>
               These Terms are governed by the laws of the Republic of Rwanda. Disputes shall be
               resolved through mediation before any legal action.
@@ -137,7 +152,7 @@ export default function TermsPage({ params }: { params: Promise<{ locale: string
           </div>
 
           <div>
-            <h2 className="mb-2 text-lg font-black text-foreground">11. Contact</h2>
+            <h2 className="mb-2 text-lg font-black text-foreground">12. Contact</h2>
             <p>
               CARIRWA LTD, Kigali, Rwanda
               <br />

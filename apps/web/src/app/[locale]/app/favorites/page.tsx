@@ -267,7 +267,12 @@ export default function FavoritesPage({ params }: FavoritesPageProps) {
                   >
                     <Link href={`/${locale}/drivers/${dp.id}`} className="block">
                       <div className="flex items-center gap-3 border-b-2 border-border bg-neutral-50 p-4">
-                        <InitialsAvatar name={dp.user.fullName} src={dp.user.avatarUrl} size={56} />
+                        <InitialsAvatar
+                          name={dp.user.fullName}
+                          src={dp.user.avatarUrl}
+                          size={56}
+                          shape="portrait"
+                        />
                         <div className="min-w-0">
                           <h3 className="truncate font-black text-foreground">{dp.user.fullName}</h3>
                           <p className="text-xs font-semibold capitalize text-muted-foreground">
@@ -283,11 +288,11 @@ export default function FavoritesPage({ params }: FavoritesPageProps) {
                         <p className="text-sm font-black text-brand">
                           {Number(dp.dailyRateRwf).toLocaleString()} RWF/day
                         </p>
-                        {dp.rating && (
+                        {dp.completedTrips > 0 ? (
                           <p className="text-xs font-semibold text-muted-foreground">
-                            ★ {Number(dp.rating).toFixed(1)} · {dp.completedTrips} trips
+                            {dp.completedTrips} {dp.completedTrips === 1 ? 'trip' : 'trips'} completed
                           </p>
-                        )}
+                        ) : null}
                       </div>
                     </Link>
                     <div className="border-t-2 border-border px-4 py-3 flex justify-end">

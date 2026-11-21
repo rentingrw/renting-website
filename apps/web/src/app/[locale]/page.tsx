@@ -12,8 +12,11 @@ import { HomeComplaintSection } from '@/components/web/home-complaint-section';
 import { SiteFooter } from '@/components/web/site-footer';
 import { isSupportedLocale, routing, type SupportedLocale } from '@/i18n/routing';
 import { JobOpeningMeta } from '@/components/web/job-opening-meta';
+import { HomeGroupChips } from '@/components/web/home-group-chips';
 import { listPublicJobs, searchMarketplace, type PublicJobOpening, type SearchCar, type SearchDriver, type SearchTaxi, type SearchType } from '@/lib/api';
+import { filterCarsByModelKey, groupCarsByModel, parseCarModelKey } from '@/lib/marketplace-groups';
 import { formatSearchCarDailyPrice } from '@/lib/car-listing-price';
+import { RWANDA_MAJOR_CITIES } from '@/lib/rwanda-cities';
 import { stockImages } from '@/lib/stock-images';
 import {
   ArrowRight,
@@ -39,8 +42,8 @@ type HomePageProps = {
   params: Promise<{ locale: string }>;
 };
 
-const POPULAR_PLACES = ['Kigali', 'Musanze', 'Rubavu', 'Huye', 'Karongi'] as const;
 const HOME_SECTION_LIMIT = 8;
+const HOME_GROUP_CATALOG_LIMIT = 150;
 const HERO_SHOWCASE_CAR_LIMIT = 12;
 const WORD_ROTATE_MS = 2400;
 const HERO_SHOWCASE_CAR_MS = 5000;
@@ -54,6 +57,14 @@ const SEARCH_TYPE_FOR_KIND: Record<PopularListingKind, SearchType> = {
   drivers: 'drivers',
   taxi: 'taxis',
 };
+
+function carsBrowseHref(locale: SupportedLocale, brand?: string | null, model?: string | null): string {
+  const params = new URLSearchParams();
+  if (brand?.trim()) params.set('brand', brand.trim());
+  if (model?.trim()) params.set('model', model.trim());
+  const q = params.toString();
+  return `/${locale}/cars${q ? `?${q}` : ''}`;
+}
 
 function cityHrefForListing(locale: SupportedLocale, kind: PopularListingKind, city: string): string {
   const q = encodeURIComponent(city);
@@ -109,6 +120,9 @@ export default function HomePage({ params }: HomePageProps) {
   const [featuredDrivers, setFeaturedDrivers] = useState<SearchDriver[]>([]);
   const [featuredTaxis, setFeaturedTaxis] = useState<SearchTaxi[]>([]);
   const [featuredLoading, setFeaturedLoading] = useState(true);
+  const [catalogCars, setCatalogCars] = useState<SearchCar[]>([]);
+  const [selectedCarModelKey, setSelectedCarModelKey] = useState<string | null>(null);
+  const [catalogCarsLoading, setCatalogCarsLoading] = useState(true);
   const [careerJobs, setCareerJobs] = useState<PublicJobOpening[]>([]);
   const [popularListing, setPopularListing] = useState<PopularListingKind>('all');
   const carFavorites = useFavoriteIds('car');
@@ -128,7 +142,7 @@ export default function HomePage({ params }: HomePageProps) {
 
   useEffect(() => {
     const timer = window.setInterval(() => {
-      setWordIndex((i) => (i + 1) % POPULAR_PLACES.length);
+      setWordIndex((i) => (i + 1) % RWANDA_MAJOR_CITIES.length);
     }, WORD_ROTATE_MS);
     return () => window.clearInterval(timer);
   }, []);
@@ -138,9 +152,10 @@ export default function HomePage({ params }: HomePageProps) {
 
     async function loadFeatured() {
       try {
-        const [carSpotlight, data] = await Promise.all([
+        const [carSpotlight, data, driverSpotlight] = await Promise.all([
           searchMarketplace({ type: 'cars', limit: HERO_SHOWCASE_CAR_LIMIT }),
           searchMarketplace({ type: 'all', limit: HOME_SECTION_LIMIT }),
+          searchMarketplace({ type: 'drivers', limit: HOME_SECTION_LIMIT }),
         ]);
         if (!cancelled) {
           setFeaturedCars(
@@ -148,7 +163,11 @@ export default function HomePage({ params }: HomePageProps) {
               ? carSpotlight.cars.slice(0, HERO_SHOWCASE_CAR_LIMIT)
               : data.cars.slice(0, HOME_SECTION_LIMIT),
           );
-          setFeaturedDrivers(data.drivers.slice(0, HOME_SECTION_LIMIT));
+          setFeaturedDrivers(
+            driverSpotlight.drivers.length > 0
+              ? driverSpotlight.drivers.slice(0, HOME_SECTION_LIMIT)
+              : data.drivers.slice(0, HOME_SECTION_LIMIT),
+          );
           setFeaturedTaxis((data.taxis ?? []).slice(0, HOME_SECTION_LIMIT));
         }
       } catch {
@@ -162,6 +181,29 @@ export default function HomePage({ params }: HomePageProps) {
       }
     }
     loadFeatured();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadCatalog() {
+      setCatalogCarsLoading(true);
+      try {
+        const carsRes = await searchMarketplace({ type: 'cars', limit: HOME_GROUP_CATALOG_LIMIT });
+        if (!cancelled) {
+          setCatalogCars(carsRes.cars);
+        }
+      } catch {
+        if (!cancelled) {
+          setCatalogCars([]);
+        }
+      } finally {
+        if (!cancelled) setCatalogCarsLoading(false);
+      }
+    }
+    void loadCatalog();
     return () => {
       cancelled = true;
     };
@@ -227,6 +269,30 @@ export default function HomePage({ params }: HomePageProps) {
   ];
 
   const showcaseCars = useMemo(() => featuredCars.slice(0, HOME_SECTION_LIMIT), [featuredCars]);
+
+  const homeCarsPool = useMemo(() => {
+    if (catalogCars.length > 0) return catalogCars;
+    return featuredCars;
+  }, [catalogCars, featuredCars]);
+
+  const carModelListingGroups = useMemo(
+    () => groupCarsByModel(homeCarsPool, { maxGroups: 40, maxCarsPerGroup: 1 }),
+    [homeCarsPool],
+  );
+
+  const displayedHomeCars = useMemo(
+    () => filterCarsByModelKey(homeCarsPool, selectedCarModelKey),
+    [homeCarsPool, selectedCarModelKey],
+  );
+
+  const carsSectionHref = useMemo(() => {
+    if (!selectedCarModelKey) return `/${locale}/cars`;
+    const group = carModelListingGroups.find((g) => g.key === selectedCarModelKey);
+    if (group) return carsBrowseHref(locale, group.brand, group.model);
+    const parsed = parseCarModelKey(selectedCarModelKey);
+    if (!parsed) return `/${locale}/cars`;
+    return carsBrowseHref(locale, parsed.brand, parsed.model);
+  }, [carModelListingGroups, locale, selectedCarModelKey]);
 
   const showcaseCar = showcaseCars[showcaseCarIndex] ?? showcaseCars[0] ?? null;
 
@@ -307,7 +373,7 @@ export default function HomePage({ params }: HomePageProps) {
               <span className="block">{t('home.heroLead')}</span>
               <span className="block min-h-[1.2em]" aria-live="polite">
                 <span key={wordIndex} className="word-swap text-aurora">
-                  {POPULAR_PLACES[wordIndex]}
+                  {RWANDA_MAJOR_CITIES[wordIndex]}
                 </span>
                 <span className="text-sun">.</span>
               </span>
@@ -433,7 +499,14 @@ export default function HomePage({ params }: HomePageProps) {
                       ? showcaseDrivers.map((d) => ({ id: d.id, name: d.fullName, src: d.profilePhotoUrl }))
                       : stockImages.drivers.map((src, i) => ({ id: String(i), name: 'Driver', src }))
                     ).map((d) => (
-                      <InitialsAvatar key={d.id} name={d.name} src={d.src} size={44} className="!border-white" />
+                      <InitialsAvatar
+                        key={d.id}
+                        name={d.name}
+                        src={d.src}
+                        size={44}
+                        shape="portrait"
+                        className="!border-white"
+                      />
                     ))}
                   </div>
                   <span className="ml-3 flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700">
@@ -483,7 +556,14 @@ export default function HomePage({ params }: HomePageProps) {
                 ? showcaseDrivers.map((d) => ({ id: d.id, name: d.fullName, src: d.profilePhotoUrl }))
                 : stockImages.drivers.map((src, i) => ({ id: String(i), name: 'Driver', src }))
               ).map((d) => (
-                <InitialsAvatar key={d.id} name={d.name} src={d.src} size={40} className="!border-ink" />
+                <InitialsAvatar
+                  key={d.id}
+                  name={d.name}
+                  src={d.src}
+                  size={40}
+                  shape="portrait"
+                  className="!border-ink"
+                />
               ))}
             </div>
             <BentoLabel title={t('nav.drivers')} desc={t('home.browseDriversDesc')} icon={UserRound} tone="dark" />
@@ -512,27 +592,30 @@ export default function HomePage({ params }: HomePageProps) {
           </Link>
         </div>
 
-        <div className="mt-6 flex flex-col gap-3 rounded-[1.5rem] border border-border bg-card p-3 sm:flex-row sm:items-center">
-          <div className="flex shrink-0 items-center gap-1 rounded-full bg-secondary p-1">
-            {popularListingTabs.map(({ id, label }) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setPopularListing(id)}
-                className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${
-                  popularListing === id ? 'bg-ink text-white shadow' : 'text-foreground/70 hover:text-foreground'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
+        <div className="mt-6 rounded-[1.5rem] border border-border bg-card p-4 sm:p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+            <p className="text-sm font-bold text-foreground">{t('home.popularPlaces')}</p>
+            <div className="flex flex-wrap items-center gap-1 rounded-full bg-secondary p-1">
+              {popularListingTabs.map(({ id, label }) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setPopularListing(id)}
+                  className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${
+                    popularListing === id ? 'bg-ink text-white shadow' : 'text-foreground/70 hover:text-foreground'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="no-scrollbar flex gap-2 overflow-x-auto">
-            {POPULAR_PLACES.map((city) => (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {RWANDA_MAJOR_CITIES.map((city) => (
               <Link
                 key={city}
                 href={cityHrefForListing(locale, popularListing, city)}
-                className="group inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border px-3.5 py-1.5 text-sm font-semibold text-foreground transition hover:border-ink hover:bg-ink hover:text-white"
+                className="group inline-flex items-center gap-1.5 rounded-full border border-border px-3.5 py-1.5 text-sm font-semibold text-foreground transition hover:border-ink hover:bg-ink hover:text-white"
               >
                 <MapPin className="h-3.5 w-3.5 text-hill transition group-hover:text-sun" />
                 {city}
@@ -543,16 +626,25 @@ export default function HomePage({ params }: HomePageProps) {
       </section>
 
       {/* ───────── Featured cars ───────── */}
-      {(featuredLoading || featuredCars.length > 0) && (
+      {(featuredLoading || catalogCarsLoading || homeCarsPool.length > 0) && (
         <section className="mx-auto w-full max-w-7xl px-4 pt-16 sm:px-6 sm:pt-20">
           <HomeSectionHeading
             index="01"
             title={t('nav.cars')}
-            href={`/${locale}/cars`}
+            href={carsSectionHref}
             actionLabel={t('home.viewAll')}
           />
+          {carModelListingGroups.length > 0 ? (
+            <HomeGroupChips
+              label={t('home.browseByModel')}
+              allLabel={t('home.filterAllCars')}
+              items={carModelListingGroups.map((g) => ({ id: g.key, label: g.label, count: g.count }))}
+              selectedId={selectedCarModelKey}
+              onSelect={setSelectedCarModelKey}
+            />
+          ) : null}
           <Rail>
-            {featuredLoading && featuredCars.length === 0
+            {(featuredLoading || catalogCarsLoading) && displayedHomeCars.length === 0
               ? Array.from({ length: 4 }).map((_, i) => (
                   <div key={i} className="animate-pulse overflow-hidden rounded-2xl border border-border bg-card">
                     <div className="aspect-[4/3] bg-muted" />
@@ -562,16 +654,22 @@ export default function HomePage({ params }: HomePageProps) {
                     </div>
                   </div>
                 ))
-              : featuredCars.map((car) => (
-                  <CarListingCard
-                    key={car.id}
-                    car={car}
-                    locale={locale}
-                    favorited={carFavorites.ids.has(car.id)}
-                    onFavoriteChange={(next) => carFavorites.setFavorited(car.id, next)}
-                    showBookCta
-                  />
-                ))}
+              : displayedHomeCars.length === 0 ? (
+                  <p className="w-full rounded-2xl border border-dashed border-border px-4 py-10 text-center text-sm font-semibold text-muted-foreground">
+                    {t('search.noResults')}
+                  </p>
+                ) : (
+                  displayedHomeCars.map((car) => (
+                    <CarListingCard
+                      key={car.id}
+                      car={car}
+                      locale={locale}
+                      favorited={carFavorites.ids.has(car.id)}
+                      onFavoriteChange={(next) => carFavorites.setFavorited(car.id, next)}
+                      showBookCta
+                    />
+                  ))
+                )}
           </Rail>
         </section>
       )}
@@ -588,9 +686,13 @@ export default function HomePage({ params }: HomePageProps) {
           <Rail>
             {featuredLoading && featuredDrivers.length === 0
               ? Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="animate-pulse rounded-2xl border border-border bg-card p-5">
-                    <div className="mx-auto h-20 w-20 rounded-full bg-muted" />
-                    <div className="mx-auto mt-4 h-4 w-3/4 rounded bg-muted" />
+                  <div key={i} className="w-[min(100%,280px)] shrink-0 animate-pulse overflow-hidden rounded-2xl border border-border bg-card">
+                    <div className="aspect-[4/5] w-full bg-muted" />
+                    <div className="space-y-2 p-4">
+                      <div className="h-3 w-20 rounded-full bg-muted" />
+                      <div className="h-4 w-3/4 rounded bg-muted" />
+                      <div className="h-6 w-28 rounded-full bg-muted" />
+                    </div>
                   </div>
                 ))
               : featuredDrivers.map((driver) => (
