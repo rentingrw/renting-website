@@ -152,30 +152,39 @@ export default function HomePage({ params }: HomePageProps) {
 
     async function loadFeatured() {
       try {
-        const [carSpotlight, data, driverSpotlight] = await Promise.all([
+        const [carsResult, allResult, driversResult, taxisResult] = await Promise.allSettled([
           searchMarketplace({ type: 'cars', limit: HERO_SHOWCASE_CAR_LIMIT }),
           searchMarketplace({ type: 'all', limit: HOME_SECTION_LIMIT }),
           searchMarketplace({ type: 'drivers', limit: HOME_SECTION_LIMIT }),
+          searchMarketplace({ type: 'taxis', limit: HOME_SECTION_LIMIT }),
         ]);
-        if (!cancelled) {
-          setFeaturedCars(
-            carSpotlight.cars.length > 0
-              ? carSpotlight.cars.slice(0, HERO_SHOWCASE_CAR_LIMIT)
-              : data.cars.slice(0, HOME_SECTION_LIMIT),
-          );
-          setFeaturedDrivers(
-            driverSpotlight.drivers.length > 0
-              ? driverSpotlight.drivers.slice(0, HOME_SECTION_LIMIT)
-              : data.drivers.slice(0, HOME_SECTION_LIMIT),
-          );
-          setFeaturedTaxis((data.taxis ?? []).slice(0, HOME_SECTION_LIMIT));
-        }
-      } catch {
-        if (!cancelled) {
-          setFeaturedCars([]);
-          setFeaturedDrivers([]);
-          setFeaturedTaxis([]);
-        }
+        if (cancelled) return;
+
+        const carsPayload = carsResult.status === 'fulfilled' ? carsResult.value : null;
+        const allPayload = allResult.status === 'fulfilled' ? allResult.value : null;
+        const driversPayload = driversResult.status === 'fulfilled' ? driversResult.value : null;
+        const taxisPayload = taxisResult.status === 'fulfilled' ? taxisResult.value : null;
+
+        const carsFromAll = allPayload?.cars ?? [];
+        const carsFromSpotlight = carsPayload?.cars ?? [];
+
+        setFeaturedCars(
+          carsFromSpotlight.length > 0
+            ? carsFromSpotlight.slice(0, HERO_SHOWCASE_CAR_LIMIT)
+            : carsFromAll.slice(0, HOME_SECTION_LIMIT),
+        );
+        setFeaturedDrivers(
+          (driversPayload?.drivers.length
+            ? driversPayload.drivers
+            : allPayload?.drivers ?? []
+          ).slice(0, HOME_SECTION_LIMIT),
+        );
+        setFeaturedTaxis(
+          (taxisPayload?.taxis?.length ? taxisPayload.taxis : allPayload?.taxis ?? []).slice(
+            0,
+            HOME_SECTION_LIMIT,
+          ),
+        );
       } finally {
         if (!cancelled) setFeaturedLoading(false);
       }
