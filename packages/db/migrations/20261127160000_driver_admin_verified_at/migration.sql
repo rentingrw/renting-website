@@ -1,0 +1,1 @@
+ALTER TABLE "driver_profiles" ADD COLUMN "admin_verified_at" TIMESTAMP(3);

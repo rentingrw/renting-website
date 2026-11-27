@@ -2,15 +2,12 @@
 
 import type { ReactNode } from 'react';
 
-import { BriefcaseBusiness, CalendarClock, Car, FileBadge, Home, Languages, MapPinned } from 'lucide-react';
+import { BriefcaseBusiness, CalendarClock, Car, FileBadge, Languages, MapPinned, Phone } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
 import type { DriverDetail } from '@/lib/api';
 import { formatDriverLanguages } from '@/lib/driver-languages';
-import {
-  driverProfileFactGroups,
-  formatDriverHomeAddress,
-} from '@/lib/driver-profile-display';
+import { driverProfileFactGroups, drivingCapabilityLabel } from '@/lib/driver-profile-display';
 
 function DetailTile({
   icon,
@@ -56,13 +53,25 @@ type DriverDetailProfileProps = {
 export function DriverDetailProfile({ detail, bookedRanges }: DriverDetailProfileProps) {
   const t = useTranslations('web');
 
-  const languageLine = detail.languages?.length ? formatDriverLanguages(detail.languages) : '';
-  const homeAddress = formatDriverHomeAddress(detail.addressText);
+  const languageLine = detail.languages?.length ? formatDriverLanguages(detail.languages) : '—';
   const { districts, availabilityModes, licenses, drive } = driverProfileFactGroups(detail);
+  const driveLabel = drive || drivingCapabilityLabel(detail.transmission) || '—';
+  const serviceAreas = districts.length ? districts : [detail.primaryCity].filter(Boolean);
+  const phoneDisplay = detail.phone?.trim() ? detail.phone.trim() : t('driver.phoneAfterBooking');
 
   return (
     <div className="space-y-5">
       <section className="rounded-2xl border border-border bg-card p-5 shadow-soft-sm sm:p-6">
+        <h2 className="mb-3 text-sm font-black text-foreground">{t('driver.contactTitle')}</h2>
+        <DetailTile icon={<Phone className="h-3.5 w-3.5 text-brand" />} label={t('driver.phoneLabel')}>
+          <span className={detail.phone?.trim() ? 'tabular-nums' : 'font-medium text-muted-foreground'}>
+            {phoneDisplay}
+          </span>
+        </DetailTile>
+      </section>
+
+      <section className="rounded-2xl border border-border bg-card p-5 shadow-soft-sm sm:p-6">
+        <h2 className="mb-4 text-sm font-black text-foreground">{t('driver.aboutTitle')}</h2>
         <div className="grid gap-3 sm:grid-cols-2">
           <DetailTile
             icon={<BriefcaseBusiness className="h-3.5 w-3.5 text-sun" />}
@@ -71,34 +80,24 @@ export function DriverDetailProfile({ detail, bookedRanges }: DriverDetailProfil
             {t('listing.yearsExp', { count: detail.yearsExperience })}
           </DetailTile>
 
-          {languageLine ? (
-            <DetailTile icon={<Languages className="h-3.5 w-3.5 text-brand" />} label={t('driver.languagesHeading')}>
-              {languageLine}
-            </DetailTile>
-          ) : null}
+          <DetailTile icon={<Languages className="h-3.5 w-3.5 text-brand" />} label={t('driver.languagesHeading')}>
+            {languageLine}
+          </DetailTile>
 
           <DetailTile icon={<MapPinned className="h-3.5 w-3.5 text-brand" />} label={t('driver.serviceAreas')}>
-            <ChipList items={districts.length ? districts : [detail.primaryCity].filter(Boolean)} />
+            <ChipList items={serviceAreas.length ? serviceAreas : ['—']} />
           </DetailTile>
-
-          {homeAddress ? (
-            <DetailTile icon={<Home className="h-3.5 w-3.5 text-brand" />} label={t('driver.homeArea')}>
-              {homeAddress}
-            </DetailTile>
-          ) : null}
 
           <DetailTile icon={<FileBadge className="h-3.5 w-3.5 text-brand" />} label={t('driver.licenseCategories')}>
-            <ChipList items={licenses} />
+            <ChipList items={licenses.length ? licenses : ['—']} />
           </DetailTile>
 
-          {drive ? (
-            <DetailTile icon={<Car className="h-3.5 w-3.5 text-brand" />} label={t('driver.drivingCapability')}>
-              {drive}
-            </DetailTile>
-          ) : null}
+          <DetailTile icon={<Car className="h-3.5 w-3.5 text-brand" />} label={t('driver.drivingCapability')}>
+            {driveLabel}
+          </DetailTile>
 
           <DetailTile icon={<CalendarClock className="h-3.5 w-3.5 text-brand" />} label={t('driver.availabilityModes')}>
-            <ChipList items={availabilityModes} />
+            <ChipList items={availabilityModes.length ? availabilityModes : ['—']} />
           </DetailTile>
         </div>
       </section>

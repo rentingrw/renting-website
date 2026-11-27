@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 
 import { DriverProfilePhoto } from '@/components/web/driver-profile-photo';
+import { VerifiedBadge } from '@/components/web/verified-badge';
 import { FavoriteButton } from '@/components/web/favorite-button';
 import { ShareMenu } from '@/components/web/share-menu';
 import { listingActionChrome } from '@/components/web/listing-action-chrome';
@@ -33,7 +34,7 @@ export function DriverListingCard({
 }: DriverListingCardProps) {
   const t = useTranslations('web.listing');
   const href = `/${locale}/drivers/${driver.id}`;
-  const verified = driver.verified ?? isDriverVerified(driver.status);
+  const verified = isDriverVerified(driver);
   const lead = driverLeadPrice(driver);
   const booked = Boolean(driver.isBookedNow);
   const medium = size === 'medium';
@@ -79,9 +80,7 @@ export function DriverListingCard({
           <p className={`mt-2 font-black text-ink ${medium ? 'text-sm' : 'text-base'}`}>{driver.fullName}</p>
 
           {verified ? (
-            <span className="mt-2 inline-flex w-fit rounded-full bg-brand/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-brand">
-              {t('verified')}
-            </span>
+            <VerifiedBadge label={t('verified')} size="compact" className="mt-2" />
           ) : null}
 
           <div className="mt-2.5 flex flex-col gap-1.5 text-xs font-semibold text-muted-foreground">

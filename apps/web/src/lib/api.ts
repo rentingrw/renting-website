@@ -233,6 +233,7 @@ export type DriverDetail = {
   profilePhotoUrl: string | null;
   trustScore: number;
   status?: 'draft' | 'pending_approval' | 'approved' | 'rejected';
+  verified?: boolean;
   driverCategory: DriverCategory;
   yearsExperience: number;
   biography: string | null;
@@ -1481,6 +1482,7 @@ export type DriverProfileFull = {
   profilePhotoUrl?: string | null;
   availabilityCalendar: Array<{ from: string; to: string }>;
   status?: 'draft' | 'pending_approval' | 'approved' | 'rejected';
+  verified?: boolean;
   marketplaceVisibility?: MarketplaceVisibility;
   rejectionReason?: string | null;
   submittedAt?: string | null;

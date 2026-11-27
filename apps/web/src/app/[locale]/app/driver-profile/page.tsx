@@ -151,6 +151,20 @@ export default function DriverProfilePage({ params }: DriverProfilePageProps) {
       setError('Select at least one availability option.');
       return;
     }
+    const weekly = weeklyRateRwf.trim() ? Number(weeklyRateRwf) : 0;
+    const monthly = monthlyRateRwf.trim() ? Number(monthlyRateRwf) : 0;
+    if (dailyRateRwf < 1000) {
+      setError('Daily rate must be at least 1,000 RWF.');
+      return;
+    }
+    if (weekly < 1000) {
+      setError('Weekly rate is required (minimum 1,000 RWF).');
+      return;
+    }
+    if (monthly < 1000) {
+      setError('Monthly rate is required (minimum 1,000 RWF).');
+      return;
+    }
     setSaving(true);
     const token = await getToken();
     if (!token) { setError('Please sign in.'); setSaving(false); return; }
@@ -160,14 +174,12 @@ export default function DriverProfilePage({ params }: DriverProfilePageProps) {
       drivingCapability !== 'Both' ? `Drive: ${drivingCapability}` : null,
     ].filter(Boolean) as string[];
 
-    const weekly = weeklyRateRwf.trim() ? Number(weeklyRateRwf) : undefined;
-    const monthly = monthlyRateRwf.trim() ? Number(monthlyRateRwf) : undefined;
     const payload = {
       ...DRIVER_PROFILE_API_DEFAULTS,
       yearsExperience,
       dailyRateRwf,
-      ...(weekly !== undefined && weekly >= 1000 ? { weeklyRateRwf: weekly } : {}),
-      ...(monthly !== undefined && monthly >= 1000 ? { monthlyRateRwf: monthly } : {}),
+      weeklyRateRwf: weekly,
+      monthlyRateRwf: monthly,
       primaryCity: defaultPrimaryCity(homeDistrict, serviceDistricts),
       languages,
       certifications: [
@@ -179,6 +191,9 @@ export default function DriverProfilePage({ params }: DriverProfilePageProps) {
       ],
       serviceAreas: serviceDistricts,
       availabilityCalendar: [],
+      licenseCategories,
+      transmission: drivingCapability,
+      addressText: existing?.addressText ?? undefined,
     };
 
     try {
@@ -188,7 +203,7 @@ export default function DriverProfilePage({ params }: DriverProfilePageProps) {
       setSaved(true);
       if (updated.status === 'pending_approval' && (wasLive || existing)) {
         setPendingReviewMessage(
-          'Your changes were saved. Your profile stays visible in search; admin verification is pending and your verified badge will return after approval.',
+          'Your changes were saved. Your profile is hidden from search until an admin approves the update. Any verified badge is removed until we mark you verified again.',
         );
       }
     } catch (err) {
@@ -231,7 +246,7 @@ export default function DriverProfilePage({ params }: DriverProfilePageProps) {
           </p>
         </div>
 
-        {existing && existing.status !== 'draft' ? (
+        {existing && existing.status === 'approved' ? (
           <div className="mb-6 rounded-xl border border-border bg-card p-4">
             <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{tVis('sectionTitle')}</p>
             <p className="mt-1 text-xs text-muted-foreground">{tVis('hint')}</p>
@@ -269,9 +284,10 @@ export default function DriverProfilePage({ params }: DriverProfilePageProps) {
 
             {existing?.status === 'pending_approval' ? (
               <div className="rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm text-amber-950">
-                <p className="font-bold">Awaiting verification</p>
+                <p className="font-bold">Awaiting approval</p>
                 <p className="mt-1 text-amber-900/90">
-                  You stay visible in search. Admin review is in progress; the verified badge appears once your profile is approved.
+                  Your profile is not visible on the public site until an admin approves it. The verified badge is separate and only appears
+                  after approval plus an additional admin verification step.
                 </p>
               </div>
             ) : null}
@@ -305,26 +321,26 @@ export default function DriverProfilePage({ params }: DriverProfilePageProps) {
                 />
               </div>
               <div>
-                <label className={labelClass}>Weekly Rate (RWF)</label>
+                <label className={labelClass}>Weekly Rate (RWF) *</label>
                 <input
                   type="number"
+                  required
                   min={1000}
                   step={500}
                   value={weeklyRateRwf}
                   onChange={(e) => setWeeklyRateRwf(e.target.value)}
-                  placeholder="Optional"
                   className={inputClass}
                 />
               </div>
               <div>
-                <label className={labelClass}>Monthly Rate (RWF)</label>
+                <label className={labelClass}>Monthly Rate (RWF) *</label>
                 <input
                   type="number"
+                  required
                   min={1000}
                   step={500}
                   value={monthlyRateRwf}
                   onChange={(e) => setMonthlyRateRwf(e.target.value)}
-                  placeholder="Optional"
                   className={inputClass}
                 />
               </div>

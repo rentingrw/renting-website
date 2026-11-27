@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   adminCreateDriver,
   approveDriverApplication,
+  setDriverVerifiedBadge,
   deleteDriver,
   getAdminDriverDetail,
   listAdminDrivers,
@@ -478,6 +479,20 @@ export default function AdminDriversPage() {
 
   useEffect(() => { void loadDrivers(); }, [loadDrivers]);
 
+  const onDriverVerified = async (driverProfileId: string, verified: boolean) => {
+    setActingId(driverProfileId);
+    try {
+      const token = await fetchToken();
+      if (!token) throw new Error('Session not ready.');
+      await setDriverVerifiedBadge(token, driverProfileId, verified);
+      await loadDrivers();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update verified badge.');
+    } finally {
+      setActingId(null);
+    }
+  };
+
   const onDriverVisibility = async (driverProfileId: string, status: AdminListingMarketplaceStatus) => {
     setActingId(driverProfileId);
     try {
@@ -512,7 +527,7 @@ export default function AdminDriversPage() {
     <main className={adminPage}>
       <AdminPageHeader
         title="Drivers"
-        description="Approve chauffeurs for city, outstation, airport, and tour work. Drivers keep 90% of each booking."
+        description="Approve drivers before they appear on the site. Use Verify for the public verified badge (separate from approval)."
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <select
@@ -573,6 +588,7 @@ export default function AdminDriversPage() {
                 <th className="px-5 py-3 text-xs font-black uppercase tracking-wider">Experience</th>
                 <th className="px-5 py-3 text-xs font-black uppercase tracking-wider">Daily Rate</th>
                 <th className="px-5 py-3 text-xs font-black uppercase tracking-wider">Status</th>
+                <th className="px-5 py-3 text-xs font-black uppercase tracking-wider">Verified</th>
                 <th className="px-5 py-3 text-xs font-black uppercase tracking-wider">Visibility</th>
                 <th className="px-5 py-3 text-xs font-black uppercase tracking-wider">City</th>
                 <th className="px-5 py-3 text-xs font-black uppercase tracking-wider">Joined</th>
@@ -581,10 +597,10 @@ export default function AdminDriversPage() {
             </thead>
             <tbody>
               {loading ? (
-                Array.from({ length: 5 }).map((_, i) => <TableRowSkeleton key={i} cols={9} />)
+                Array.from({ length: 5 }).map((_, i) => <TableRowSkeleton key={i} cols={10} />)
               ) : data.items.length === 0 ? (
                 <tr>
-                  <td className="px-5 py-10 text-center font-semibold text-muted-foreground" colSpan={9}>
+                  <td className="px-5 py-10 text-center font-semibold text-muted-foreground" colSpan={10}>
                     {filters.status === 'pending_approval' ? 'No pending driver applications.' : 'No driver profiles found.'}
                   </td>
                 </tr>
@@ -613,6 +629,34 @@ export default function AdminDriversPage() {
                       >
                         {(driver.status ?? 'draft').replace('_', ' ')}
                       </span>
+                    </td>
+                    <td className="px-5 py-3">
+                      {driver.status === 'approved' ? (
+                        driver.adminVerifiedAt ? (
+                          <div className="flex flex-col gap-1">
+                            <span className="text-xs font-black text-emerald-800">Yes</span>
+                            <button
+                              type="button"
+                              disabled={actingId === driver.id}
+                              onClick={() => void onDriverVerified(driver.id, false)}
+                              className="text-left text-[10px] font-bold text-muted-foreground underline hover:text-ink"
+                            >
+                              Remove badge
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={actingId === driver.id}
+                            onClick={() => void onDriverVerified(driver.id, true)}
+                            className="rounded border border-brand bg-brand-soft px-2 py-1 text-[10px] font-black uppercase text-brand shadow-brutal-xs"
+                          >
+                            Mark verified
+                          </button>
+                        )
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
                     </td>
                     <td className="px-5 py-3">
                       {driver.status === 'approved' ? (

@@ -27,9 +27,12 @@ export function driverLeadPrice(driver: DriverRateFields): DriverLeadPrice | nul
   return null;
 }
 
-/** Admin-approved driver profile (platform verification badge). */
-export function isDriverVerified(status?: string | null): boolean {
-  return status === 'approved';
+/** Platform verified badge (separate from admin approval for listing visibility). */
+export function isDriverVerified(driver: { verified?: boolean; status?: string | null }): boolean {
+  if (driver.verified !== undefined) {
+    return driver.verified;
+  }
+  return false;
 }
 
 export function driverPublicAreas(driver: { serviceAreas?: string[]; primaryCity?: string }): string {

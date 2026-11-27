@@ -19,6 +19,7 @@ import { assertAndRecordProviderAgreement } from '../common/provider-agreement.u
 import { prisma } from '../database/prisma';
 import { driverIsBookedNow } from '../bookings/booking-desk.util';
 import type { MarketplaceVisibilityStatus } from '../common/dto/marketplace-visibility.dto';
+import { assertDriverProfileReadyForReview } from './driver-enrollment.validation';
 import { CreateDriverProfileDto, UpdateDriverProfileDto } from './dto/upsert-driver-profile.dto';
 
 type DriverProfileWithUser = Prisma.DriverProfileGetPayload<{
@@ -246,23 +247,7 @@ export class DriversService {
       throw new BadRequestException('Your application is already pending review.');
     }
 
-    if (!profile.idDocumentUrl || !profile.licenseDocumentUrl) {
-      throw new BadRequestException('Upload your national ID and driving license before submitting.');
-    }
-
-    if (!profile.user.avatarUrl) {
-      throw new BadRequestException('Upload a profile photo before submitting.');
-    }
-
-    if (!profile.user.phone?.trim()) {
-      throw new BadRequestException('Add a phone number before submitting.');
-    }
-
-    const daily = Number(profile.dailyRateRwf);
-    const monthly = profile.monthlyRateRwf ? Number(profile.monthlyRateRwf) : null;
-    if (daily < 1000 && (!monthly || monthly < 1000)) {
-      throw new BadRequestException('Set your daily or monthly rate before submitting.');
-    }
+    assertDriverProfileReadyForReview(profile);
 
     const updated = await prisma.driverProfile.update({
       where: { id: profile.id },
@@ -271,6 +256,7 @@ export class DriversService {
         submittedAt: new Date(),
         rejectionReason: null,
         reviewedAt: null,
+        adminVerifiedAt: null,
       },
       include: {
         user: {
@@ -375,7 +361,7 @@ export class DriversService {
       },
     });
 
-    if (!profile || profile.status === DriverProfileStatus.draft) {
+    if (!profile || profile.status !== DriverProfileStatus.approved) {
       throw new NotFoundException('Driver profile not found.');
     }
 
@@ -465,7 +451,7 @@ export class DriversService {
       : null;
     const isSelf = caller?.id === profile.userId;
 
-    if (profile.status === DriverProfileStatus.draft && !isSelf) {
+    if (profile.status !== DriverProfileStatus.approved && !isSelf) {
       throw new NotFoundException('Driver profile not found.');
     }
     let bookingConfirmed = false;
@@ -480,8 +466,13 @@ export class DriversService {
       });
       bookingConfirmed = confirmed !== null;
     }
+    const showContact =
+      isSelf ||
+      bookingConfirmed ||
+      profile.status === DriverProfileStatus.approved;
     return this.mapProfile(profile, Boolean(authUser), {
-      showContact: isSelf || bookingConfirmed,
+      showContact,
+      showHomeAddress: isSelf,
       isBookedNow: await driverIsBookedNow(profile.userId),
     });
   }
@@ -523,6 +514,7 @@ export class DriversService {
       updateData.submittedAt = new Date();
       updateData.rejectionReason = null;
       updateData.reviewedAt = null;
+      updateData.adminVerifiedAt = null;
       return;
     }
     if (currentStatus === DriverProfileStatus.pending_approval) {
@@ -533,7 +525,7 @@ export class DriversService {
   private mapProfile(
     profile: DriverProfileWithUser,
     includeExactRates: boolean,
-    extras?: { showContact?: boolean; isBookedNow?: boolean },
+    extras?: { showContact?: boolean; showHomeAddress?: boolean; isBookedNow?: boolean },
   ) {
     const dailyRate = Number(profile.dailyRateRwf);
     const hourlyRate = profile.hourlyRateRwf ? Number(profile.hourlyRateRwf) : null;
@@ -560,10 +552,11 @@ export class DriversService {
       serviceAreas: profile.serviceAreas,
       licenseCategories: profile.licenseCategories,
       transmission: profile.transmission,
-      addressText: profile.addressText,
+      addressText: extras?.showHomeAddress ? profile.addressText : null,
       idDocumentUrl: includeExactRates || extras?.showContact ? profile.idDocumentUrl : null,
       licenseDocumentUrl: includeExactRates || extras?.showContact ? profile.licenseDocumentUrl : null,
       status: profile.status,
+      verified: profile.adminVerifiedAt != null,
       marketplaceVisibility: profile.marketplaceVisibility,
       rejectionReason: includeExactRates ? profile.rejectionReason : null,
       submittedAt: includeExactRates ? profile.submittedAt : null,

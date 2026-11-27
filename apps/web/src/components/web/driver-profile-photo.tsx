@@ -1,10 +1,11 @@
 'use client';
 
-import { ShieldCheck, UserRound } from 'lucide-react';
+import { UserRound } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
 import { InitialsAvatar } from '@/components/web/initials-avatar';
 import { MediaImage } from '@/components/web/media-image';
+import { VerifiedPhotoMark } from '@/components/web/verified-badge';
 
 type DriverProfilePhotoProps = {
   name: string;
@@ -38,11 +39,7 @@ export function DriverProfilePhoto({
           <UserRound className="h-3 w-3" strokeWidth={2.5} />
           {t('viewDriverProfile')}
         </span>
-        {verified ? (
-          <span className="absolute right-3 top-3 inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500 text-white shadow-sm">
-            <ShieldCheck className="h-4 w-4" strokeWidth={2.5} aria-label={t('verified')} />
-          </span>
-        ) : null}
+        {verified ? <VerifiedPhotoMark label={t('verified')} className="left-3 bottom-3" /> : null}
       </div>
     );
   }
@@ -57,11 +54,7 @@ export function DriverProfilePhoto({
             <InitialsAvatar name={name} src={null} size={64} shape="portrait" className="!border-brand/15" />
           </div>
         )}
-        {verified ? (
-          <span className="absolute right-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500 text-white shadow-sm">
-            <ShieldCheck className="h-4 w-4" strokeWidth={2.5} aria-label={t('verified')} />
-          </span>
-        ) : null}
+        {verified ? <VerifiedPhotoMark label={t('verified')} /> : null}
       </div>
     </div>
   );

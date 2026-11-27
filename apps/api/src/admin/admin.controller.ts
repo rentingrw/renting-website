@@ -236,6 +236,18 @@ export class AdminController {
     return this.adminService.approveDriver(driverProfileId);
   }
 
+  @Post('drivers/:id/verify')
+  @ApiOperation({ summary: 'Award the platform verified badge to an approved driver' })
+  verifyDriver(@Param('id') driverProfileId: string) {
+    return this.adminService.setDriverAdminVerified(driverProfileId, true);
+  }
+
+  @Post('drivers/:id/unverify')
+  @ApiOperation({ summary: 'Remove the platform verified badge from a driver' })
+  unverifyDriver(@Param('id') driverProfileId: string) {
+    return this.adminService.setDriverAdminVerified(driverProfileId, false);
+  }
+
   @Patch('drivers/:id/marketplace-status')
   @ApiOperation({ summary: 'Set driver visibility in search: active, inactive, or booked' })
   setDriverMarketplaceStatus(

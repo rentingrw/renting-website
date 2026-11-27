@@ -3,24 +3,25 @@
 import { useTranslations } from 'next-intl';
 
 import { DriverProfilePhoto } from '@/components/web/driver-profile-photo';
+import { VerifiedBadge } from '@/components/web/verified-badge';
 import { isDriverVerified } from '@/lib/driver-listing-price';
 
 type DriverProfileHeroProps = {
   name: string;
   photo?: string | null;
-  profileStatus?: string | null;
+  verified?: boolean;
   bookedNow?: boolean;
 };
 
 export function DriverProfileHero({
   name,
   photo,
-  profileStatus,
+  verified: verifiedProp = false,
   bookedNow = false,
 }: DriverProfileHeroProps) {
   const tListing = useTranslations('web.listing');
   const tDetail = useTranslations('web.detail');
-  const verified = isDriverVerified(profileStatus);
+  const verified = isDriverVerified({ verified: verifiedProp });
 
   return (
     <section className="mb-6 overflow-hidden rounded-2xl border border-border/80 bg-card shadow-card">
@@ -29,11 +30,7 @@ export function DriverProfileHero({
         <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-black text-ink md:text-3xl">{name}</h1>
           <div className="mt-2.5 flex flex-wrap items-center gap-2">
-            {verified ? (
-              <span className="rounded-full bg-brand/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-brand">
-                {tDetail('verified')}
-              </span>
-            ) : null}
+            {verified ? <VerifiedBadge label={tDetail('verified')} size="hero" /> : null}
             {bookedNow ? (
               <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-900">
                 {tListing('booked')}

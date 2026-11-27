@@ -328,6 +328,7 @@
     },
     "driver": {
       "profile": "Driver",
+      "contactTitle": "Contact",
       "aboutTitle": "About this driver",
       "experienceLabel": "Experience",
       "languagesHeading": "Languages",
@@ -342,6 +343,8 @@
       "licenseCategories": "License categories",
       "drivingCapability": "Transmission",
       "availabilityModes": "Usual availability",
+      "phoneLabel": "Phone",
+      "phoneAfterBooking": "Shared when your booking is confirmed",
       "certifications": "Certifications",
       "noCertifications": "None listed.",
       "completedTrips": "{count} trips",

@@ -328,6 +328,7 @@
     },
     "driver": {
       "profile": "Chauffeur",
+      "contactTitle": "Contact",
       "aboutTitle": "À propos de ce chauffeur",
       "experienceLabel": "Expérience",
       "languagesHeading": "Langues",
@@ -342,6 +343,8 @@
       "licenseCategories": "Catégories de permis",
       "drivingCapability": "Transmission",
       "availabilityModes": "Disponibilité habituelle",
+      "phoneLabel": "Téléphone",
+      "phoneAfterBooking": "Communiqué une fois la réservation confirmée",
       "certifications": "Certifications",
       "noCertifications": "Aucune certification renseignee.",
       "completedTrips": "{count} trajets",

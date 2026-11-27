@@ -287,6 +287,7 @@ model DriverProfile {
   rejectionReason      String?          @map("rejection_reason")
   submittedAt          DateTime?        @map("submitted_at")
   reviewedAt           DateTime?        @map("reviewed_at")
+  adminVerifiedAt      DateTime?        @map("admin_verified_at")
   availabilityCalendar Json             @map("availability_calendar")
   rating               Decimal?         @db.Decimal(3, 2)
   completedTrips       Int              @default(0) @map("completed_trips")

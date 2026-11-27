@@ -1563,11 +1563,38 @@ export class AdminService {
     this.notificationsService.queueEmailToUsers(
       [profile.userId],
       'Your driver profile is approved — renting.rw',
-      `Hi ${profile.user.fullName}, your driver application has been approved. Your verified badge is now on your profile.`,
-      `<p>Hi ${profile.user.fullName},</p><p>Your driver application has been approved. You now have the verified badge on renting.rw (your profile was already discoverable in search).</p>`,
+      `Hi ${profile.user.fullName}, your driver application has been approved. Your profile is now visible on renting.rw.`,
+      `<p>Hi ${profile.user.fullName},</p><p>Your driver application has been approved. Customers can now find and book you on renting.rw.</p><p>Our team may award a separate verified badge after additional checks.</p>`,
     );
 
     return updated;
+  }
+
+  async setDriverAdminVerified(driverProfileId: string, verified: boolean) {
+    const profile = await prisma.driverProfile.findUnique({
+      where: { id: driverProfileId },
+      include: { user: { select: { fullName: true } } },
+    });
+    if (!profile) throw new NotFoundException('Driver profile not found.');
+    if (profile.status !== DriverProfileStatus.approved) {
+      throw new BadRequestException('Only approved drivers can receive the verified badge.');
+    }
+
+    const updated = await prisma.driverProfile.update({
+      where: { id: driverProfileId },
+      data: { adminVerifiedAt: verified ? new Date() : null },
+    });
+
+    if (verified) {
+      this.notificationsService.queueEmailToUsers(
+        [profile.userId],
+        'Verified badge on your driver profile — renting.rw',
+        `Hi ${profile.user.fullName}, your driver profile now displays the renting.rw verified badge.`,
+        `<p>Hi ${profile.user.fullName},</p><p>Your driver profile has been marked as verified. The verified badge is now visible to customers on renting.rw.</p>`,
+      );
+    }
+
+    return { ...updated, adminVerified: verified };
   }
 
   async rejectDriver(driverProfileId: string, payload: RejectListingDto) {
@@ -1586,6 +1613,7 @@ export class AdminService {
         status: DriverProfileStatus.rejected,
         reviewedAt: new Date(),
         rejectionReason: payload.reason.trim(),
+        adminVerifiedAt: null,
       },
     });
 

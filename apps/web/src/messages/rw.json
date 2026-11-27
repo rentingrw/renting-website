@@ -328,6 +328,7 @@
     },
     "driver": {
       "profile": "Umushoferi",
+      "contactTitle": "Itumanaho",
       "aboutTitle": "Uku ushobora kumenya uyu mushoferi",
       "experienceLabel": "Uburambe",
       "languagesHeading": "Indimi",
@@ -342,6 +343,8 @@
       "licenseCategories": "Ubwoko bw'uruhushya",
       "drivingCapability": "Transmission",
       "availabilityModes": "Igihe akunze kuba aboneka",
+      "phoneLabel": "Telefoni",
+      "phoneAfterBooking": "Itangwa reservation yemejwe",
       "certifications": "Impamyabushobozi",
       "noCertifications": "Nta mpamyabushobozi zashyizweho.",
       "completedTrips": "Ingendo {count} zarangiye",

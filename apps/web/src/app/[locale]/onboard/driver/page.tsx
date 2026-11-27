@@ -155,18 +155,10 @@ export default function DriverOnboardPage({ params }: { params: Promise<{ locale
     const daily = dailyRateRwf.trim() ? Number(dailyRateRwf) : 0;
     const weekly = weeklyRateRwf.trim() ? Number(weeklyRateRwf) : undefined;
     const monthly = monthlyRateRwf.trim() ? Number(monthlyRateRwf) : undefined;
-    const dailyForApi =
-      daily >= 1000
-        ? daily
-        : weekly && weekly >= 1000
-          ? Math.max(1000, Math.round(weekly / 7))
-          : monthly && monthly >= 1000
-            ? Math.max(1000, Math.round(monthly / 30))
-            : 1000;
     return {
       ...DRIVER_PROFILE_API_DEFAULTS,
       yearsExperience,
-      dailyRateRwf: dailyForApi,
+      dailyRateRwf: daily >= 1000 ? daily : 1000,
       ...(weekly !== undefined && weekly >= 1000 ? { weeklyRateRwf: weekly } : {}),
       ...(monthly !== undefined && monthly >= 1000 ? { monthlyRateRwf: monthly } : {}),
       primaryCity: city,
@@ -241,20 +233,16 @@ export default function DriverOnboardPage({ params }: { params: Promise<{ locale
       const daily = dailyRateRwf.trim() ? Number(dailyRateRwf) : 0;
       const weekly = weeklyRateRwf.trim() ? Number(weeklyRateRwf) : 0;
       const monthly = monthlyRateRwf.trim() ? Number(monthlyRateRwf) : 0;
-      if (daily < 1000 && weekly < 1000 && monthly < 1000) {
-        setError('Enter at least one rate: daily, weekly, or monthly (minimum 1,000 RWF each).');
+      if (daily < 1000) {
+        setError('Daily rate is required (minimum 1,000 RWF).');
         return;
       }
-      if (daily > 0 && daily < 1000) {
-        setError('Daily rate must be at least 1,000 RWF.');
+      if (weekly < 1000) {
+        setError('Weekly rate is required (minimum 1,000 RWF).');
         return;
       }
-      if (weekly > 0 && weekly < 1000) {
-        setError('Weekly rate must be at least 1,000 RWF.');
-        return;
-      }
-      if (monthly > 0 && monthly < 1000) {
-        setError('Monthly rate must be at least 1,000 RWF.');
+      if (monthly < 1000) {
+        setError('Monthly rate is required (minimum 1,000 RWF).');
         return;
       }
     }
@@ -490,16 +478,17 @@ export default function DriverOnboardPage({ params }: { params: Promise<{ locale
       {step === 7 ? (
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Tell customers what you charge. Enter at least one of daily, weekly, or monthly rate (min. 1,000 RWF each).
+            Enter daily, weekly, and monthly rates (minimum 1,000 RWF each). All three appear on your public profile.
           </p>
           <div>
             <label className={onboardLabelClass} htmlFor="driver-daily-rate">
-              Rate per day (RWF)
+              Rate per day (RWF) *
             </label>
             <input
               id="driver-daily-rate"
               type="number"
               min={1000}
+              required
               className={onboardInputClass}
               value={dailyRateRwf}
               onChange={(e) => setDailyRateRwf(e.target.value)}
@@ -508,12 +497,13 @@ export default function DriverOnboardPage({ params }: { params: Promise<{ locale
           </div>
           <div>
             <label className={onboardLabelClass} htmlFor="driver-weekly-rate">
-              Rate per week (RWF)
+              Rate per week (RWF) *
             </label>
             <input
               id="driver-weekly-rate"
               type="number"
               min={1000}
+              required
               className={onboardInputClass}
               value={weeklyRateRwf}
               onChange={(e) => setWeeklyRateRwf(e.target.value)}
@@ -522,12 +512,13 @@ export default function DriverOnboardPage({ params }: { params: Promise<{ locale
           </div>
           <div>
             <label className={onboardLabelClass} htmlFor="driver-monthly-rate">
-              Rate per month (RWF)
+              Rate per month (RWF) *
             </label>
             <input
               id="driver-monthly-rate"
               type="number"
               min={1000}
+              required
               className={onboardInputClass}
               value={monthlyRateRwf}
               onChange={(e) => setMonthlyRateRwf(e.target.value)}

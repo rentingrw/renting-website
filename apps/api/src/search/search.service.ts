@@ -82,6 +82,7 @@ interface SearchDriverRow {
   dailyRateRwf: number;
   hourlyRateRwf: number | null;
   weeklyRateRwf: number | null;
+  monthlyRateRwf: number | null;
   createdAt: Date;
   updatedAt: Date;
   distanceMeters: number | null;
@@ -89,6 +90,7 @@ interface SearchDriverRow {
   primaryCityLongitude: number | null;
   searchRank: number;
   isBookedNow: boolean;
+  adminVerifiedAt: Date | null;
 }
 
 @Injectable()
@@ -426,7 +428,7 @@ export class SearchService {
       conditions.push(Prisma.sql`dp.years_experience >= ${query.experienceMin}`);
     }
 
-    conditions.push(Prisma.sql`dp.status <> 'draft'::"DriverProfileStatus"`);
+    conditions.push(Prisma.sql`dp.status = 'approved'::"DriverProfileStatus"`);
     conditions.push(Prisma.sql`dp.marketplace_visibility = 'active'::"MarketplaceVisibility"`);
 
     if (query.availableNow) {
@@ -451,6 +453,7 @@ export class SearchService {
         u.avatar_url AS "profilePhotoUrl",
         u.trust_score::float8 AS "trustScore",
         dp.status::text AS status,
+        dp.admin_verified_at AS "adminVerifiedAt",
         dp.driver_category AS "driverCategory",
         dp.years_experience AS "yearsExperience",
         dp.biography,
@@ -466,6 +469,7 @@ export class SearchService {
         dp.daily_rate_rwf::float8 AS "dailyRateRwf",
         dp.hourly_rate_rwf::float8 AS "hourlyRateRwf",
         dp.weekly_rate_rwf::float8 AS "weeklyRateRwf",
+        dp.monthly_rate_rwf::float8 AS "monthlyRateRwf",
         dp.created_at AS "createdAt",
         dp.updated_at AS "updatedAt",
         ${
@@ -517,7 +521,7 @@ export class SearchService {
       profilePhotoUrl: row.profilePhotoUrl,
       trustScore: row.trustScore,
       status: row.status,
-      verified: row.status === 'approved',
+      verified: row.adminVerifiedAt != null,
       driverCategory: row.driverCategory,
       yearsExperience: row.yearsExperience,
       biography: row.biography,
@@ -541,6 +545,7 @@ export class SearchService {
         ? {
             hourlyRateRwf: row.hourlyRateRwf,
             weeklyRateRwf: row.weeklyRateRwf,
+            monthlyRateRwf: row.monthlyRateRwf,
           }
         : {}),
     }));

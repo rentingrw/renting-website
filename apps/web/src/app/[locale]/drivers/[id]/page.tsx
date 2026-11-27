@@ -120,19 +120,13 @@ export default function DriverDetailPage({ params }: DriverPageProps) {
   const bookLabel = bookedNow ? t('detail.unavailable') : t('booking.requestButton');
 
   const rateRows = [
-    detail.dailyRateRwf != null
-      ? { label: t('driver.dailyRate'), value: formatCurrencyRwf(detail.dailyRateRwf) }
-      : null,
-    detail.weeklyRateRwf != null
-      ? { label: t('driver.weeklyRate'), value: formatCurrencyRwf(detail.weeklyRateRwf) }
-      : null,
-    detail.monthlyRateRwf != null
-      ? { label: t('driver.monthlyRate'), value: formatCurrencyRwf(detail.monthlyRateRwf) }
-      : null,
-    detail.hourlyRateRwf != null
-      ? { label: t('driver.hourlyRate'), value: formatCurrencyRwf(detail.hourlyRateRwf) }
-      : null,
-  ].filter(Boolean) as Array<{ label: string; value: string }>;
+    { label: t('driver.dailyRate'), value: formatCurrencyRwf(detail.dailyRateRwf ?? 0) },
+    { label: t('driver.weeklyRate'), value: formatCurrencyRwf(detail.weeklyRateRwf ?? 0) },
+    { label: t('driver.monthlyRate'), value: formatCurrencyRwf(detail.monthlyRateRwf ?? 0) },
+  ];
+  if (detail.hourlyRateRwf != null) {
+    rateRows.push({ label: t('driver.hourlyRate'), value: formatCurrencyRwf(detail.hourlyRateRwf) });
+  }
 
   return (
     <main className="min-h-screen bg-background">
@@ -141,7 +135,7 @@ export default function DriverDetailPage({ params }: DriverPageProps) {
         <DriverProfileHero
           name={detail.fullName}
           photo={detail.profilePhotoUrl}
-          profileStatus={detail.status}
+          verified={detail.verified}
           bookedNow={bookedNow}
         />
 
@@ -151,21 +145,17 @@ export default function DriverDetailPage({ params }: DriverPageProps) {
           <div className="lg:sticky lg:top-24">
             <div className="rounded-2xl border border-border bg-card p-5 shadow-card">
               <h2 className="text-sm font-black text-foreground">{t('driver.rateCard')}</h2>
-              {rateRows.length > 0 ? (
-                <ul className="mt-4 space-y-2">
-                  {rateRows.map((row) => (
-                    <li
-                      key={row.label}
-                      className="flex items-center justify-between gap-3 rounded-xl border border-border/80 bg-muted/25 px-3 py-2.5"
-                    >
-                      <span className="text-sm font-semibold text-muted-foreground">{row.label}</span>
-                      <span className="text-sm font-black tabular-nums text-brand">{row.value}</span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="mt-3 text-sm text-muted-foreground">{t('home.priceUnavailable')}</p>
-              )}
+              <ul className="mt-4 space-y-2">
+                {rateRows.map((row) => (
+                  <li
+                    key={row.label}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-border/80 bg-muted/25 px-3 py-2.5"
+                  >
+                    <span className="text-sm font-semibold text-muted-foreground">{row.label}</span>
+                    <span className="text-sm font-black tabular-nums text-brand">{row.value}</span>
+                  </li>
+                ))}
+              </ul>
 
               {bookedNow ? (
                 <p className="mt-4 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-bold text-amber-950">

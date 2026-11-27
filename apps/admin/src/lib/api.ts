@@ -847,6 +847,7 @@ export type AdminDriverItem = {
   primaryCity: string;
   createdAt: string;
   status?: string;
+  adminVerifiedAt?: string | null;
   marketplaceVisibility?: string;
   rejectionReason?: string | null;
   submittedAt?: string | null;
@@ -985,6 +986,18 @@ export async function approveDriverApplication(token: string, driverProfileId: s
     `/admin/drivers/${driverProfileId}/approve`,
     { method: 'POST' },
     'Failed to approve driver.',
+  );
+}
+
+export async function setDriverVerifiedBadge(token: string, driverProfileId: string, verified: boolean) {
+  const path = verified
+    ? `/admin/drivers/${driverProfileId}/verify`
+    : `/admin/drivers/${driverProfileId}/unverify`;
+  return authRequest<{ id: string; adminVerified: boolean }>(
+    token,
+    path,
+    { method: 'POST' },
+    verified ? 'Failed to mark driver as verified.' : 'Failed to remove verified badge.',
   );
 }
 
